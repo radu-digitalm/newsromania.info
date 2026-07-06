@@ -1,4 +1,7 @@
-# SEO Foundation — NewsRomania (step 1)
+# SEO Foundation — NewsRomania
+
+Written at step 1; refreshed at step 14 (Payload live, content DB-driven).
+Remaining gaps are listed under „Still open” at the end.
 
 Policy source: PROJECT_BRIEF Section 16. Code: `src/lib/seo.ts`, `src/app/robots.ts`,
 `src/app/sitemap.ts`. Everything below is split by the two content types
@@ -9,7 +12,7 @@ Policy source: PROJECT_BRIEF Section 16. Code: `src/lib/seo.ts`, `src/app/robots
 | Content type     | Detail page              | Canonical                                                                                                                                                                                                                           |
 | ---------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Original article | `/stiri/<slug>`          | **Self-canonical** — `absoluteUrl('/stiri/<slug>')`. This site IS the source.                                                                                                                                                       |
-| Aggregated item  | none in step 1           | n/a — cards link straight out to the publisher (`sourceUrl`, `rel="noopener nofollow"`). If aggregated items ever get any on-site page later, its canonical MUST point to the publisher's URL to avoid duplicate-content penalties. |
+| Aggregated item  | `/stiri/<slug>` (landing page: excerpt + attribution + link-out button) | **Canonical → the publisher's `sourceUrl`**, never ourselves — the publisher's page is the canonical one (avoids duplicate-content penalties). Cards and the landing page link out with `rel="noopener nofollow"`. |
 | Home / category  | `/`, `/categorie/<slug>` | Self-canonical.                                                                                                                                                                                                                     |
 | Legal pages      | `/<legal-slug>`          | Self-canonical but **noindex** while the texts are placeholders.                                                                                                                                                                    |
 
@@ -20,7 +23,8 @@ Canonical/metadata emission lives with the page owners (Next.js `metadata.altern
 ## JSON-LD policy (`articleJsonLd` in `src/lib/seo.ts`)
 
 - **Original** → full `NewsArticle`: `headline` (≤110 chars), `description` = excerpt,
-  `datePublished`, `dateModified` (mirrors publish until Payload provides a real `updatedAt`),
+  `datePublished`, `dateModified` (still mirrors publish — wiring Payload's real
+  `updatedAt` through `FeedItem` is an open item, see „Still open”),
   `inLanguage: 'ro'`, `articleSection` = category name, `author` = the real byline
   (`Person` for named journalists, `Organization` for the collective „Redacția NewsRomania”),
   `publisher` = Organization „NewsRomania" with `logo` → `/icons/icon-512.png`,
@@ -29,7 +33,7 @@ Canonical/metadata emission lives with the page owners (Next.js `metadata.altern
   authorship of others' work: no Article/NewsArticle markup, ever. Attribution is carried by
   the UI (source pill, named outbound link), not by structured data.
 - `websiteJsonLd()` (`WebSite` schema) is exported but **not wired** — render it once on `/`
-  later, and only add a `SearchAction` once `/cautare` accepts a query parameter.
+  later. `/cautare` accepts `?q=` now, so a `SearchAction` can be added when wiring it.
 
 ## OG / Twitter defaults
 
@@ -43,9 +47,11 @@ Canonical/metadata emission lives with the page owners (Next.js `metadata.altern
 ## robots.txt / sitemap.xml behavior
 
 - `robots.ts`: `User-agent: * / Allow: /`, plus `Sitemap: <absoluteUrl>/sitemap.xml`.
-  No disallows yet — `/admin` gets disallowed at step 3 when Payload lands.
-- `sitemap.ts`: `/` (hourly, 1.0), the 8 `/categorie/<slug>` pages (hourly, 0.7), and every
-  **original** article `/stiri/<slug>` (weekly, 0.8, `lastModified` from `publishedAt`).
+  ⚠️ Still no disallows: the planned `disallow: '/admin'` (+ Payload API routes) was
+  never added when Payload landed — open item („Still open” below).
+- `sitemap.ts`: DB-driven (`force-dynamic`, reads Payload via `getPublishedOriginals()` —
+  new publishes appear without a rebuild): `/` (hourly, 1.0), the 8 `/categorie/<slug>`
+  pages (hourly, 0.7), and every **original** article `/stiri/<slug>` (weekly, 0.8).
 - Excluded from the sitemap:
   - **Aggregated items** — their on-site landing pages (excerpt + attribution + link-out
     button, design §3.5) canonicalize to the publisher; the publisher's page is canonical.
@@ -53,21 +59,27 @@ Canonical/metadata emission lives with the page owners (Next.js `metadata.altern
     for now; a sitemap must never list noindex URLs. Re-add once finalized.
   - **/cautare** — internal search results stay noindex permanently.
 
-## What must change later
+## Status of the original „change later” list (step-14 refresh)
 
-**Step 3 (Payload CMS):**
+**Done:**
 
-- `sitemap.ts` switches from `@/lib/mock-data` to Payload queries; real `updatedAt` feeds both
-  the sitemap `lastModified` and JSON-LD `dateModified` (stop mirroring `datePublished`;
-  article pages also show „Actualizat: …" when edited).
-- `robots.ts` adds `disallow: '/admin'` (+ Payload API routes).
+- `sitemap.ts` switched from `@/lib/mock-data` to Payload queries (`getPublishedOriginals()`);
+  mock data replaced end to end (smoke.sh verifies: originals in the sitemap, aggregated not).
+- Aggregated items got their on-site landing pages (`/stiri/<slug>`) with
+  canonical → publisher, exactly per the policy above.
 
-**Step 5 (content seed / launch):**
+**Still open:**
 
-- Real content replaces mock data end to end; verify every seeded original article appears in
-  the sitemap and every seeded aggregated item does not.
-- Per-author pages (`/autor/<slug>`): add them to the sitemap and upgrade JSON-LD `author` with
-  a `url` pointing at the author page.
-- Legal texts finalized → lift the noindex and add the 4 legal pages to the sitemap.
+- `robots.ts` — add `disallow: '/admin'` (+ Payload API routes) so the editorial backend is
+  never crawled. Planned for the Payload step, not yet done.
+- JSON-LD `dateModified` / sitemap `lastModified` — still mirror `publishedAt`; Payload's
+  real `updatedAt` should flow through the `FeedItem` mapper (and article pages could show
+  „Actualizat: …" when edited).
+- `websiteJsonLd()` (`WebSite` schema) is exported but **not wired** — render it once on `/`;
+  `/cautare` accepts `?q=` now, so a `SearchAction` can be added at the same time.
+- Per-author pages (`/autor/<slug>`): add them to the sitemap and upgrade JSON-LD `author`
+  with a `url` pointing at the author page.
+- Legal texts are still placeholders (noindex): once finalized, lift the noindex and add the
+  legal pages to the sitemap.
 - Consider Google News-specific surfaces (news sitemap) only once original-article volume
   justifies it.

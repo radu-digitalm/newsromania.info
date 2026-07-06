@@ -26,6 +26,8 @@ coverage
 tmp
 
 # VCS / docs / ops (not needed to build the app)
+# NOTE: assets/ is NOT excluded — Header/Footer statically import the logo
+# PNGs from it (bundled by next build); the whole directory is ~64K.
 .git
 .gitignore
 docs
@@ -34,7 +36,6 @@ tests
 README.md
 CLAUDE.md
 PROJECT_BRIEF.md
-assets
 
 # OS / editor
 .DS_Store

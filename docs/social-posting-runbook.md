@@ -29,7 +29,8 @@ worker (hourly)          editor (/admin)          Claude in Chrome
   editor flipped to `approved` in `/admin` are executed.
 - Manual run / preview:
   `npx payload run scripts/worker/social.mjs -- --dry-run` (no LLM, no
-  writes) · `-- --limit N` caps the stories per run.
+  writes) · `-- --limit N` caps the stories per run (never above 15).
+  Env equivalents: `SOCIAL_DRY_RUN=1`, `SOCIAL_LIMIT=N`.
 
 ## Step 1 — Editorial review (owner/editor, in /admin)
 

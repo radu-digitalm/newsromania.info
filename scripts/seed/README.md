@@ -81,4 +81,9 @@ confirmation happens in the Payload admin.
 - `fixtures-source.ts` — frozen verbatim copy of the old mock data
   (reference only; not imported at runtime).
 - `import-wordpress.mjs` — separate one-time WordPress import (arch §8 /
-  brief §22), documented separately once built.
+  brief §22): last 14 days from the owner's WP site, classified
+  original vs aggregated, idempotent (originals dedup by slug, aggregated
+  by guid). Run: `npx payload run scripts/seed/import-wordpress.mjs`.
+  Optional budgets via env: `IMPORT_MAX_SUMMARIES` (default 60),
+  `IMPORT_MAX_IMAGES` (default 30), `IMPORT_LIMIT` (dev/test).
+  Execution report: [`IMPORT-REPORT.md`](IMPORT-REPORT.md).

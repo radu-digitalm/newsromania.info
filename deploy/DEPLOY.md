@@ -52,7 +52,8 @@ The VPS disk is shared and tight. Check first, clean after:
 ```bash
 df -h /                                  # need >= 3 GB free — otherwise STOP
 docker compose --profile app build       # multi-stage, no secrets in layers
-docker builder prune -f                  # drop build cache immediately
+docker image prune -f                    # drop dangling stage images immediately
+                                         # (classic builder; `builder prune` is a no-op here)
 df -h /                                  # report the delta
 ```
 

@@ -65,9 +65,15 @@ Group **„Rețele de publicitate" → „Unități AdSense"**. Add one row per 
 ### 3. Wait ≤ 5 minutes, then verify
 
 - The engine caches the config in Redis (`newsromania:ads:config`, TTL 5 min);
-  changes go live on their own within 5 minutes. To force it immediately:
-  `docker exec -it <redis-container> redis-cli DEL newsromania:ads:config`
-  (never `FLUSHALL`).
+  changes go live on their own within 5 minutes. To force it immediately
+  (Redis requires auth; `$REDIS_PASSWORD` is already set inside the container):
+
+  ```bash
+  docker exec newsromania-redis sh -c \
+    'redis-cli -a "$REDIS_PASSWORD" DEL newsromania:ads:config'
+  ```
+
+  Only ever `DEL` that one key — never `FLUSHALL`/`FLUSHDB`.
 - Open the site: each configured slot's `<ins class="adsbygoogle">` now has a
   `data-ad-slot` attribute and requests a fill (one `adsbygoogle.push()` per
   slot, idempotent). New units can take **hours up to ~1 day** on Google's
@@ -118,17 +124,19 @@ seed: `www.amazon.de` → `newsr01-21` — **pending your confirmation**.
 
 ## Where revenue reporting will appear
 
-- **Admin dashboard (placeholder):** the ad-performance dashboard from
-  PROJECT_BRIEF §17 (impressions, CTR, revenue per placement/region/category)
-  ships with the admin dashboard build step (build order step 13). Until
-  then, the groundwork already in place: every rendered slot is auditable in
-  the DOM (`data-ad-slot`, `data-npa`), placements/positions are
-  deterministic, and CDP events give per-category traffic denominators.
+- **Admin ops dashboard (shipped, step 13):** the `/admin` landing page shows
+  the operational panel (`OpsDashboard` → `/api/admin/ops-stats`) with the ad
+  **configuration** state (units configured, Amazon tags) plus CDP counters
+  that include `ad_impression`/`ad_click` events. It does NOT pull
+  revenue/CTR figures — the groundwork for that is in place (every rendered
+  slot is auditable in the DOM via `data-ad-slot`/`data-npa`, placements are
+  deterministic, CDP events give per-category traffic denominators), but
+  revenue itself lives in the networks' own dashboards below.
 - **AdSense:** revenue lives in the AdSense dashboard (Reports → by ad unit —
   this is why units are named per placement above). No AdSense reporting API
   integration is planned short-term; check it alongside the dashboard.
 - **Amazon:** real earnings data comes from the Creators API
   `listReports`/`getReport` operations (vendored SDK,
-  `vendor/creatorsapi-nodejs-sdk`) — a scheduled fetch into the step-13
-  dashboard is the plan of record; until then use the Associates Central
-  reports UI.
+  `vendor/creatorsapi-nodejs-sdk`) — a scheduled fetch into the ops
+  dashboard remains a future enhancement; until then use the Associates
+  Central reports UI.
