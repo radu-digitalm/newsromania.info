@@ -11,9 +11,19 @@
     "icons": "node scripts/build-icons.mjs"
   },
   "dependencies": {
+    "@payloadcms/db-postgres": "^3.85.2",
+    "@payloadcms/next": "^3.85.2",
+    "@payloadcms/richtext-lexical": "^3.85.2",
+    "@payloadcms/ui": "^3.85.2",
+    "geoip-lite": "^2.0.3",
+    "graphql": "^16.14.2",
+    "ioredis": "^5.11.1",
     "next": "^16.2.10",
+    "openai": "^6.45.0",
+    "payload": "^3.85.2",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "rss-parser": "^3.13.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
@@ -27,11 +37,15 @@
     "prettier": "^3.9.4",
     "sharp": "^0.35.3",
     "tailwindcss": "^4.3.2",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   },
   "allowScripts": {
     "sharp@0.34.5": true,
     "sharp@0.35.3": true,
-    "unrs-resolver@1.12.2": true
+    "unrs-resolver@1.12.2": true,
+    "esbuild@0.18.20": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.1": true
   }
 }

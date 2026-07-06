@@ -1,0 +1,87 @@
+# newsromania — own rootless-Docker stack (CLAUDE.md §5/§21.3 conformant):
+# internal network; ONLY the app's :3100 is published beyond loopback.
+# Postgres/Redis expose loopback-only dev ports inside the reserved
+# 3100–3199 range (host-side workers/migrations/backups); never public.
+name: newsromania
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: newsromania-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - '127.0.0.1:3132:5432'
+    networks: [internal]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+  redis:
+    image: redis:7-alpine
+    container_name: newsromania-redis
+    restart: unless-stopped
+    command:
+      [
+        'redis-server',
+        '--requirepass', '${REDIS_PASSWORD}',
+        '--maxmemory', '200mb',
+        '--maxmemory-policy', 'allkeys-lru',
+        '--appendonly', 'no',
+      ]
+    ports:
+      - '127.0.0.1:3179:6379'
+    networks: [internal]
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a $${REDIS_PASSWORD} ping | grep PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+  # App service (production runtime) — enabled with: docker compose --profile app up
+  app:
+    profiles: [app]
+    build: .
+    container_name: newsromania-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # container-perspective overrides of the host-perspective .env values
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://default:${REDIS_PASSWORD}@redis:6379
+      PORT: '3100'
+      NODE_ENV: production
+    ports:
+      - '127.0.0.1:3100:3100'
+    volumes:
+      - ./media:/app/media
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [internal]
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  pgdata:
