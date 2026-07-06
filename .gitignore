@@ -1,0 +1,25 @@
+# --- secrets (NEVER commit) ---
+.env
+.env.*
+!.env.example
+
+# --- dependencies / builds ---
+node_modules/
+.next/
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+
+# --- runtime data ---
+media/
+uploads/
+*.log
+logs/
+coverage/
+tmp/
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/
