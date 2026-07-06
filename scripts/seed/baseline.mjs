@@ -193,6 +193,12 @@ try {
             },
           ],
         },
+        // Country → region/adSet mapping consumed by resolveGeo(); unmatched
+        // countries degrade to region/adSet 'default'.
+        localeRules: [
+          { country: 'GB', region: 'UK', adSet: 'UK' },
+          { country: 'RO', region: 'RO', adSet: 'RO' },
+        ],
         adFrequency: [
           { region: 'UK', everyNth: 3 },
           { region: 'RO', everyNth: 5 },

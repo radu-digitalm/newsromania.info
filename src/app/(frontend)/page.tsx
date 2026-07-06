@@ -5,6 +5,8 @@ import { ArticleCard, ArticleTitleLink } from '@/components/articles/ArticleCard
 import { FeedList } from '@/components/articles/FeedList'
 import { NextPageLink } from '@/components/articles/NextPageLink'
 import { formatFeedDate } from '@/components/articles/format-date'
+import { decisionFor } from '@/lib/ads/engine'
+import { getRequestAdPlan } from '@/lib/ads/plan-for-request'
 import { getFeaturedArticle, getFeed } from '@/lib/content'
 import type { FeedItem } from '@/types/content'
 
@@ -127,11 +129,14 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const parsed = Number.parseInt(pageParam ?? '1', 10)
   const page = Number.isNaN(parsed) || parsed < 1 ? 1 : parsed
 
-  const [featured, feed, firstPage] = await Promise.all([
+  const [featured, feed, firstPage, adPlan] = await Promise.all([
     getFeaturedArticle(),
     getFeed({ page }),
     // Rails always reflect the newest items, regardless of ?page= (as before).
     getFeed({ page: 1 }),
+    // Per-request ad decisions (architecture.md §4): geo + consent + profile.
+    // No category on the homepage — keywords stay profile/consent-driven only.
+    getRequestAdPlan(),
   ])
 
   // The hero never repeats in the lists below it.
@@ -173,19 +178,20 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       )}
 
       {/* Leaderboard — desktop only, once, between hero band and main feed (§3.3.6). */}
-      <AdSlot variant="leaderboard" />
+      <AdSlot variant="leaderboard" decision={decisionFor(adPlan, 'leaderboard')} />
 
       <SectionRule title="Ultimele știri" />
 
       {/* Main feed + rail — 8+4 split ≥1024px, 7/5 on tablets (§3.3.3–4). */}
       <div className="grid gap-10 md:grid-cols-12 md:gap-6">
         <div className="md:col-span-7 lg:col-span-8">
-          {/* In-feed AdSlots at the fixed positions: after rows 4 and 12 (§3.3.3). */}
-          <FeedList items={pageItems} withAds headingAs="h3" />
+          {/* In-feed AdSlots at region-frequency positions (everyNth from the
+              ad plan: rows n, 2n, 3n — §6.2), decided server-side per request. */}
+          <FeedList items={pageItems} adPlan={adPlan} headingAs="h3" />
           {hasNextPage && <NextPageLink href={`/?page=${page + 1}`} />}
         </div>
         <aside className="md:col-span-5 lg:col-span-4">
-          <AdSlot variant="rail" />
+          <AdSlot variant="rail" decision={decisionFor(adPlan, 'rail')} />
           {/* Only the list block is sticky — never the ad (§3.3.4). */}
           <div className="lg:sticky lg:top-16">
             <MostReadRail items={mostRead} />

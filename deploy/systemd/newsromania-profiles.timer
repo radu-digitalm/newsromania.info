@@ -1,0 +1,16 @@
+# newsromania-profiles.timer — pornește agregarea profilelor CDP la fiecare
+# 10 minute. Unitate systemd de UTILIZATOR (systemctl --user).
+
+[Unit]
+Description=NewsRomania — timer agregare profile CDP (la fiecare 10 min)
+
+[Timer]
+OnCalendar=*:0/10
+# Recuperează o rulare pierdută (ex. după repornirea serverului).
+Persistent=true
+# Desincronizează pornirea față de alte joburi de pe VPS-ul partajat.
+RandomizedDelaySec=30
+Unit=newsromania-profiles.service
+
+[Install]
+WantedBy=timers.target

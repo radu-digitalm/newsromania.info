@@ -52,6 +52,12 @@ export function Footer() {
                   </Link>
                 </li>
               ))}
+              {/* GDPR: withdraw/change the cookie choice at any time (brief §8). */}
+              <li>
+                <Link href="/setari-cookies" className={footerLinkClass}>
+                  Setări cookies
+                </Link>
+              </li>
             </ul>
           </div>
           <div>

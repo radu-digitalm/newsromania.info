@@ -48,7 +48,11 @@ export const ConsentRecords: CollectionConfig = {
     {
       name: 'visitorId',
       type: 'text',
-      admin: { description: 'Completat doar dacă vizitatorul a acceptat.' },
+      admin: {
+        description:
+          'La acceptare: ID-ul nou emis. La refuz/retragere: ID-ul existent cedat ' +
+          '(dacă există) — folosit de workerul de profile pentru ștergerea datelor CDP.',
+      },
     },
     {
       name: 'ipHash',

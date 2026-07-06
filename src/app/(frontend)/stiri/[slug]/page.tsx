@@ -7,6 +7,8 @@ import { Fragment } from 'react'
 import { AdSlot } from '@/components/ads/AdSlot'
 import { ExternalLinkIcon, Kicker, SourcePill } from '@/components/articles/ArticleCard'
 import { formatArticleDate } from '@/components/articles/format-date'
+import { decisionFor } from '@/lib/ads/engine'
+import { getRequestAdPlan } from '@/lib/ads/plan-for-request'
 import { getFeedItemBySlug } from '@/lib/content'
 import { absoluteUrl, articleJsonLd, serializeJsonLd } from '@/lib/seo'
 import { siteConfig } from '@/config/site'
@@ -172,6 +174,11 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     )
   }
 
+  // Per-request ad decisions (architecture.md §4) — the article's category
+  // drives contextual keywords; consent/profile handled inside the helper.
+  const adPlan = await getRequestAdPlan(article.category.slug)
+  const articleAd = decisionFor(adPlan, 'article')
+
   const jsonLd = articleJsonLd(article)
 
   return (
@@ -191,13 +198,15 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             <Fragment key={index}>
               <p className="mt-5 first:mt-0">{paragraph}</p>
               {/* One in-article slot after the 3rd paragraph — never between title and byline (§4.5). */}
-              {index === 2 && article.body.length > 3 && <AdSlot variant="article" />}
+              {index === 2 && article.body.length > 3 && (
+                <AdSlot variant="article" decision={articleAd} />
+              )}
             </Fragment>
           ))}
         </div>
 
         {/* Second in-article slot at article end (§3.5/§4.5). */}
-        <AdSlot variant="article" />
+        <AdSlot variant="article" decision={articleAd} />
 
         <BackToHomeLink />
       </article>

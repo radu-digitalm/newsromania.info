@@ -1,13 +1,24 @@
-import { siteConfig } from '@/config/site'
+import type { AdDecision } from '@/lib/ads/engine'
+
+import { AdSenseUnit } from './AdSenseUnit'
+import { AmazonProductAd } from './AmazonProductAd'
 
 /**
- * AdSlot — labelled, reserved, honest (design direction §4.5).
+ * AdSlot — labelled, reserved, honest (design direction §4.5), now rendering
+ * a server-side AdDecision from the ad engine (src/lib/ads/engine.ts).
  *
- * AdSense review pending — unit IDs are created after approval (steps 6/10);
- * consent-gating (GDPR) lands at step 7. Until then the slot renders exactly
- * as it will post-approval: fixed-height wrapper (zero CLS), visible
- * „Publicitate" label, and an inert <ins class="adsbygoogle"> — a flat empty
- * field. NO fake ad content, no skeletons, no „în curând".
+ * Visual contract (unchanged): fixed-height wrapper reserved BEFORE any ad
+ * script runs (zero CLS), visible „Publicitate" label, and — while AdSense
+ * review is pending / no unitId exists for the placement — an inert
+ * <ins class="adsbygoogle"> as a flat empty field. NO fake ad content, no
+ * skeletons, no „în curând".
+ *
+ * Decision dispatch:
+ * - network 'amazon' → <AmazonProductAd> (placeholder until Group D).
+ * - network 'adsense' (or no decision passed — legacy call sites) →
+ *   <AdSenseUnit>: data-ad-slot only when the engine resolved a unitId;
+ *   NPA is handled ONCE globally by ConsentModeScript (see AdSenseUnit.tsx
+ *   for the exact coordination contract with the consent agent).
  *
  * Placement ethics (hard rule): an AdSlot never sits between a title and its
  * byline/attribution row, and never mimics article anatomy.
@@ -27,7 +38,15 @@ const SLOT: Record<AdSlotVariant, { height: number; wrapper: string; ins: string
   leaderboard: { height: 138, wrapper: 'hidden md:block', ins: 'h-[90px] max-w-[728px]' },
 }
 
-export function AdSlot({ variant }: { variant: AdSlotVariant }) {
+/** Inert fallback when a page renders a slot without an engine decision. */
+const INERT_DECISION = { format: 'auto', npa: true, unitId: undefined }
+
+export function AdSlot({ variant, decision }: { variant: AdSlotVariant; decision?: AdDecision }) {
+  // Amazon placements keep their own reserved treatment (same height class).
+  if (decision?.network === 'amazon' && decision.amazon) {
+    return <AmazonProductAd decision={decision.amazon} />
+  }
+
   const slot = SLOT[variant]
   return (
     <aside
@@ -38,11 +57,7 @@ export function AdSlot({ variant }: { variant: AdSlotVariant }) {
       <p className="flex h-6 items-center justify-center font-sans text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted">
         Publicitate
       </p>
-      {/* Inert until AdSense approval: no script, no data-ad-slot. */}
-      <ins
-        className={`adsbygoogle mx-auto block w-full ${slot.ins}`}
-        data-ad-client={siteConfig.adsensePublisherId}
-      />
+      <AdSenseUnit decision={decision?.adsense ?? INERT_DECISION} className={slot.ins} />
     </aside>
   )
 }

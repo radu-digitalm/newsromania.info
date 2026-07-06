@@ -1,0 +1,21 @@
+# newsromania-profiles.service — o rulare a workerului CDP (agregare profile,
+# retenție evenimente, ștergere GDPR la retragerea consimțământului).
+# Unitate systemd de UTILIZATOR (systemctl --user). Fără secrete aici:
+# `npx payload run` încarcă .env din rădăcina proiectului.
+# Instalare: deploy/systemd/install-user-units.sh
+
+[Unit]
+Description=NewsRomania — agregare profile CDP + retenție date
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/newsagent/workspace/newsromania
+# bash -lc ca să preia PATH-ul utilizatorului (node via ~/bin, regula CLAUDE.md).
+ExecStart=/bin/bash -lc 'export PATH="$HOME/bin:$PATH"; cd /home/newsagent/workspace/newsromania && npx payload run scripts/worker/profiles.mjs'
+# Workerul se limitează singur la 8 minute; systemd taie la 9 ca plasă de siguranță.
+TimeoutStartSec=540
+# VPS partajat: prioritate redusă CPU/IO.
+Nice=10
+IOSchedulingClass=idle

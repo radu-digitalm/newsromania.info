@@ -72,6 +72,12 @@ export const SiteConfigGlobal: GlobalConfig = {
       admin: {
         description: 'Maparea țară → regiune → set de reclame folosită de motorul geo/ads.',
       },
+      // Seeded per arch §3/PROJECT_BRIEF §6.2: GB→UK, RO→RO; any unmatched
+      // country falls back to region/adSet 'default' in resolveGeo().
+      defaultValue: [
+        { country: 'GB', region: 'UK', adSet: 'UK' },
+        { country: 'RO', region: 'RO', adSet: 'RO' },
+      ],
       fields: [
         { name: 'country', label: 'Țară (cod)', type: 'text', required: true },
         { name: 'region', label: 'Regiune', type: 'text', required: true },

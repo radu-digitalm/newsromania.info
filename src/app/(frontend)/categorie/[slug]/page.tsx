@@ -6,13 +6,15 @@ import { CategoryChip } from '@/components/articles/CategoryChip'
 import { FeedList } from '@/components/articles/FeedList'
 import { NextPageLink } from '@/components/articles/NextPageLink'
 import { siteConfig } from '@/config/site'
+import { getRequestAdPlan } from '@/lib/ads/plan-for-request'
 import { getFeed } from '@/lib/content'
 import { absoluteUrl } from '@/lib/seo'
 
 /**
  * Category page — chips row for switching categories, then the category feed
- * with the same fixed in-feed ad positions (rows 4 & 12) as the home feed and
- * the same server-side pagination.
+ * with per-request, region-frequency in-feed ad positions (ad engine,
+ * architecture.md §4 — the category slug feeds contextual keywords) and the
+ * same server-side pagination as the home feed.
  */
 
 interface CategoryPageProps {
@@ -46,7 +48,11 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   const category = siteConfig.categories.find((c) => c.slug === slug)
   if (!category) notFound()
 
-  const { items, hasNextPage } = await getFeed({ page, categorySlug: category.slug })
+  const [{ items, hasNextPage }, adPlan] = await Promise.all([
+    getFeed({ page, categorySlug: category.slug }),
+    // Per-request ad decisions — this category drives contextual keywords.
+    getRequestAdPlan(category.slug),
+  ])
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-8 md:px-6">
@@ -68,8 +74,8 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
 
       {items.length > 0 ? (
         <div className="mt-4">
-          {/* In-feed AdSlots at the fixed positions: after rows 4 and 12 (§3.3.3/§4.5). */}
-          <FeedList items={items} withAds headingAs="h2" />
+          {/* In-feed AdSlots at region-frequency positions from the ad plan (§6.2/§4.5). */}
+          <FeedList items={items} adPlan={adPlan} headingAs="h2" />
           {hasNextPage && <NextPageLink href={`/categorie/${category.slug}?page=${page + 1}`} />}
         </div>
       ) : (
