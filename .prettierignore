@@ -1,0 +1,16 @@
+node_modules
+vendor
+.next
+media
+public
+next-env.d.ts
+src/payload-types.ts
+src/app/(payload)/admin/importMap.js
+tsconfig.tsbuildinfo
+package-lock.json
+CLAUDE.md
+PROJECT_BRIEF.md
+README.md
+docs
+compose.yaml
+deploy

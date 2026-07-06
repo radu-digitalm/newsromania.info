@@ -1,0 +1,293 @@
+import { createHash } from 'node:crypto'
+
+import { getRedis, rkey } from '@/lib/redis'
+
+/**
+ * Amazon Creators API product search (architecture.md §4, PROJECT_BRIEF §6.4).
+ *
+ * Wraps the vendored official SDK (`vendor/creatorsapi-nodejs-sdk`, `file:`
+ * dep) around ONE rule: the API is NEVER called per page view. Every lookup
+ * goes through a Redis read-through cache:
+ *
+ *   newsromania:amazon:<marketplace>:<sha1(keywords|count|tag)>        TTL 24h
+ *   newsromania:amazon-stale:<marketplace>:<sha1(...)>                 TTL 7d
+ *
+ * The stale copy implements stale-while-error (§6.4: "The API throttles"):
+ * a throttle/auth/network failure serves the last good result for up to 7
+ * days; with no stale copy the result is [] and the slot renders
+ * reserved-empty — an ad must never take a page down.
+ *
+ * Credentials come ONLY from env (AMAZON_CREATORS_CREDENTIAL_ID/SECRET/
+ * VERSION=3.2 — EU region, LWA auth; the SDK picks the LWA token endpoint
+ * from the version string). They are never logged.
+ *
+ * Marketplace ('www.amazon.de', …) and partnerTag arrive from the ad engine's
+ * AmazonDecision — the tag MUST match the marketplace (engine enforces via
+ * site-config amazonPartnerTags). A tag/marketplace mismatch is rejected by
+ * Amazon with an error → same graceful [] path.
+ */
+
+// ---------------------------------------------------------------------------
+// Public contract
+// ---------------------------------------------------------------------------
+
+export interface AmazonProductImage {
+  url: string
+  width: number
+  height: number
+}
+
+export interface AmazonProduct {
+  asin: string
+  title: string
+  /** Detail-page URL carrying the Associates partnerTag (`tag=` param). */
+  url: string
+  image?: AmazonProductImage
+  /** Localized display price, e.g. "449,00 €" (offersV2 buy-box listing). */
+  price?: string
+}
+
+export interface SearchProductsInput {
+  /** Engine keywords, strongest first — the FIRST phrase is the search query. */
+  keywords: string[]
+  /** e.g. 'www.amazon.de' — passed as the SDK's x-marketplace value. */
+  marketplace: string
+  /** Associates tracking id valid for that marketplace. */
+  partnerTag: string
+  /** Products to return (1–3 render; API asks for exactly this). */
+  count?: number
+}
+
+export const AMAZON_CACHE_TTL_SEC = 24 * 60 * 60 // fresh: 24h
+export const AMAZON_STALE_TTL_SEC = 7 * 24 * 60 * 60 // stale-while-error: 7d
+export const DEFAULT_PRODUCT_COUNT = 3
+
+/** Resources requested from searchItems — exactly what the ad renders. */
+export const SEARCH_RESOURCES = [
+  'images.primary.medium',
+  'itemInfo.title',
+  'offersV2.listings.price',
+] as const
+
+// ---------------------------------------------------------------------------
+// Affiliate URL — verify/attach the partner tag
+// ---------------------------------------------------------------------------
+
+/**
+ * The Creators API's detailPageURL normally already carries `tag=<partnerTag>`
+ * — verify, and if absent (or unparseable) attach it ourselves so no affiliate
+ * click is ever untagged. An existing tag is preserved (Amazon set it for this
+ * credential; overriding could mis-attribute).
+ */
+export function withPartnerTag(url: string, partnerTag: string): string {
+  try {
+    const parsed = new URL(url)
+    if (!parsed.searchParams.get('tag')) {
+      parsed.searchParams.set('tag', partnerTag)
+    }
+    return parsed.toString()
+  } catch {
+    // Not an absolute URL — never emit an untagged affiliate link.
+    return ''
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SDK response mapping (plain-JSON shapes of the SDK models)
+// ---------------------------------------------------------------------------
+
+interface SdkImageSize {
+  url?: string
+  width?: number
+  height?: number
+}
+
+interface SdkItem {
+  asin?: string
+  detailPageURL?: string
+  images?: { primary?: { medium?: SdkImageSize } }
+  itemInfo?: { title?: { displayValue?: string } }
+  offersV2?: { listings?: Array<{ price?: { money?: { displayAmount?: string } } }> }
+}
+
+interface SdkSearchResponse {
+  searchResult?: { items?: SdkItem[] }
+}
+
+export function mapItems(
+  response: SdkSearchResponse,
+  partnerTag: string,
+  count: number,
+): AmazonProduct[] {
+  const items = response?.searchResult?.items ?? []
+  const products: AmazonProduct[] = []
+  for (const item of items) {
+    if (products.length >= count) break
+    const title = item?.itemInfo?.title?.displayValue
+    const url = item?.detailPageURL ? withPartnerTag(item.detailPageURL, partnerTag) : ''
+    if (!item?.asin || !title || !url) continue // never render an untagged/untitled product
+    const medium = item.images?.primary?.medium
+    const image =
+      medium?.url && medium.width && medium.height
+        ? { url: medium.url, width: medium.width, height: medium.height }
+        : undefined
+    const price = item.offersV2?.listings?.[0]?.price?.money?.displayAmount
+    products.push({ asin: item.asin, title, url, image, price })
+  }
+  return products
+}
+
+// ---------------------------------------------------------------------------
+// SDK client (lazy singleton — credentials from env, never logged)
+// ---------------------------------------------------------------------------
+
+interface CreatorsApi {
+  searchItems(
+    marketplace: string,
+    opts: { searchItemsRequestContent: Record<string, unknown> },
+  ): Promise<SdkSearchResponse>
+}
+
+let apiSingleton: CreatorsApi | null = null
+
+async function getCreatorsApi(): Promise<CreatorsApi> {
+  if (apiSingleton) return apiSingleton
+  const credentialId = process.env.AMAZON_CREATORS_CREDENTIAL_ID
+  const credentialSecret = process.env.AMAZON_CREATORS_CREDENTIAL_SECRET
+  const version = process.env.AMAZON_CREATORS_CREDENTIAL_VERSION
+  if (!credentialId || !credentialSecret || !version) {
+    throw new Error('Amazon Creators API credentials are not configured')
+  }
+  // Dynamic import: the CJS SDK (superagent & co.) is loaded only when a
+  // product ad actually resolves — tests mock this module path.
+  const sdk = await import('@amzn/creatorsapi-nodejs-sdk')
+  const client = new sdk.ApiClient()
+  client.credentialId = credentialId
+  client.credentialSecret = credentialSecret
+  // '3.2' = EU region, LWA auth — the SDK derives the LWA token endpoint
+  // and Bearer header format from this string (vendor README).
+  client.version = version
+  apiSingleton = new sdk.DefaultApi(client) as CreatorsApi
+  return apiSingleton
+}
+
+/** Test hook: drop the memoized SDK client (e.g. after changing env). */
+export function resetAmazonClient(): void {
+  apiSingleton = null
+}
+
+// ---------------------------------------------------------------------------
+// searchProducts — cached, throttle-aware
+// ---------------------------------------------------------------------------
+
+function cacheHash(keywords: string[], count: number, partnerTag: string): string {
+  return createHash('sha1')
+    .update(`${keywords.join('|')}::${count}::${partnerTag}`)
+    .digest('hex')
+}
+
+function parseProducts(raw: string | null): AmazonProduct[] | null {
+  if (raw === null) return null
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as AmazonProduct[]) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Product lookup for an AmazonDecision. Order of resort:
+ *  1. fresh Redis cache (24h) — the normal per-view path, zero API calls;
+ *  2. live searchItems call → cache fresh + stale copies;
+ *  3. on ANY error (throttle 429, tag/marketplace rejection, auth, network):
+ *     last stale copy (≤7d) else [].
+ * Never throws. [] ⇒ the slot renders its reserved-empty state.
+ */
+export async function searchProducts({
+  keywords,
+  marketplace,
+  partnerTag,
+  count = DEFAULT_PRODUCT_COUNT,
+}: SearchProductsInput): Promise<AmazonProduct[]> {
+  const query = keywords.map((keyword) => keyword.trim()).filter(Boolean)[0]
+  if (!query || !marketplace || !partnerTag) return []
+
+  const hash = cacheHash(keywords, count, partnerTag)
+  const freshKey = rkey('amazon', marketplace, hash)
+  const staleKey = rkey('amazon-stale', marketplace, hash)
+  const redis = getRedis()
+
+  // 1. Fresh cache — Redis failures fall through to the API path.
+  try {
+    const hit = parseProducts(await redis.get(freshKey))
+    if (hit !== null) return hit
+  } catch {
+    // ignore — treat as cache miss
+  }
+
+  // 2. Live call (rate-limited API — only ever on cache expiry).
+  try {
+    const api = await getCreatorsApi()
+    const response = await api.searchItems(marketplace, {
+      searchItemsRequestContent: {
+        partnerTag,
+        keywords: query,
+        itemCount: count,
+        resources: [...SEARCH_RESOURCES],
+      },
+    })
+    const products = mapItems(response, partnerTag, count)
+    try {
+      const json = JSON.stringify(products)
+      await redis.set(freshKey, json, 'EX', AMAZON_CACHE_TTL_SEC)
+      await redis.set(staleKey, json, 'EX', AMAZON_STALE_TTL_SEC)
+    } catch {
+      // cache write failures are non-fatal
+    }
+    return products
+  } catch (error) {
+    // 3. Stale-while-error: throttle (429) / rejection / network → last good.
+    const status = (error as { status?: number })?.status
+    console.warn(
+      `[amazon] searchItems failed (${marketplace}${status ? `, HTTP ${status}` : ''}) — serving stale/empty`,
+    )
+    try {
+      const stale = parseProducts(await redis.get(staleKey))
+      if (stale !== null) return stale
+    } catch {
+      // fall through to []
+    }
+    return []
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Render-path guard — ads never block a page
+// ---------------------------------------------------------------------------
+
+export const SEARCH_TIMEOUT_MS = 800
+
+/**
+ * searchProducts with a hard render budget (default 800ms): past the budget
+ * (or on any unexpected throw) the slot gets [] and renders reserved-empty —
+ * the response is virtually instant on the 24h cache path anyway. The
+ * abandoned lookup still completes in the background and warms the cache for
+ * the next request.
+ */
+export async function searchProductsWithTimeout(
+  input: SearchProductsInput,
+  timeoutMs: number = SEARCH_TIMEOUT_MS,
+): Promise<AmazonProduct[]> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<AmazonProduct[]>((resolve) => {
+    timer = setTimeout(() => resolve([]), timeoutMs)
+  })
+  try {
+    return await Promise.race([searchProducts(input), timeout])
+  } catch {
+    return []
+  } finally {
+    clearTimeout(timer)
+  }
+}

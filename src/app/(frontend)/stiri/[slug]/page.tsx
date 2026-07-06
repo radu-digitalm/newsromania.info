@@ -205,8 +205,9 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           ))}
         </div>
 
-        {/* Second in-article slot at article end (§3.5/§4.5). */}
-        <AdSlot variant="article" decision={articleAd} />
+        {/* Second in-article slot at article end (§3.5/§4.5) — index 1 rotates
+            to the next configured article unit, if any. */}
+        <AdSlot variant="article" decision={articleAd} index={1} />
 
         <BackToHomeLink />
       </article>

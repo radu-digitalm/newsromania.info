@@ -24,7 +24,11 @@ interface FeedListProps {
 }
 
 export function FeedList({ items, adPlan, headingAs = 'h3' }: FeedListProps) {
-  const positions = adPlan ? feedAdPositions(adPlan.everyNth, items.length) : new Set<number>()
+  // Sorted so each slot's ordinal (0-based) is stable — it drives the
+  // deterministic AdSense unit rotation inside AdSlot (engine adsenseAt()).
+  const positions = adPlan
+    ? [...feedAdPositions(adPlan.everyNth, items.length)].sort((a, b) => a - b)
+    : []
   const feedDecision = adPlan ? decisionFor(adPlan, 'feed') : undefined
 
   return (
@@ -32,7 +36,9 @@ export function FeedList({ items, adPlan, headingAs = 'h3' }: FeedListProps) {
       {items.map((item, index) => (
         <Fragment key={item.id}>
           <ArticleCard item={item} as={headingAs} />
-          {positions.has(index + 1) && <AdSlot variant="feed" decision={feedDecision} />}
+          {positions.includes(index + 1) && (
+            <AdSlot variant="feed" decision={feedDecision} index={positions.indexOf(index + 1)} />
+          )}
         </Fragment>
       ))}
     </div>

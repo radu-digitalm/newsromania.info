@@ -1,0 +1,17 @@
+# newsromania-social.timer — pornește workerul cozii sociale o dată pe oră.
+# Unitate systemd de UTILIZATOR (systemctl --user).
+
+[Unit]
+Description=NewsRomania — timer coadă postări sociale (orar)
+
+[Timer]
+OnCalendar=hourly
+# Recuperează o rulare pierdută (ex. după repornirea serverului).
+Persistent=true
+# Desincronizează pornirea față de alte joburi de pe VPS-ul partajat
+# (ingestia rulează la :00/:20/:40 — evităm coliziunea de la fix).
+RandomizedDelaySec=300
+Unit=newsromania-social.service
+
+[Install]
+WantedBy=timers.target

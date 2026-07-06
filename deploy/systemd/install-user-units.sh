@@ -6,6 +6,11 @@
 #
 # Idempotent: rulările repetate re-creează symlinkurile și re-activează
 # timerele fără efecte secundare. Fără sudo — doar systemctl --user.
+#
+# Globul newsromania-* preia AUTOMAT orice unitate nouă din acest director —
+# la data scrierii: ingest (RSS, la 20 min), profiles (CDP, la 10 min),
+# social (coada de postări, orar). Adaugă fișierele .service/.timer aici și
+# re-rulează scriptul.
 
 set -euo pipefail
 

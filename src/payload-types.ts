@@ -59,96 +59,95 @@ export type SupportedTimezones =
   | 'Pacific/Guam'
   | 'Pacific/Noumea'
   | 'Pacific/Auckland'
-  | 'Pacific/Fiji'
+  | 'Pacific/Fiji';
 
 export interface Config {
   auth: {
-    users: UserAuthOperations
-  }
-  blocks: {}
+    users: UserAuthOperations;
+  };
+  blocks: {};
   collections: {
-    users: User
-    media: Media
-    articles: Article
-    'aggregated-items': AggregatedItem
-    categories: Category
-    tags: Tag
-    feeds: Feed
-    'consent-records': ConsentRecord
-    'cdp-events': CdpEvent
-    'cdp-profiles': CdpProfile
-    'social-queue': SocialQueue
-    'llm-usage': LlmUsage
-    'payload-kv': PayloadKv
-    'payload-jobs': PayloadJob
-    'payload-locked-documents': PayloadLockedDocument
-    'payload-preferences': PayloadPreference
-    'payload-migrations': PayloadMigration
-  }
-  collectionsJoins: {}
+    users: User;
+    media: Media;
+    articles: Article;
+    'aggregated-items': AggregatedItem;
+    categories: Category;
+    tags: Tag;
+    feeds: Feed;
+    'consent-records': ConsentRecord;
+    'cdp-events': CdpEvent;
+    'cdp-profiles': CdpProfile;
+    'social-queue': SocialQueue;
+    'llm-usage': LlmUsage;
+    'payload-kv': PayloadKv;
+    'payload-jobs': PayloadJob;
+    'payload-locked-documents': PayloadLockedDocument;
+    'payload-preferences': PayloadPreference;
+    'payload-migrations': PayloadMigration;
+  };
+  collectionsJoins: {};
   collectionsSelect: {
-    users: UsersSelect<false> | UsersSelect<true>
-    media: MediaSelect<false> | MediaSelect<true>
-    articles: ArticlesSelect<false> | ArticlesSelect<true>
-    'aggregated-items': AggregatedItemsSelect<false> | AggregatedItemsSelect<true>
-    categories: CategoriesSelect<false> | CategoriesSelect<true>
-    tags: TagsSelect<false> | TagsSelect<true>
-    feeds: FeedsSelect<false> | FeedsSelect<true>
-    'consent-records': ConsentRecordsSelect<false> | ConsentRecordsSelect<true>
-    'cdp-events': CdpEventsSelect<false> | CdpEventsSelect<true>
-    'cdp-profiles': CdpProfilesSelect<false> | CdpProfilesSelect<true>
-    'social-queue': SocialQueueSelect<false> | SocialQueueSelect<true>
-    'llm-usage': LlmUsageSelect<false> | LlmUsageSelect<true>
-    'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>
-    'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>
-    'payload-locked-documents':
-      PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>
-    'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>
-    'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>
-  }
+    users: UsersSelect<false> | UsersSelect<true>;
+    media: MediaSelect<false> | MediaSelect<true>;
+    articles: ArticlesSelect<false> | ArticlesSelect<true>;
+    'aggregated-items': AggregatedItemsSelect<false> | AggregatedItemsSelect<true>;
+    categories: CategoriesSelect<false> | CategoriesSelect<true>;
+    tags: TagsSelect<false> | TagsSelect<true>;
+    feeds: FeedsSelect<false> | FeedsSelect<true>;
+    'consent-records': ConsentRecordsSelect<false> | ConsentRecordsSelect<true>;
+    'cdp-events': CdpEventsSelect<false> | CdpEventsSelect<true>;
+    'cdp-profiles': CdpProfilesSelect<false> | CdpProfilesSelect<true>;
+    'social-queue': SocialQueueSelect<false> | SocialQueueSelect<true>;
+    'llm-usage': LlmUsageSelect<false> | LlmUsageSelect<true>;
+    'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
+    'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
+    'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
+    'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
+    'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
+  };
   db: {
-    defaultIDType: number
-  }
-  fallbackLocale: null
+    defaultIDType: number;
+  };
+  fallbackLocale: null;
   globals: {
-    'site-config': SiteConfig
-  }
+    'site-config': SiteConfig;
+  };
   globalsSelect: {
-    'site-config': SiteConfigSelect<false> | SiteConfigSelect<true>
-  }
-  locale: null
+    'site-config': SiteConfigSelect<false> | SiteConfigSelect<true>;
+  };
+  locale: null;
   widgets: {
-    collections: CollectionsWidget
-  }
-  user: User
+    collections: CollectionsWidget;
+  };
+  user: User;
   jobs: {
     tasks: {
-      schedulePublish: TaskSchedulePublish
+      schedulePublish: TaskSchedulePublish;
       inline: {
-        input: unknown
-        output: unknown
-      }
-    }
-    workflows: unknown
-  }
+        input: unknown;
+        output: unknown;
+      };
+    };
+    workflows: unknown;
+  };
 }
 export interface UserAuthOperations {
   forgotPassword: {
-    email: string
-    password: string
-  }
+    email: string;
+    password: string;
+  };
   login: {
-    email: string
-    password: string
-  }
+    email: string;
+    password: string;
+  };
   registerFirstUser: {
-    email: string
-    password: string
-  }
+    email: string;
+    password: string;
+  };
   unlock: {
-    email: string
-    password: string
-  }
+    email: string;
+    password: string;
+  };
 }
 /**
  * Conturile redacției. Rolurile stabilesc drepturile de publicare.
@@ -157,27 +156,27 @@ export interface UserAuthOperations {
  * via the `definition` "users".
  */
 export interface User {
-  id: number
-  name: string
-  role: 'admin' | 'editor' | 'author'
-  updatedAt: string
-  createdAt: string
-  email: string
-  resetPasswordToken?: string | null
-  resetPasswordExpiration?: string | null
-  salt?: string | null
-  hash?: string | null
-  loginAttempts?: number | null
-  lockUntil?: string | null
+  id: number;
+  name: string;
+  role: 'admin' | 'editor' | 'author';
+  updatedAt: string;
+  createdAt: string;
+  email: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
   sessions?:
     | {
-        id: string
-        createdAt?: string | null
-        expiresAt: string
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
       }[]
-    | null
-  password?: string | null
-  collection: 'users'
+    | null;
+  password?: string | null;
+  collection: 'users';
 }
 /**
  * Doar imagini proprii (încărcate de redacție). Niciodată imagini preluate.
@@ -186,45 +185,45 @@ export interface User {
  * via the `definition` "media".
  */
 export interface Media {
-  id: number
-  alt: string
-  updatedAt: string
-  createdAt: string
-  url?: string | null
-  thumbnailURL?: string | null
-  filename?: string | null
-  mimeType?: string | null
-  filesize?: number | null
-  width?: number | null
-  height?: number | null
-  focalX?: number | null
-  focalY?: number | null
+  id: number;
+  alt: string;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
   sizes?: {
     thumbnail?: {
-      url?: string | null
-      width?: number | null
-      height?: number | null
-      mimeType?: string | null
-      filesize?: number | null
-      filename?: string | null
-    }
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
     card?: {
-      url?: string | null
-      width?: number | null
-      height?: number | null
-      mimeType?: string | null
-      filesize?: number | null
-      filename?: string | null
-    }
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
     hero?: {
-      url?: string | null
-      width?: number | null
-      height?: number | null
-      mimeType?: string | null
-      filesize?: number | null
-      filename?: string | null
-    }
-  }
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+  };
 }
 /**
  * Articole originale ale redacției — text integral, semnătură de autor.
@@ -233,75 +232,75 @@ export interface Media {
  * via the `definition` "articles".
  */
 export interface Article {
-  id: number
-  title: string
+  id: number;
+  title: string;
   /**
    * Se generează automat din titlu; poate fi ajustat manual.
    */
-  slug: string
-  category: number | Category
-  tags?: (number | Tag)[] | null
-  author: number | User
-  excerpt?: string | null
+  slug: string;
+  category: number | Category;
+  tags?: (number | Tag)[] | null;
+  author: number | User;
+  excerpt?: string | null;
   body: {
     root: {
-      type: string
+      type: string;
       children: {
-        type: any
-        version: number
-        [k: string]: unknown
-      }[]
-      direction: ('ltr' | 'rtl') | null
-      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | ''
-      indent: number
-      version: number
-    }
-    [k: string]: unknown
-  }
-  featuredImage?: (number | null) | Media
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  featuredImage?: (number | null) | Media;
   seo?: {
-    metaTitle?: string | null
-    metaDescription?: string | null
-    focusKeyword?: string | null
+    metaTitle?: string | null;
+    metaDescription?: string | null;
+    focusKeyword?: string | null;
     /**
      * Calculat automat de analizatorul SEO la salvare.
      */
-    seoScore?: ('green' | 'amber' | 'red' | 'unscored') | null
+    seoScore?: ('green' | 'amber' | 'red' | 'unscored') | null;
     seoReport?:
       | {
-          [k: string]: unknown
+          [k: string]: unknown;
         }
       | unknown[]
       | string
       | number
       | boolean
-      | null
-  }
-  updatedAt: string
-  createdAt: string
-  _status?: ('draft' | 'published') | null
+      | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "categories".
  */
 export interface Category {
-  id: number
-  name: string
-  slug: string
-  updatedAt: string
-  createdAt: string
+  id: number;
+  name: string;
+  slug: string;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "tags".
  */
 export interface Tag {
-  id: number
-  name: string
-  slug: string
-  updatedAt: string
-  createdAt: string
+  id: number;
+  name: string;
+  slug: string;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * Știri de la terți: doar rezumat + atribuire + link către sursă. Niciodată text integral.
@@ -310,44 +309,44 @@ export interface Tag {
  * via the `definition` "aggregated-items".
  */
 export interface AggregatedItem {
-  id: number
-  title: string
-  slug: string
+  id: number;
+  title: string;
+  slug: string;
   /**
    * Cheie de deduplicare din feedul RSS.
    */
-  guid: string
+  guid: string;
   /**
    * Adresa canonică a știrii la publicatorul original.
    */
-  sourceUrl: string
-  sourceName: string
-  sourceHomepage?: string | null
-  feed?: (number | null) | Feed
+  sourceUrl: string;
+  sourceName: string;
+  sourceHomepage?: string | null;
+  feed?: (number | null) | Feed;
   /**
    * Rezumat AI transformativ (fair-use). Gol când elementul este doar link.
    */
-  excerpt?: string | null
-  linkOnly?: boolean | null
-  category?: (number | null) | Category
-  tags?: (number | Tag)[] | null
-  imageUrl?: string | null
+  excerpt?: string | null;
+  linkOnly?: boolean | null;
+  category?: (number | null) | Category;
+  tags?: (number | Tag)[] | null;
+  imageUrl?: string | null;
   /**
    * Doar imagini din enclosure/media:content al feedului RSS.
    */
-  imageAllowed?: boolean | null
-  publishedAt: string
+  imageAllowed?: boolean | null;
+  publishedAt: string;
   /**
    * Cheie de grupare pentru știri aproape identice.
    */
-  clusterKey?: string | null
+  clusterKey?: string | null;
   /**
    * Hash de conținut — evită re-rezumarea.
    */
-  contentHash?: string | null
-  archived?: boolean | null
-  updatedAt: string
-  createdAt: string
+  contentHash?: string | null;
+  archived?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * Surse RSS agregate. Activarea și politica de rezumat se schimbă doar după verificarea termenilor publicatorului.
@@ -356,22 +355,22 @@ export interface AggregatedItem {
  * via the `definition` "feeds".
  */
 export interface Feed {
-  id: number
-  name: string
-  url: string
-  homepage?: string | null
-  active?: boolean | null
-  excerptPolicy: 'link-only' | 'ai-excerpt'
-  defaultCategory?: (number | null) | Category
-  pollMinutes?: number | null
-  lastFetchedAt?: string | null
-  lastItemAt?: string | null
-  lastError?: string | null
-  consecutiveFailures?: number | null
-  etag?: string | null
-  httpLastModified?: string | null
-  updatedAt: string
-  createdAt: string
+  id: number;
+  name: string;
+  url: string;
+  homepage?: string | null;
+  active?: boolean | null;
+  excerptPolicy: 'link-only' | 'ai-excerpt';
+  defaultCategory?: (number | null) | Category;
+  pollMinutes?: number | null;
+  lastFetchedAt?: string | null;
+  lastItemAt?: string | null;
+  lastError?: string | null;
+  consecutiveFailures?: number | null;
+  etag?: string | null;
+  httpLastModified?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * Jurnal GDPR, doar în adăugare. Scris exclusiv de API-ul de consimțământ.
@@ -380,20 +379,20 @@ export interface Feed {
  * via the `definition` "consent-records".
  */
 export interface ConsentRecord {
-  id: number
-  choice: 'accepted' | 'refused' | 'withdrawn'
-  ts: string
+  id: number;
+  choice: 'accepted' | 'refused' | 'withdrawn';
+  ts: string;
   /**
-   * Completat doar dacă vizitatorul a acceptat.
+   * La acceptare: ID-ul nou emis. La refuz/retragere: ID-ul existent cedat (dacă există) — folosit de workerul de profile pentru ștergerea datelor CDP.
    */
-  visitorId?: string | null
+  visitorId?: string | null;
   /**
    * sha256(ip + secret) — niciodată IP-ul brut.
    */
-  ipHash?: string | null
-  userAgent?: string | null
-  updatedAt: string
-  createdAt: string
+  ipHash?: string | null;
+  userAgent?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * Evenimente comportamentale primare (doar cu consimțământ). Doar în adăugare.
@@ -402,24 +401,18 @@ export interface ConsentRecord {
  * via the `definition` "cdp-events".
  */
 export interface CdpEvent {
-  id: number
-  visitorId: string
+  id: number;
+  visitorId: string;
   type:
-    | 'page_view'
-    | 'article_click'
-    | 'scroll_depth'
-    | 'time_on_page'
-    | 'category_read'
-    | 'ad_impression'
-    | 'ad_click'
-  path?: string | null
-  articleId?: string | null
-  category?: string | null
-  value?: number | null
-  region?: string | null
-  ts: string
-  updatedAt: string
-  createdAt: string
+    'page_view' | 'article_click' | 'scroll_depth' | 'time_on_page' | 'category_read' | 'ad_impression' | 'ad_click';
+  path?: string | null;
+  articleId?: string | null;
+  category?: string | null;
+  value?: number | null;
+  region?: string | null;
+  ts: string;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * Profiluri agregate de interese, doar pentru vizitatori cu consimțământ.
@@ -428,52 +421,52 @@ export interface CdpEvent {
  * via the `definition` "cdp-profiles".
  */
 export interface CdpProfile {
-  id: number
-  visitorId: string
+  id: number;
+  visitorId: string;
   /**
    * Ponderi pe categorii: { categorySlug: weight }.
    */
   interests?:
     | {
-        [k: string]: unknown
+        [k: string]: unknown;
       }
     | unknown[]
     | string
     | number
     | boolean
-    | null
-  lastRegion?: string | null
-  lastSeenAt?: string | null
-  visits?: number | null
-  consentState?: ('accepted' | 'refused' | 'withdrawn' | 'unknown') | null
-  updatedAt: string
-  createdAt: string
+    | null;
+  lastRegion?: string | null;
+  lastSeenAt?: string | null;
+  visits?: number | null;
+  consentState?: ('accepted' | 'refused' | 'withdrawn' | 'unknown') | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
- * Postări pregătite pentru rețele sociale — publicate manual, fără API-uri Meta/X.
+ * Postări pregătite pentru rețele sociale — aprobate aici, publicate manual (Claude in Chrome), fără API-uri Meta/X.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "social-queue".
  */
 export interface SocialQueue {
-  id: number
-  contentType: 'original' | 'aggregated'
+  id: number;
+  contentType: 'original' | 'aggregated';
   /**
    * ID-ul articolului sau al știrii preluate.
    */
-  refId: string
-  platform: 'facebook' | 'instagram' | 'twitter'
+  refId: string;
+  platform: 'facebook' | 'instagram' | 'twitter';
   /**
    * Formatat per platformă.
    */
-  caption?: string | null
-  imageUrl?: string | null
-  link?: string | null
-  scheduledFor?: string | null
-  status: 'queued' | 'approved' | 'posted' | 'skipped'
-  postedAt?: string | null
-  updatedAt: string
-  createdAt: string
+  caption?: string | null;
+  imageUrl?: string | null;
+  link?: string | null;
+  scheduledFor?: string | null;
+  status: 'queued' | 'approved' | 'posted' | 'skipped';
+  postedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * Contorizare zilnică a apelurilor și costurilor LLM.
@@ -482,538 +475,538 @@ export interface SocialQueue {
  * via the `definition` "llm-usage".
  */
 export interface LlmUsage {
-  id: number
-  day: string
-  provider: string
-  model: string
-  purpose: 'summarize' | 'categorize' | 'captions' | 'seed'
-  inputTokens?: number | null
-  outputTokens?: number | null
-  calls?: number | null
-  estCostUsd?: number | null
-  updatedAt: string
-  createdAt: string
+  id: number;
+  day: string;
+  provider: string;
+  model: string;
+  purpose: 'summarize' | 'categorize' | 'captions' | 'seed';
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  calls?: number | null;
+  estCostUsd?: number | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
-  id: number
-  key: string
+  id: number;
+  key: string;
   data:
     | {
-        [k: string]: unknown
+        [k: string]: unknown;
       }
     | unknown[]
     | string
     | number
     | boolean
-    | null
+    | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-jobs".
  */
 export interface PayloadJob {
-  id: number
+  id: number;
   /**
    * Input data provided to the job
    */
   input?:
     | {
-        [k: string]: unknown
+        [k: string]: unknown;
       }
     | unknown[]
     | string
     | number
     | boolean
-    | null
+    | null;
   taskStatus?:
     | {
-        [k: string]: unknown
+        [k: string]: unknown;
       }
     | unknown[]
     | string
     | number
     | boolean
-    | null
-  completedAt?: string | null
-  totalTried?: number | null
+    | null;
+  completedAt?: string | null;
+  totalTried?: number | null;
   /**
    * If hasError is true this job will not be retried
    */
-  hasError?: boolean | null
+  hasError?: boolean | null;
   /**
    * If hasError is true, this is the error that caused it
    */
   error?:
     | {
-        [k: string]: unknown
+        [k: string]: unknown;
       }
     | unknown[]
     | string
     | number
     | boolean
-    | null
+    | null;
   /**
    * Task execution log
    */
   log?:
     | {
-        executedAt: string
-        completedAt: string
-        taskSlug: 'inline' | 'schedulePublish'
-        taskID: string
+        executedAt: string;
+        completedAt: string;
+        taskSlug: 'inline' | 'schedulePublish';
+        taskID: string;
         input?:
           | {
-              [k: string]: unknown
+              [k: string]: unknown;
             }
           | unknown[]
           | string
           | number
           | boolean
-          | null
+          | null;
         output?:
           | {
-              [k: string]: unknown
+              [k: string]: unknown;
             }
           | unknown[]
           | string
           | number
           | boolean
-          | null
-        state: 'failed' | 'succeeded'
+          | null;
+        state: 'failed' | 'succeeded';
         error?:
           | {
-              [k: string]: unknown
+              [k: string]: unknown;
             }
           | unknown[]
           | string
           | number
           | boolean
-          | null
-        id?: string | null
+          | null;
+        id?: string | null;
       }[]
-    | null
-  taskSlug?: ('inline' | 'schedulePublish') | null
-  queue?: string | null
-  waitUntil?: string | null
-  processing?: boolean | null
-  updatedAt: string
-  createdAt: string
+    | null;
+  taskSlug?: ('inline' | 'schedulePublish') | null;
+  queue?: string | null;
+  waitUntil?: string | null;
+  processing?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
-  id: number
+  id: number;
   document?:
     | ({
-        relationTo: 'users'
-        value: number | User
+        relationTo: 'users';
+        value: number | User;
       } | null)
     | ({
-        relationTo: 'media'
-        value: number | Media
+        relationTo: 'media';
+        value: number | Media;
       } | null)
     | ({
-        relationTo: 'articles'
-        value: number | Article
+        relationTo: 'articles';
+        value: number | Article;
       } | null)
     | ({
-        relationTo: 'aggregated-items'
-        value: number | AggregatedItem
+        relationTo: 'aggregated-items';
+        value: number | AggregatedItem;
       } | null)
     | ({
-        relationTo: 'categories'
-        value: number | Category
+        relationTo: 'categories';
+        value: number | Category;
       } | null)
     | ({
-        relationTo: 'tags'
-        value: number | Tag
+        relationTo: 'tags';
+        value: number | Tag;
       } | null)
     | ({
-        relationTo: 'feeds'
-        value: number | Feed
+        relationTo: 'feeds';
+        value: number | Feed;
       } | null)
     | ({
-        relationTo: 'consent-records'
-        value: number | ConsentRecord
+        relationTo: 'consent-records';
+        value: number | ConsentRecord;
       } | null)
     | ({
-        relationTo: 'cdp-events'
-        value: number | CdpEvent
+        relationTo: 'cdp-events';
+        value: number | CdpEvent;
       } | null)
     | ({
-        relationTo: 'cdp-profiles'
-        value: number | CdpProfile
+        relationTo: 'cdp-profiles';
+        value: number | CdpProfile;
       } | null)
     | ({
-        relationTo: 'social-queue'
-        value: number | SocialQueue
+        relationTo: 'social-queue';
+        value: number | SocialQueue;
       } | null)
     | ({
-        relationTo: 'llm-usage'
-        value: number | LlmUsage
-      } | null)
-  globalSlug?: string | null
+        relationTo: 'llm-usage';
+        value: number | LlmUsage;
+      } | null);
+  globalSlug?: string | null;
   user: {
-    relationTo: 'users'
-    value: number | User
-  }
-  updatedAt: string
-  createdAt: string
+    relationTo: 'users';
+    value: number | User;
+  };
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-preferences".
  */
 export interface PayloadPreference {
-  id: number
+  id: number;
   user: {
-    relationTo: 'users'
-    value: number | User
-  }
-  key?: string | null
+    relationTo: 'users';
+    value: number | User;
+  };
+  key?: string | null;
   value?:
     | {
-        [k: string]: unknown
+        [k: string]: unknown;
       }
     | unknown[]
     | string
     | number
     | boolean
-    | null
-  updatedAt: string
-  createdAt: string
+    | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-migrations".
  */
 export interface PayloadMigration {
-  id: number
-  name?: string | null
-  batch?: number | null
-  updatedAt: string
-  createdAt: string
+  id: number;
+  name?: string | null;
+  batch?: number | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
-  name?: T
-  role?: T
-  updatedAt?: T
-  createdAt?: T
-  email?: T
-  resetPasswordToken?: T
-  resetPasswordExpiration?: T
-  salt?: T
-  hash?: T
-  loginAttempts?: T
-  lockUntil?: T
+  name?: T;
+  role?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  email?: T;
+  resetPasswordToken?: T;
+  resetPasswordExpiration?: T;
+  salt?: T;
+  hash?: T;
+  loginAttempts?: T;
+  lockUntil?: T;
   sessions?:
     | T
     | {
-        id?: T
-        createdAt?: T
-        expiresAt?: T
-      }
+        id?: T;
+        createdAt?: T;
+        expiresAt?: T;
+      };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
-  alt?: T
-  updatedAt?: T
-  createdAt?: T
-  url?: T
-  thumbnailURL?: T
-  filename?: T
-  mimeType?: T
-  filesize?: T
-  width?: T
-  height?: T
-  focalX?: T
-  focalY?: T
+  alt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
   sizes?:
     | T
     | {
         thumbnail?:
           | T
           | {
-              url?: T
-              width?: T
-              height?: T
-              mimeType?: T
-              filesize?: T
-              filename?: T
-            }
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
         card?:
           | T
           | {
-              url?: T
-              width?: T
-              height?: T
-              mimeType?: T
-              filesize?: T
-              filename?: T
-            }
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
         hero?:
           | T
           | {
-              url?: T
-              width?: T
-              height?: T
-              mimeType?: T
-              filesize?: T
-              filename?: T
-            }
-      }
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+      };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "articles_select".
  */
 export interface ArticlesSelect<T extends boolean = true> {
-  title?: T
-  slug?: T
-  category?: T
-  tags?: T
-  author?: T
-  excerpt?: T
-  body?: T
-  featuredImage?: T
+  title?: T;
+  slug?: T;
+  category?: T;
+  tags?: T;
+  author?: T;
+  excerpt?: T;
+  body?: T;
+  featuredImage?: T;
   seo?:
     | T
     | {
-        metaTitle?: T
-        metaDescription?: T
-        focusKeyword?: T
-        seoScore?: T
-        seoReport?: T
-      }
-  updatedAt?: T
-  createdAt?: T
-  _status?: T
+        metaTitle?: T;
+        metaDescription?: T;
+        focusKeyword?: T;
+        seoScore?: T;
+        seoReport?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "aggregated-items_select".
  */
 export interface AggregatedItemsSelect<T extends boolean = true> {
-  title?: T
-  slug?: T
-  guid?: T
-  sourceUrl?: T
-  sourceName?: T
-  sourceHomepage?: T
-  feed?: T
-  excerpt?: T
-  linkOnly?: T
-  category?: T
-  tags?: T
-  imageUrl?: T
-  imageAllowed?: T
-  publishedAt?: T
-  clusterKey?: T
-  contentHash?: T
-  archived?: T
-  updatedAt?: T
-  createdAt?: T
+  title?: T;
+  slug?: T;
+  guid?: T;
+  sourceUrl?: T;
+  sourceName?: T;
+  sourceHomepage?: T;
+  feed?: T;
+  excerpt?: T;
+  linkOnly?: T;
+  category?: T;
+  tags?: T;
+  imageUrl?: T;
+  imageAllowed?: T;
+  publishedAt?: T;
+  clusterKey?: T;
+  contentHash?: T;
+  archived?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "categories_select".
  */
 export interface CategoriesSelect<T extends boolean = true> {
-  name?: T
-  slug?: T
-  updatedAt?: T
-  createdAt?: T
+  name?: T;
+  slug?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "tags_select".
  */
 export interface TagsSelect<T extends boolean = true> {
-  name?: T
-  slug?: T
-  updatedAt?: T
-  createdAt?: T
+  name?: T;
+  slug?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "feeds_select".
  */
 export interface FeedsSelect<T extends boolean = true> {
-  name?: T
-  url?: T
-  homepage?: T
-  active?: T
-  excerptPolicy?: T
-  defaultCategory?: T
-  pollMinutes?: T
-  lastFetchedAt?: T
-  lastItemAt?: T
-  lastError?: T
-  consecutiveFailures?: T
-  etag?: T
-  httpLastModified?: T
-  updatedAt?: T
-  createdAt?: T
+  name?: T;
+  url?: T;
+  homepage?: T;
+  active?: T;
+  excerptPolicy?: T;
+  defaultCategory?: T;
+  pollMinutes?: T;
+  lastFetchedAt?: T;
+  lastItemAt?: T;
+  lastError?: T;
+  consecutiveFailures?: T;
+  etag?: T;
+  httpLastModified?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "consent-records_select".
  */
 export interface ConsentRecordsSelect<T extends boolean = true> {
-  choice?: T
-  ts?: T
-  visitorId?: T
-  ipHash?: T
-  userAgent?: T
-  updatedAt?: T
-  createdAt?: T
+  choice?: T;
+  ts?: T;
+  visitorId?: T;
+  ipHash?: T;
+  userAgent?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "cdp-events_select".
  */
 export interface CdpEventsSelect<T extends boolean = true> {
-  visitorId?: T
-  type?: T
-  path?: T
-  articleId?: T
-  category?: T
-  value?: T
-  region?: T
-  ts?: T
-  updatedAt?: T
-  createdAt?: T
+  visitorId?: T;
+  type?: T;
+  path?: T;
+  articleId?: T;
+  category?: T;
+  value?: T;
+  region?: T;
+  ts?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "cdp-profiles_select".
  */
 export interface CdpProfilesSelect<T extends boolean = true> {
-  visitorId?: T
-  interests?: T
-  lastRegion?: T
-  lastSeenAt?: T
-  visits?: T
-  consentState?: T
-  updatedAt?: T
-  createdAt?: T
+  visitorId?: T;
+  interests?: T;
+  lastRegion?: T;
+  lastSeenAt?: T;
+  visits?: T;
+  consentState?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "social-queue_select".
  */
 export interface SocialQueueSelect<T extends boolean = true> {
-  contentType?: T
-  refId?: T
-  platform?: T
-  caption?: T
-  imageUrl?: T
-  link?: T
-  scheduledFor?: T
-  status?: T
-  postedAt?: T
-  updatedAt?: T
-  createdAt?: T
+  contentType?: T;
+  refId?: T;
+  platform?: T;
+  caption?: T;
+  imageUrl?: T;
+  link?: T;
+  scheduledFor?: T;
+  status?: T;
+  postedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "llm-usage_select".
  */
 export interface LlmUsageSelect<T extends boolean = true> {
-  day?: T
-  provider?: T
-  model?: T
-  purpose?: T
-  inputTokens?: T
-  outputTokens?: T
-  calls?: T
-  estCostUsd?: T
-  updatedAt?: T
-  createdAt?: T
+  day?: T;
+  provider?: T;
+  model?: T;
+  purpose?: T;
+  inputTokens?: T;
+  outputTokens?: T;
+  calls?: T;
+  estCostUsd?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv_select".
  */
 export interface PayloadKvSelect<T extends boolean = true> {
-  key?: T
-  data?: T
+  key?: T;
+  data?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-jobs_select".
  */
 export interface PayloadJobsSelect<T extends boolean = true> {
-  input?: T
-  taskStatus?: T
-  completedAt?: T
-  totalTried?: T
-  hasError?: T
-  error?: T
+  input?: T;
+  taskStatus?: T;
+  completedAt?: T;
+  totalTried?: T;
+  hasError?: T;
+  error?: T;
   log?:
     | T
     | {
-        executedAt?: T
-        completedAt?: T
-        taskSlug?: T
-        taskID?: T
-        input?: T
-        output?: T
-        state?: T
-        error?: T
-        id?: T
-      }
-  taskSlug?: T
-  queue?: T
-  waitUntil?: T
-  processing?: T
-  updatedAt?: T
-  createdAt?: T
+        executedAt?: T;
+        completedAt?: T;
+        taskSlug?: T;
+        taskID?: T;
+        input?: T;
+        output?: T;
+        state?: T;
+        error?: T;
+        id?: T;
+      };
+  taskSlug?: T;
+  queue?: T;
+  waitUntil?: T;
+  processing?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents_select".
  */
 export interface PayloadLockedDocumentsSelect<T extends boolean = true> {
-  document?: T
-  globalSlug?: T
-  user?: T
-  updatedAt?: T
-  createdAt?: T
+  document?: T;
+  globalSlug?: T;
+  user?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-preferences_select".
  */
 export interface PayloadPreferencesSelect<T extends boolean = true> {
-  user?: T
-  key?: T
-  value?: T
-  updatedAt?: T
-  createdAt?: T
+  user?: T;
+  key?: T;
+  value?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-migrations_select".
  */
 export interface PayloadMigrationsSelect<T extends boolean = true> {
-  name?: T
-  batch?: T
-  updatedAt?: T
-  createdAt?: T
+  name?: T;
+  batch?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * Toate setările de funcționare: reclame, GDPR, CDP, editorial, agregare.
@@ -1022,90 +1015,90 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
  * via the `definition` "site-config".
  */
 export interface SiteConfig {
-  id: number
+  id: number;
   adNetworks?: {
     /**
      * Identificator public — nu este secret.
      */
-    adSensePublisherId?: string | null
+    adSensePublisherId?: string | null;
     adUnitIds?:
       | {
-          slot: 'feed' | 'article' | 'rail' | 'leaderboard'
-          unitId: string
-          format?: string | null
-          id?: string | null
+          slot: 'feed' | 'article' | 'rail' | 'leaderboard';
+          unitId: string;
+          format?: string | null;
+          id?: string | null;
         }[]
-      | null
+      | null;
     amazonPartnerTags?:
       | {
-          marketplace: string
-          tag: string
-          id?: string | null
+          marketplace: string;
+          tag: string;
+          id?: string | null;
         }[]
-      | null
-  }
+      | null;
+  };
   /**
    * Maparea țară → regiune → set de reclame folosită de motorul geo/ads.
    */
   localeRules?:
     | {
-        country: string
-        region: string
-        adSet: string
-        id?: string | null
+        country: string;
+        region: string;
+        adSet: string;
+        id?: string | null;
       }[]
-    | null
+    | null;
   adFrequency?:
     | {
-        region: string
-        everyNth: number
-        id?: string | null
+        region: string;
+        everyNth: number;
+        id?: string | null;
       }[]
-    | null
+    | null;
   behaviouralTargeting?: {
-    enabled?: boolean | null
+    enabled?: boolean | null;
     /**
      * Cerință GDPR — nu poate fi dezactivată.
      */
-    requiresConsent?: boolean | null
-  }
+    requiresConsent?: boolean | null;
+  };
   socialPlatforms?: {
     pageUrls?:
       | {
-          platform: 'facebook' | 'instagram' | 'twitter'
-          url: string
-          id?: string | null
+          platform: 'facebook' | 'instagram' | 'twitter';
+          url: string;
+          id?: string | null;
         }[]
-      | null
+      | null;
     postingSchedule?:
       | {
-          time: string
-          id?: string | null
+          time: string;
+          id?: string | null;
         }[]
-      | null
-  }
+      | null;
+  };
   gdpr?: {
     /**
      * Mărește valoarea pentru a cere din nou consimțământul vizitatorilor.
      */
-    consentVersion?: number | null
-    cookieRetentionDays?: number | null
-  }
+    consentVersion?: number | null;
+    cookieRetentionDays?: number | null;
+  };
   cdp?: {
-    retentionDays?: number | null
-  }
+    retentionDays?: number | null;
+  };
   editorial?: {
-    seoLanguage?: string | null
-    minWordCount?: number | null
-    blockPublishOnRed?: boolean | null
-  }
+    seoLanguage?: string | null;
+    minWordCount?: number | null;
+    blockPublishOnRed?: boolean | null;
+  };
   aggregation?: {
-    itemTtlDays?: number | null
-    frontPageMaxAgeHours?: number | null
-    maxSummariesPerRun?: number | null
-  }
-  updatedAt?: string | null
-  createdAt?: string | null
+    itemTtlDays?: number | null;
+    frontPageMaxAgeHours?: number | null;
+    maxSummariesPerRun?: number | null;
+  };
+  updatedAt?: string | null;
+  createdAt?: string | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1115,89 +1108,89 @@ export interface SiteConfigSelect<T extends boolean = true> {
   adNetworks?:
     | T
     | {
-        adSensePublisherId?: T
+        adSensePublisherId?: T;
         adUnitIds?:
           | T
           | {
-              slot?: T
-              unitId?: T
-              format?: T
-              id?: T
-            }
+              slot?: T;
+              unitId?: T;
+              format?: T;
+              id?: T;
+            };
         amazonPartnerTags?:
           | T
           | {
-              marketplace?: T
-              tag?: T
-              id?: T
-            }
-      }
+              marketplace?: T;
+              tag?: T;
+              id?: T;
+            };
+      };
   localeRules?:
     | T
     | {
-        country?: T
-        region?: T
-        adSet?: T
-        id?: T
-      }
+        country?: T;
+        region?: T;
+        adSet?: T;
+        id?: T;
+      };
   adFrequency?:
     | T
     | {
-        region?: T
-        everyNth?: T
-        id?: T
-      }
+        region?: T;
+        everyNth?: T;
+        id?: T;
+      };
   behaviouralTargeting?:
     | T
     | {
-        enabled?: T
-        requiresConsent?: T
-      }
+        enabled?: T;
+        requiresConsent?: T;
+      };
   socialPlatforms?:
     | T
     | {
         pageUrls?:
           | T
           | {
-              platform?: T
-              url?: T
-              id?: T
-            }
+              platform?: T;
+              url?: T;
+              id?: T;
+            };
         postingSchedule?:
           | T
           | {
-              time?: T
-              id?: T
-            }
-      }
+              time?: T;
+              id?: T;
+            };
+      };
   gdpr?:
     | T
     | {
-        consentVersion?: T
-        cookieRetentionDays?: T
-      }
+        consentVersion?: T;
+        cookieRetentionDays?: T;
+      };
   cdp?:
     | T
     | {
-        retentionDays?: T
-      }
+        retentionDays?: T;
+      };
   editorial?:
     | T
     | {
-        seoLanguage?: T
-        minWordCount?: T
-        blockPublishOnRed?: T
-      }
+        seoLanguage?: T;
+        minWordCount?: T;
+        blockPublishOnRed?: T;
+      };
   aggregation?:
     | T
     | {
-        itemTtlDays?: T
-        frontPageMaxAgeHours?: T
-        maxSummariesPerRun?: T
-      }
-  updatedAt?: T
-  createdAt?: T
-  globalType?: T
+        itemTtlDays?: T;
+        frontPageMaxAgeHours?: T;
+        maxSummariesPerRun?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1205,9 +1198,9 @@ export interface SiteConfigSelect<T extends boolean = true> {
  */
 export interface CollectionsWidget {
   data?: {
-    [k: string]: unknown
-  }
-  width: 'full'
+    [k: string]: unknown;
+  };
+  width: 'full';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1215,24 +1208,25 @@ export interface CollectionsWidget {
  */
 export interface TaskSchedulePublish {
   input: {
-    type?: ('publish' | 'unpublish') | null
-    locale?: string | null
+    type?: ('publish' | 'unpublish') | null;
+    locale?: string | null;
     doc?: {
-      relationTo: 'articles'
-      value: number | Article
-    } | null
-    global?: string | null
-    user?: (number | null) | User
-  }
-  output?: unknown
+      relationTo: 'articles';
+      value: number | Article;
+    } | null;
+    global?: string | null;
+    user?: (number | null) | User;
+  };
+  output?: unknown;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "auth".
  */
 export interface Auth {
-  [k: string]: unknown
+  [k: string]: unknown;
 }
+
 
 declare module 'payload' {
   export interface GeneratedTypes extends Config {}

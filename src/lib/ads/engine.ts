@@ -35,10 +35,16 @@ export const AD_PLACEMENTS: readonly AdPlacement[] = ['feed', 'article', 'rail',
 export interface AdSenseDecision {
   /** AdSense ad-unit id — undefined until units exist (review pending) ⇒ the slot renders reserved-empty. */
   unitId?: string
-  /** data-ad-format value ('auto', 'rectangle', 'horizontal', …). */
+  /** Slot format key — interpreted by AdSenseUnit ('fluid', 'in-article', 'rectangle', 'horizontal', 'auto', 'WxH', …). */
   format: string
   /** Non-personalized ads flag — true whenever consent !== 'accepted'. */
   npa: boolean
+}
+
+/** One configured AdSense unit for a placement (site-config adNetworks.adUnitIds row). */
+export interface AdSenseUnitRef {
+  unitId: string
+  format: string
 }
 
 export interface AmazonDecision {
@@ -55,6 +61,13 @@ export interface AdDecision {
   network: 'adsense' | 'amazon' | 'house'
   adsense?: AdSenseDecision
   amazon?: AmazonDecision
+  /**
+   * ALL site-config units mapped to this placement, in config order — present
+   * only when at least one is configured. `adsense` above carries units[0];
+   * call sites rendering the same placement more than once per page rotate
+   * through these deterministically via adsenseAt(decision, positionIndex).
+   */
+  adsenseUnits?: AdSenseUnitRef[]
 }
 
 export interface AdPlan {
@@ -97,10 +110,16 @@ export interface AdEngineConfig {
 /** Fallback when no adFrequency row matches and no 'default' row exists. */
 export const DEFAULT_EVERY_NTH = 4
 
-/** Reserved-slot default formats (match AdSlot's fixed heights — zero CLS). */
-const DEFAULT_FORMAT: Record<AdPlacement, string> = {
-  feed: 'rectangle',
-  article: 'rectangle',
+/**
+ * Per-placement default formats when a site-config unit row leaves `format`
+ * empty (and for the inert pre-approval decision). AdSenseUnit maps these to
+ * the concrete <ins> attributes (PROJECT_BRIEF §6.4):
+ * feed → 'fluid' (in-feed), article → 'in-article', rail → 'rectangle'
+ * (300×250 fixed), leaderboard → 'horizontal' (728×90 fixed).
+ */
+export const DEFAULT_FORMAT: Record<AdPlacement, string> = {
+  feed: 'fluid',
+  article: 'in-article',
   rail: 'rectangle',
   leaderboard: 'horizontal',
 }
@@ -181,10 +200,14 @@ export function buildAdPlan(input: AdPlanInput, config: AdEngineConfig): AdPlan 
   const marketplace = marketplaceForCountry(input.country ?? input.region)
 
   const slots: AdDecision[] = AD_PLACEMENTS.map((placement) => {
-    const unit = config.adUnitIds.find((row) => row.slot === placement)
+    // site-config adNetworks.adUnitIds rows map 1:1 to placements by `slot`;
+    // several rows on the same placement = a rotation pool (config order).
+    const units: AdSenseUnitRef[] = config.adUnitIds
+      .filter((row) => row.slot === placement && row.unitId)
+      .map((row) => ({ unitId: row.unitId, format: row.format || DEFAULT_FORMAT[placement] }))
     const adsense: AdSenseDecision = {
-      unitId: unit?.unitId || undefined,
-      format: unit?.format || DEFAULT_FORMAT[placement],
+      unitId: units[0]?.unitId,
+      format: units[0]?.format ?? DEFAULT_FORMAT[placement],
       npa,
     }
     const amazon = amazonDecisionFor(placement, keywords, marketplace, config)
@@ -192,6 +215,7 @@ export function buildAdPlan(input: AdPlanInput, config: AdEngineConfig): AdPlan 
       placement,
       network: amazon ? ('amazon' as const) : ('adsense' as const),
       adsense,
+      ...(units.length > 0 ? { adsenseUnits: units } : {}),
       ...(amazon ? { amazon } : {}),
     }
   })
@@ -265,6 +289,27 @@ export async function getAdPlan(input: AdPlanInput): Promise<AdPlan> {
 /** Convenience: the (single) decision for a placement out of a plan. */
 export function decisionFor(plan: AdPlan, placement: AdPlacement): AdDecision | undefined {
   return plan.slots.find((slot) => slot.placement === placement)
+}
+
+/**
+ * The AdSense decision for the `index`-th rendering of a placement on a page
+ * (0-based position index: 1st in-feed slot = 0, 2nd = 1, …). Deterministic
+ * rotation: with N configured units the position picks units[index mod N] —
+ * same request, same page, same index ⇒ always the same unit (no randomness,
+ * so server + client render identically). With 0/1 units it degrades to the
+ * plan's single decision, npa carried through unchanged.
+ */
+export function adsenseAt(
+  decision: AdDecision | undefined,
+  index: number = 0,
+): AdSenseDecision | undefined {
+  const adsense = decision?.adsense
+  if (!adsense) return undefined
+  const units = decision?.adsenseUnits
+  if (!units || units.length === 0) return adsense
+  const safeIndex = Number.isFinite(index) && index >= 0 ? Math.floor(index) : 0
+  const unit = units[safeIndex % units.length]
+  return { ...adsense, unitId: unit.unitId, format: unit.format }
 }
 
 /**

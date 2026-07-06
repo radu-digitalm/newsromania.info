@@ -3,8 +3,10 @@ import type { CollectionConfig } from 'payload'
 import { isEditorOrAdmin } from './access'
 
 /**
- * `social-queue` — prepared social posts (architecture.md §3). Executed
- * MANUALLY via Claude in Chrome — no Meta/X APIs anywhere in the codebase.
+ * `social-queue` — prepared social posts (architecture.md §3). Filled by
+ * scripts/worker/social.mjs, reviewed in /admin (queued → approved), then
+ * executed MANUALLY via Claude in Chrome per docs/social-posting-runbook.md
+ * (approved → posted/skipped) — no Meta/X APIs anywhere in the codebase.
  */
 export const SocialQueue: CollectionConfig = {
   slug: 'social-queue',
@@ -12,9 +14,13 @@ export const SocialQueue: CollectionConfig = {
     singular: 'Postare socială',
     plural: 'Coadă socială',
   },
+  // Review order = posting order: the list opens on the next thing due.
+  defaultSort: 'scheduledFor',
   admin: {
-    defaultColumns: ['platform', 'contentType', 'status', 'scheduledFor', 'postedAt'],
-    description: 'Postări pregătite pentru rețele sociale — publicate manual, fără API-uri Meta/X.',
+    useAsTitle: 'caption',
+    defaultColumns: ['caption', 'platform', 'status', 'scheduledFor', 'contentType', 'postedAt'],
+    description:
+      'Postări pregătite pentru rețele sociale — aprobate aici, publicate manual (Claude in Chrome), fără API-uri Meta/X.',
   },
   access: {
     read: isEditorOrAdmin,

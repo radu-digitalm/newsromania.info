@@ -1,0 +1,22 @@
+# newsromania-social.service — o rulare a workerului cozii sociale.
+# Unitate systemd de UTILIZATOR (systemctl --user). Fără secrete aici:
+# `npx payload run` încarcă .env din rădăcina proiectului.
+# Doar PREGĂTEȘTE coada (social-queue, status „queued”) — postarea efectivă
+# este manuală, cu Claude in Chrome (docs/social-posting-runbook.md).
+# Instalare: deploy/systemd/install-user-units.sh
+
+[Unit]
+Description=NewsRomania — coadă postări sociale (pregătire, nu postare)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/newsagent/workspace/newsromania
+# bash -lc ca să preia PATH-ul utilizatorului (node via ~/bin, regula CLAUDE.md).
+ExecStart=/bin/bash -lc 'export PATH="$HOME/bin:$PATH"; cd /home/newsagent/workspace/newsromania && npx payload run scripts/worker/social.mjs'
+# Workerul se limitează singur la 8 minute; systemd taie la 10 ca plasă de siguranță.
+TimeoutStartSec=600
+# VPS partajat: prioritate redusă CPU/IO.
+Nice=10
+IOSchedulingClass=idle

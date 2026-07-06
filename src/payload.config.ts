@@ -36,6 +36,10 @@ export default buildConfig({
   sharp,
   admin: {
     user: Users.slug,
+    components: {
+      // Panoul operațional (PROJECT_BRIEF §17) — deasupra dashboardului admin.
+      beforeDashboard: ['@/components/admin/OpsDashboard#OpsDashboard'],
+    },
     importMap: {
       baseDir: path.resolve(dirname),
     },

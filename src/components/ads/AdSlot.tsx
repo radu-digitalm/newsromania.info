@@ -1,4 +1,4 @@
-import type { AdDecision } from '@/lib/ads/engine'
+import { adsenseAt, type AdDecision, type AdSenseDecision } from '@/lib/ads/engine'
 
 import { AdSenseUnit } from './AdSenseUnit'
 import { AmazonProductAd } from './AmazonProductAd'
@@ -17,8 +17,11 @@ import { AmazonProductAd } from './AmazonProductAd'
  * - network 'amazon' → <AmazonProductAd> (placeholder until Group D).
  * - network 'adsense' (or no decision passed — legacy call sites) →
  *   <AdSenseUnit>: data-ad-slot only when the engine resolved a unitId;
- *   NPA is handled ONCE globally by ConsentModeScript (see AdSenseUnit.tsx
- *   for the exact coordination contract with the consent agent).
+ *   when several units are configured for the placement, the `index` prop
+ *   (this slot's 0-based position on the page) rotates them deterministically
+ *   via adsenseAt(). NPA is handled ONCE globally by ConsentModeScript (see
+ *   AdSenseUnit.tsx for the exact coordination contract with the consent
+ *   agent).
  *
  * Placement ethics (hard rule): an AdSlot never sits between a title and its
  * byline/attribution row, and never mimics article anatomy.
@@ -39,9 +42,23 @@ const SLOT: Record<AdSlotVariant, { height: number; wrapper: string; ins: string
 }
 
 /** Inert fallback when a page renders a slot without an engine decision. */
-const INERT_DECISION = { format: 'auto', npa: true, unitId: undefined }
+const INERT_DECISION: AdSenseDecision = { format: 'auto', npa: true, unitId: undefined }
 
-export function AdSlot({ variant, decision }: { variant: AdSlotVariant; decision?: AdDecision }) {
+export function AdSlot({
+  variant,
+  decision,
+  index = 0,
+}: {
+  variant: AdSlotVariant
+  decision?: AdDecision
+  /**
+   * 0-based position of THIS slot among same-placement slots on the page
+   * (1st in-feed ad = 0, 2nd = 1, …). When site-config maps several AdSense
+   * units to the placement, adsenseAt() rotates through them
+   * deterministically by this index.
+   */
+  index?: number
+}) {
   // Amazon placements keep their own reserved treatment (same height class).
   if (decision?.network === 'amazon' && decision.amazon) {
     return <AmazonProductAd decision={decision.amazon} />
@@ -57,7 +74,7 @@ export function AdSlot({ variant, decision }: { variant: AdSlotVariant; decision
       <p className="flex h-6 items-center justify-center font-sans text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted">
         Publicitate
       </p>
-      <AdSenseUnit decision={decision?.adsense ?? INERT_DECISION} className={slot.ins} />
+      <AdSenseUnit decision={adsenseAt(decision, index) ?? INERT_DECISION} className={slot.ins} />
     </aside>
   )
 }
