@@ -1,35 +1,35 @@
 /**
- * MOCK DATA — replaced by Payload (step 3) and the RSS pipeline (step 5).
+ * Seed fixtures — the 6 Romanian evergreen originals + 8 aggregated items
+ * frozen from the old mock data (see ./fixtures-source.ts for the verbatim
+ * copy). Consumed by scripts/seed/baseline.mjs (run via `npx payload run`)
+ * and available to tests.
  *
- * 14 feed items: 6 original evergreen explainers (full body, fictional
- * authors) + 8 aggregated items (fair-use excerpt + attribution + link out).
- * All publishers on aggregated items are FICTIONAL Romanian-sounding outlets
- * pointing at https://example.org/... — never real publications, to avoid
- * misattribution. Dates are hardcoded ISO strings (2026-06-23 … 2026-07-06).
+ * All publishers on aggregated items are FICTIONAL outlets pointing at
+ * https://example.org/... — never real publications, to avoid misattribution.
+ * In Payload, every original is bylined to the real „Redacția NewsRomania”
+ * user (the fictional per-article authors from the mock era are dropped).
  */
 
-import type { AggregatedItem, Category, FeedItem, OriginalArticle } from '@/types/content'
+import type { AggregatedItem, OriginalArticle } from '../../src/types/content'
 
-// Mirrors siteConfig.categories (src/config/site.ts) — same slugs and names.
-const categories: Record<string, Category> = {
-  actualitate: { slug: 'actualitate', name: 'Actualitate' },
-  politica: { slug: 'politica', name: 'Politică' },
-  economie: { slug: 'economie', name: 'Economie' },
-  externe: { slug: 'externe', name: 'Externe' },
-  sport: { slug: 'sport', name: 'Sport' },
-  tehnologie: { slug: 'tehnologie', name: 'Tehnologie' },
-  sanatate: { slug: 'sanatate', name: 'Sănătate' },
-  cultura: { slug: 'cultura', name: 'Cultură' },
+// Mirrors siteConfig.categories (src/config/site.ts) — slugs only; baseline
+// seeds the actual category docs straight from siteConfig to keep the order.
+const cat = (slug: string, name: string) => ({ slug, name })
+const categories = {
+  actualitate: cat('actualitate', 'Actualitate'),
+  politica: cat('politica', 'Politică'),
+  economie: cat('economie', 'Economie'),
+  externe: cat('externe', 'Externe'),
+  sport: cat('sport', 'Sport'),
+  sanatate: cat('sanatate', 'Sănătate'),
+  tehnologie: cat('tehnologie', 'Tehnologie'),
+  cultura: cat('cultura', 'Cultură'),
 }
 
-// Fictional authors — the redacția plus two invented journalist names.
-const authors = {
-  redactia: { name: 'Redacția NewsRomania', slug: 'redactia-newsromania' },
-  vlasceanu: { name: 'Andrei Vlăsceanu', slug: 'andrei-vlasceanu' },
-  mirea: { name: 'Ioana Mirea', slug: 'ioana-mirea' },
-}
+const redactia = { name: 'Redacția NewsRomania', slug: 'redactia-newsromania' }
 
-const originalArticles: OriginalArticle[] = [
+/** 6 evergreen original articles, newest first. */
+export const seedOriginalArticles: OriginalArticle[] = [
   {
     id: 'orig-01',
     type: 'original',
@@ -40,13 +40,7 @@ const originalArticles: OriginalArticle[] = [
     category: categories.actualitate,
     tags: ['ro-alert', 'siguranță', 'ghid', 'situații de urgență'],
     publishedAt: '2026-07-06T08:30:00+03:00',
-    image: {
-      url: '/placeholders/actualitate.png',
-      alt: 'Ilustrație pentru un ghid despre sistemul de avertizare RO-Alert',
-      width: 1200,
-      height: 675,
-    },
-    author: authors.redactia,
+    author: redactia,
     body: [
       'RO-Alert este sistemul național prin care autoritățile transmit avertizări către populația aflată într-o zonă de risc. Spre deosebire de un SMS obișnuit, mesajele folosesc tehnologia cell broadcast: alerta este difuzată simultan către toate telefoanele conectate la antenele din zona vizată, fără ca cineva să cunoască numerele de telefon ale destinatarilor și fără costuri pentru utilizator.',
       'Alertele se emit doar în situații care pot pune viața în pericol: fenomene meteo extreme, inundații, incendii de amploare, prezența unor animale sălbatice periculoase în localități sau alte urgențe majore. Decizia de transmitere aparține autorităților responsabile cu gestionarea situațiilor de urgență, iar mesajul acoperă strict zona în care există riscul.',
@@ -66,13 +60,7 @@ const originalArticles: OriginalArticle[] = [
     category: categories.economie,
     tags: ['energie', 'facturi', 'ghid', 'consumatori'],
     publishedAt: '2026-07-03T09:15:00+03:00',
-    image: {
-      url: '/placeholders/economie.png',
-      alt: 'Ilustrație pentru un ghid despre citirea facturii de energie electrică',
-      width: 1200,
-      height: 675,
-    },
-    author: authors.mirea,
+    author: redactia,
     body: [
       'De la liberalizarea pieței de energie, factura lunară a devenit un document stufos, cu rânduri de tarife și taxe pe care puțini consumatori le înțeleg pe deplin. Vestea bună este că structura facturii este aceeași la toți furnizorii, iar odată ce înțelegi componentele principale, poți verifica singur corectitudinea sumelor și poți compara în cunoștință de cauză ofertele din piață.',
       'Cea mai importantă componentă este energia activă: cantitatea de electricitate consumată efectiv, măsurată în kilowați-oră (kWh), înmulțită cu prețul pe kWh din contractul tău. Acest preț al energiei este singura componentă asupra căreia furnizorii concurează direct, deci merită urmărit cu atenție atât la semnarea contractului, cât și la fiecare notificare de modificare.',
@@ -93,13 +81,7 @@ const originalArticles: OriginalArticle[] = [
     category: categories.sanatate,
     tags: ['medic de familie', 'sănătate', 'ghid'],
     publishedAt: '2026-06-30T11:40:00+03:00',
-    image: {
-      url: '/placeholders/sanatate.png',
-      alt: 'Ilustrație pentru un ghid despre alegerea medicului de familie',
-      width: 1200,
-      height: 675,
-    },
-    author: authors.vlasceanu,
+    author: redactia,
     body: [
       'Medicul de familie este primul contact cu sistemul public de sănătate: el asigură consultațiile de bază, monitorizează bolile cronice, eliberează rețete și bilete de trimitere către specialiști și se ocupă de prevenție, de la vaccinări la evaluările periodice. Fără înscrierea pe lista unui medic de familie, accesul la multe servicii decontate devine complicat și mai costisitor.',
       'Primul pas este să găsești un medic care primește pacienți noi. Listele cabinetelor aflate în contract sunt publicate de casele de asigurări de sănătate pe site-urile lor, cu datele de contact ale fiecăruia. În practică, ajută și recomandările vecinilor sau ale colegilor, dar sună întotdeauna la cabinet înainte: listele medicilor buni se completează repede, iar numărul de locuri este limitat.',
@@ -119,13 +101,7 @@ const originalArticles: OriginalArticle[] = [
     category: categories.tehnologie,
     tags: ['securitate', 'autentificare', 'ghid', 'conturi online'],
     publishedAt: '2026-06-27T17:05:00+03:00',
-    image: {
-      url: '/placeholders/tehnologie.png',
-      alt: 'Ilustrație pentru un ghid despre autentificarea în doi pași',
-      width: 1200,
-      height: 675,
-    },
-    author: authors.mirea,
+    author: redactia,
     body: [
       'Majoritatea conturilor sparte nu cad victimă unor atacuri sofisticate, ci unor parole slabe, refolosite pe mai multe site-uri sau scurse în breșe de date. Odată ce o parolă ajunge pe internet, oricine o poate încerca. Autentificarea în doi pași (cunoscută și ca 2FA sau verificare în două etape) adaugă un al doilea lacăt: chiar dacă parola este compromisă, contul rămâne protejat.',
       'Principiul este simplu: pe lângă ceva ce știi (parola), sistemul îți cere și ceva ce ai (telefonul, o aplicație, o cheie fizică). La fiecare conectare de pe un dispozitiv nou, după introducerea parolei, trebuie să confirmi identitatea prin acest al doilea factor. Un atacator care are doar parola se oprește aici.',
@@ -146,13 +122,7 @@ const originalArticles: OriginalArticle[] = [
     category: categories.politica,
     tags: ['parlament', 'legislație', 'explicativ'],
     publishedAt: '2026-06-25T10:20:00+03:00',
-    image: {
-      url: '/placeholders/politica.png',
-      alt: 'Ilustrație pentru un explicativ despre traseul legislativ din România',
-      width: 1200,
-      height: 675,
-    },
-    author: authors.vlasceanu,
+    author: redactia,
     body: [
       'Orice lege începe cu o inițiativă legislativă. Dreptul de a propune legi îl au Guvernul (prin proiecte de lege), deputații și senatorii (prin propuneri legislative) și cetățenii — pentru inițiativele cetățenești este nevoie de cel puțin 100.000 de semnături, cu o distribuție teritorială minimă, iar unele domenii, precum cele fiscale, sunt excluse.',
       'Parlamentul României este bicameral, iar Constituția stabilește pentru fiecare tip de lege o „primă Cameră sesizată” și o „Cameră decizională”. Prima Cameră are un termen limitat de dezbatere — dacă nu se pronunță în acest termen, proiectul se consideră adoptat tacit și trece mai departe. Decizia finală aparține întotdeauna Camerei decizionale.',
@@ -173,13 +143,7 @@ const originalArticles: OriginalArticle[] = [
     category: categories.cultura,
     tags: ['biblioteci', 'lectură', 'ghid', 'cultură'],
     publishedAt: '2026-06-23T14:50:00+03:00',
-    image: {
-      url: '/placeholders/cultura.png',
-      alt: 'Ilustrație pentru un ghid despre permisul de bibliotecă publică',
-      width: 1200,
-      height: 675,
-    },
-    author: authors.redactia,
+    author: redactia,
     body: [
       'România are o rețea densă de biblioteci publice — de la marile biblioteci județene până la filialele de cartier și bibliotecile comunale. Toate funcționează pe același principiu: accesul la colecții este un serviciu public, iar permisul de intrare se eliberează gratuit sau contra unei taxe simbolice, cu valabilitate de mai mulți ani și posibilitate de viză anuală.',
       'Pentru eliberarea permisului ai nevoie, de regulă, doar de actul de identitate. Minorii sunt înscriși de un părinte sau de reprezentantul legal, pe baza certificatului de naștere. Formalitățile durează câteva minute, iar multe biblioteci permit acum și preînscrierea online, urmând ca permisul fizic să fie ridicat la prima vizită.',
@@ -190,7 +154,11 @@ const originalArticles: OriginalArticle[] = [
   },
 ]
 
-const aggregatedItems: AggregatedItem[] = [
+/**
+ * 8 aggregated items, newest first — baseline.mjs seeds only the freshest
+ * TWO (arch §8 keeps the baseline minimal; the rest stay available for tests).
+ */
+export const seedAggregatedItems: AggregatedItem[] = [
   {
     id: 'agg-01',
     type: 'aggregated',
@@ -201,12 +169,6 @@ const aggregatedItems: AggregatedItem[] = [
     category: categories.externe,
     tags: ['schengen', 'călătorii', 'uniunea europeană'],
     publishedAt: '2026-07-05T19:10:00+03:00',
-    image: {
-      url: '/placeholders/externe.png',
-      alt: 'Ilustrație pentru o analiză despre spațiul Schengen și libera circulație',
-      width: 1200,
-      height: 675,
-    },
     source: { name: 'Meridianul de Est', url: 'https://example.org/meridianul-de-est' },
     sourceUrl: 'https://example.org/meridianul-de-est/analiza-spatiul-schengen-calatori',
   },
@@ -220,12 +182,6 @@ const aggregatedItems: AggregatedItem[] = [
     category: categories.sport,
     tags: ['alergare', 'semimaraton', 'sport amator'],
     publishedAt: '2026-07-04T07:45:00+03:00',
-    image: {
-      url: '/placeholders/sport.png',
-      alt: 'Ilustrație pentru un ghid de pregătire pentru primul semimaraton',
-      width: 1200,
-      height: 675,
-    },
     source: { name: 'Arena Presei', url: 'https://example.org/arena-presei' },
     sourceUrl: 'https://example.org/arena-presei/ghid-incepatori-primul-semimaraton',
   },
@@ -239,12 +195,6 @@ const aggregatedItems: AggregatedItem[] = [
     category: categories.tehnologie,
     tags: ['baterii', 'telefoane', 'sfaturi'],
     publishedAt: '2026-07-02T16:20:00+03:00',
-    image: {
-      url: '/placeholders/tehnologie.png',
-      alt: 'Ilustrație pentru un material despre încărcarea corectă a bateriilor de telefon',
-      width: 1200,
-      height: 675,
-    },
     source: { name: 'Cronica Digitală', url: 'https://example.org/cronica-digitala' },
     sourceUrl: 'https://example.org/cronica-digitala/incarcarea-corecta-a-bateriilor-de-telefon',
   },
@@ -258,12 +208,6 @@ const aggregatedItems: AggregatedItem[] = [
     category: categories.economie,
     tags: ['inflație', 'economisire', 'finanțe personale'],
     publishedAt: '2026-07-01T12:00:00+03:00',
-    image: {
-      url: '/placeholders/economie.png',
-      alt: 'Ilustrație pentru un explicativ despre inflație și economii',
-      width: 1200,
-      height: 675,
-    },
     source: { name: 'Radar Economic', url: 'https://example.org/radar-economic' },
     sourceUrl: 'https://example.org/radar-economic/explicativ-inflatia-si-economiile',
   },
@@ -277,12 +221,6 @@ const aggregatedItems: AggregatedItem[] = [
     category: categories.actualitate,
     tags: ['carte de identitate', 'documente', 'administrație'],
     publishedAt: '2026-06-29T09:30:00+03:00',
-    image: {
-      url: '/placeholders/actualitate.png',
-      alt: 'Ilustrație pentru un ghid despre obținerea cărții electronice de identitate',
-      width: 1200,
-      height: 675,
-    },
     source: { name: 'Curierul Carpaților', url: 'https://example.org/curierul-carpatilor' },
     sourceUrl: 'https://example.org/curierul-carpatilor/cartea-electronica-de-identitate-pasi',
   },
@@ -296,12 +234,6 @@ const aggregatedItems: AggregatedItem[] = [
     category: categories.sanatate,
     tags: ['hidratare', 'vară', 'prevenție'],
     publishedAt: '2026-06-28T13:15:00+03:00',
-    image: {
-      url: '/placeholders/sanatate.png',
-      alt: 'Ilustrație pentru un material despre hidratarea corectă în sezonul cald',
-      width: 1200,
-      height: 675,
-    },
     source: { name: 'Puls Medical', url: 'https://example.org/puls-medical' },
     sourceUrl: 'https://example.org/puls-medical/hidratarea-vara-recomandari',
   },
@@ -315,12 +247,6 @@ const aggregatedItems: AggregatedItem[] = [
     category: categories.politica,
     tags: ['parlamentul european', 'explicativ', 'instituții'],
     publishedAt: '2026-06-26T15:40:00+03:00',
-    image: {
-      url: '/placeholders/politica.png',
-      alt: 'Ilustrație pentru un explicativ despre activitatea unui europarlamentar',
-      width: 1200,
-      height: 675,
-    },
     source: { name: 'Gazeta de Mâine', url: 'https://example.org/gazeta-de-maine' },
     sourceUrl: 'https://example.org/gazeta-de-maine/ce-face-un-europarlamentar',
   },
@@ -334,41 +260,48 @@ const aggregatedItems: AggregatedItem[] = [
     category: categories.cultura,
     tags: ['muzee', 'cultură', 'timp liber'],
     publishedAt: '2026-06-24T18:25:00+03:00',
-    image: {
-      url: '/placeholders/cultura.png',
-      alt: 'Ilustrație pentru un ghid despre muzeele cu acces gratuit',
-      width: 1200,
-      height: 675,
-    },
     source: { name: 'Scena și Litera', url: 'https://example.org/scena-si-litera' },
     sourceUrl: 'https://example.org/scena-si-litera/ghid-muzee-acces-gratuit',
   },
 ]
 
-/** All 14 items, sorted newest first. */
-export const mockFeed: FeedItem[] = [...originalArticles, ...aggregatedItems].sort(
-  (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
-)
-
-/** Original in-house articles only, newest first. */
-export function getOriginalArticles(): OriginalArticle[] {
-  return mockFeed.filter((item): item is OriginalArticle => item.type === 'original')
+/** Starter Romanian RSS feeds — shipped DISABLED (legal gate, PROJECT_BRIEF 0.1). */
+export interface SeedFeed {
+  name: string
+  url: string
+  homepage: string
+  defaultCategorySlug: string
 }
 
-/**
- * Look up any feed item by slug. Originals get the full article page;
- * aggregated items get the excerpt + attribution landing page (design §3.5).
- */
-export function getFeedItemBySlug(slug: string): FeedItem | undefined {
-  return mockFeed.find((item) => item.slug === slug)
-}
-
-/** All feed items in a category, newest first. */
-export function getItemsByCategory(slug: string): FeedItem[] {
-  return mockFeed.filter((item) => item.category.slug === slug)
-}
-
-/** The homepage hero — always the newest ORIGINAL article (never an aggregated item). */
-export function getFeaturedArticle(): OriginalArticle {
-  return getOriginalArticles()[0]
-}
+export const seedFeeds: SeedFeed[] = [
+  {
+    name: 'Digi24',
+    url: 'https://www.digi24.ro/rss',
+    homepage: 'https://www.digi24.ro',
+    defaultCategorySlug: 'actualitate',
+  },
+  {
+    name: 'HotNews',
+    url: 'https://hotnews.ro/feed',
+    homepage: 'https://hotnews.ro',
+    defaultCategorySlug: 'actualitate',
+  },
+  {
+    name: 'G4Media',
+    url: 'https://www.g4media.ro/feed',
+    homepage: 'https://www.g4media.ro',
+    defaultCategorySlug: 'actualitate',
+  },
+  {
+    name: 'Agerpres',
+    url: 'https://www.agerpres.ro/rss',
+    homepage: 'https://www.agerpres.ro',
+    defaultCategorySlug: 'actualitate',
+  },
+  {
+    name: 'Libertatea',
+    url: 'https://www.libertatea.ro/feed',
+    homepage: 'https://www.libertatea.ro',
+    defaultCategorySlug: 'actualitate',
+  },
+]

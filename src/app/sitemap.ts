@@ -1,7 +1,10 @@
 import type { MetadataRoute } from 'next'
 import { siteConfig } from '@/config/site'
-import { getOriginalArticles } from '@/lib/mock-data'
+import { getPublishedOriginals } from '@/lib/content'
 import { absoluteUrl } from '@/lib/seo'
+
+// Reads Payload per request — new publishes appear without a rebuild.
+export const dynamic = 'force-dynamic'
 
 /**
  * sitemap.xml — home, the 8 category pages, and every ORIGINAL article.
@@ -17,8 +20,9 @@ import { absoluteUrl } from '@/lib/seo'
  *   lifted (step 5).
  * - /cautare: internal search results stay noindex permanently.
  */
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date()
+  const originals = await getPublishedOriginals()
 
   return [
     {
@@ -33,7 +37,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'hourly' as const,
       priority: 0.7,
     })),
-    ...getOriginalArticles().map((article) => ({
+    ...originals.map((article) => ({
       url: absoluteUrl(`/stiri/${article.slug}`),
       lastModified: new Date(article.publishedAt),
       changeFrequency: 'weekly' as const,

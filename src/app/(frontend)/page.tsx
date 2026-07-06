@@ -1,9 +1,11 @@
+import Link from 'next/link'
+
 import { AdSlot } from '@/components/ads/AdSlot'
 import { ArticleCard, ArticleTitleLink } from '@/components/articles/ArticleCard'
 import { FeedList } from '@/components/articles/FeedList'
 import { NextPageLink } from '@/components/articles/NextPageLink'
 import { formatFeedDate } from '@/components/articles/format-date'
-import { getFeaturedArticle, mockFeed } from '@/lib/mock-data'
+import { getFeaturedArticle, getFeed } from '@/lib/content'
 import type { FeedItem } from '@/types/content'
 
 /**
@@ -12,9 +14,12 @@ import type { FeedItem } from '@/types/content'
  * 8+4 content/rail split — chronological feed with fixed in-feed ad slots on
  * the left, rail AdSlot + sticky „Cele mai citite" list on the right — and
  * server-side pagination.
+ *
+ * Content comes from Payload via src/lib/content.ts (Redis-cached 60s);
+ * ad decisions become per-request later, so the route renders dynamically.
  */
 
-const PAGE_SIZE = 10
+export const dynamic = 'force-dynamic'
 
 /** Full-width ink rule with the 48×3px red segment flush left (§3.3.2). */
 function SectionRule({ title }: { title: string }) {
@@ -91,6 +96,28 @@ function MostReadRail({ items }: { items: FeedItem[] }) {
   )
 }
 
+/** Friendly pre-seed empty state — the feed can legitimately be empty. */
+function EmptyFeed() {
+  return (
+    <div className="mt-10 rounded-[2px] border border-border bg-surface px-6 py-12 text-center">
+      <p className="font-serif text-xl font-semibold leading-7 text-ink">
+        Încă nu am publicat nicio știre.
+      </p>
+      <p className="mt-2 font-sans text-[15px] leading-[22px] text-ink-secondary">
+        Pregătim primele articole chiar acum — revino în curând.
+      </p>
+      <p className="mt-4">
+        <Link
+          href="/despre-noi"
+          className="inline-block py-3 font-sans text-[15px] font-semibold leading-5 text-link transition-colors hover:text-link-hover"
+        >
+          Despre NewsRomania →
+        </Link>
+      </p>
+    </div>
+  )
+}
+
 interface HomePageProps {
   searchParams: Promise<{ page?: string }>
 }
@@ -100,29 +127,50 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const parsed = Number.parseInt(pageParam ?? '1', 10)
   const page = Number.isNaN(parsed) || parsed < 1 ? 1 : parsed
 
-  const featured = getFeaturedArticle()
-  const rest = mockFeed.filter((item) => item.id !== featured.id)
-  const railItems = rest.slice(0, 5)
-  // Mock stand-in for read counts (analytics arrive at a later step):
-  // a deterministic pick that doesn't duplicate the „Cele mai noi" rail.
-  const mostRead = rest.slice(5, 10)
+  const [featured, feed, firstPage] = await Promise.all([
+    getFeaturedArticle(),
+    getFeed({ page }),
+    // Rails always reflect the newest items, regardless of ?page= (as before).
+    getFeed({ page: 1 }),
+  ])
 
-  const pageItems = rest.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  const hasNextPage = rest.length > page * PAGE_SIZE
+  // The hero never repeats in the lists below it.
+  const excludeFeatured = (items: FeedItem[]) =>
+    featured ? items.filter((item) => item.id !== featured.id) : items
+
+  const newest = excludeFeatured(firstPage.items)
+  const railItems = newest.slice(0, 5)
+  // Stand-in for read counts (analytics arrive at a later step): a
+  // deterministic pick that doesn't duplicate the „Cele mai noi" rail.
+  const mostRead = newest.slice(5, 10)
+
+  const pageItems = excludeFeatured(feed.items)
+  const hasNextPage = feed.hasNextPage
+
+  if (!featured && pageItems.length === 0) {
+    return (
+      <div className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-8 md:px-6">
+        <h1 className="sr-only">NewsRomania — știri din România, la zi</h1>
+        <EmptyFeed />
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-8 md:px-6">
       <h1 className="sr-only">NewsRomania — știri din România, la zi</h1>
 
       {/* Hero band — 7/5 split on tablets, 8/4 on desktop (§3.1, §3.3.1). */}
-      <div className="grid gap-10 md:grid-cols-12 md:gap-6">
-        <div className="md:col-span-7 lg:col-span-8">
-          <ArticleCard item={featured} variant="featured" as="h2" />
+      {featured && (
+        <div className="grid gap-10 md:grid-cols-12 md:gap-6">
+          <div className="md:col-span-7 lg:col-span-8">
+            <ArticleCard item={featured} variant="featured" as="h2" />
+          </div>
+          <div className="md:col-span-5 lg:col-span-4">
+            <LatestRail items={railItems} />
+          </div>
         </div>
-        <div className="md:col-span-5 lg:col-span-4">
-          <LatestRail items={railItems} />
-        </div>
-      </div>
+      )}
 
       {/* Leaderboard — desktop only, once, between hero band and main feed (§3.3.6). */}
       <AdSlot variant="leaderboard" />

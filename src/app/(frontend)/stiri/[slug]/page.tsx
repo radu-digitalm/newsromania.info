@@ -7,7 +7,7 @@ import { Fragment } from 'react'
 import { AdSlot } from '@/components/ads/AdSlot'
 import { ExternalLinkIcon, Kicker, SourcePill } from '@/components/articles/ArticleCard'
 import { formatArticleDate } from '@/components/articles/format-date'
-import { getFeedItemBySlug, mockFeed } from '@/lib/mock-data'
+import { getFeedItemBySlug } from '@/lib/content'
 import { absoluteUrl, articleJsonLd, serializeJsonLd } from '@/lib/seo'
 import { siteConfig } from '@/config/site'
 import type { AggregatedItem, FeedItem, ImageRef } from '@/types/content'
@@ -25,19 +25,14 @@ interface ArticlePageProps {
   params: Promise<{ slug: string }>
 }
 
-export function generateStaticParams() {
-  return mockFeed.map(({ slug }) => ({ slug }))
-}
-
-// Unknown slugs 404 at the ROUTING level, so they get the fully
-// server-rendered branded global 404 (app/global-not-found.tsx) instead of
-// a client-hydrated not-found boundary. Revisit at step 3 (Payload) when
-// new articles must resolve without a rebuild.
-export const dynamicParams = false
+// Fully dynamic: new articles must resolve without a rebuild, and ad
+// decisions become per-request (architecture.md §2). Unknown slugs 404 via
+// notFound() below.
+export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({ params }: ArticlePageProps): Promise<Metadata> {
   const { slug } = await params
-  const article = getFeedItemBySlug(slug)
+  const article = await getFeedItemBySlug(slug)
   if (!article) return {}
 
   // Aggregated items canonicalize to the original publisher — their page here
@@ -162,7 +157,7 @@ function ArticleHeader({ article }: { article: FeedItem }) {
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
   const { slug } = await params
-  const article = getFeedItemBySlug(slug)
+  const article = await getFeedItemBySlug(slug)
   if (!article) notFound()
 
   if (article.type === 'aggregated') {

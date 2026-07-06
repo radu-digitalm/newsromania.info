@@ -6,7 +6,7 @@ import { CategoryChip } from '@/components/articles/CategoryChip'
 import { FeedList } from '@/components/articles/FeedList'
 import { NextPageLink } from '@/components/articles/NextPageLink'
 import { siteConfig } from '@/config/site'
-import { getItemsByCategory } from '@/lib/mock-data'
+import { getFeed } from '@/lib/content'
 import { absoluteUrl } from '@/lib/seo'
 
 /**
@@ -15,20 +15,15 @@ import { absoluteUrl } from '@/lib/seo'
  * the same server-side pagination.
  */
 
-const PAGE_SIZE = 10
-
 interface CategoryPageProps {
   params: Promise<{ slug: string }>
   searchParams: Promise<{ page?: string }>
 }
 
-export function generateStaticParams() {
-  return siteConfig.categories.map(({ slug }) => ({ slug }))
-}
-
-// The taxonomy is a fixed set: unknown category slugs 404 at the ROUTING
-// level and get the fully server-rendered branded global 404.
-export const dynamicParams = false
+// Fully dynamic: the feed comes from Payload per request (Redis-cached 60s)
+// and ad decisions become per-request (architecture.md §2). The taxonomy is
+// still a fixed set — unknown category slugs hit notFound() below.
+export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
   const { slug } = await params
@@ -51,9 +46,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   const category = siteConfig.categories.find((c) => c.slug === slug)
   if (!category) notFound()
 
-  const allItems = getItemsByCategory(category.slug)
-  const items = allItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  const hasNextPage = allItems.length > page * PAGE_SIZE
+  const { items, hasNextPage } = await getFeed({ page, categorySlug: category.slug })
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-8 md:px-6">

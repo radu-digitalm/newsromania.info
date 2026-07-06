@@ -1,27 +1,22 @@
 import type { Metadata } from 'next'
 
 import { FeedList } from '@/components/articles/FeedList'
-import { mockFeed } from '@/lib/mock-data'
+import { search } from '@/lib/content'
 
 /**
  * /cautare — the masthead search entry point (design §3.2, „Quiet Tricolor”
  * graft): a PAGE with a plain GET form, zero JavaScript. Results are
- * server-rendered from the ?q= parameter. Noindex: internal search results
- * must not enter the index.
+ * server-rendered from the ?q= parameter via the diacritic-insensitive
+ * search in src/lib/content.ts. Noindex: internal search results must not
+ * enter the index.
  */
+
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Caută',
   description: 'Caută în articolele și știrile publicate pe NewsRomania.',
   robots: { index: false, follow: true },
-}
-
-/** Diacritic-insensitive matching, so „sanatate” finds „sănătate”. */
-function normalize(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
 }
 
 interface SearchPageProps {
@@ -31,10 +26,7 @@ interface SearchPageProps {
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const { q } = await searchParams
   const query = (q ?? '').trim()
-  const needle = normalize(query)
-  const results = needle
-    ? mockFeed.filter((item) => normalize(`${item.title} ${item.excerpt}`).includes(needle))
-    : []
+  const results = query ? await search(query) : []
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-8 md:px-6">
