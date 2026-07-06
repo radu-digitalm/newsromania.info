@@ -1,0 +1,17 @@
+# newsromania-health.service — o verificare /api/health (arch §7).
+# Unitate systemd de UTILIZATOR (systemctl --user).
+#
+# Scrie o linie „<timestamp> OK/FAIL” în ~/.local/state/newsromania/health.log.
+# Plafon de mărime: peste 1 MB fișierul e trunchiat la ultimii 512 KB
+# (păstrăm coada — istoria recentă), deci nu poate umple discul partajat.
+# Instalare: deploy/systemd/install-user-units.sh
+
+[Unit]
+Description=NewsRomania — verificare /api/health (log în ~/.local/state)
+
+[Service]
+Type=oneshot
+# $$ = dolar literal pentru bash (systemd ar expanda $ simplu); %% = % literal.
+ExecStart=/bin/bash -c 'd="$$HOME/.local/state/newsromania"; f="$$d/health.log"; mkdir -p "$$d"; if [ -f "$$f" ] && [ "$$(stat -c %%s "$$f")" -gt 1048576 ]; then tail -c 524288 "$$f" > "$$f.tmp" && mv "$$f.tmp" "$$f"; fi; if curl -sf -m 10 -o /dev/null http://127.0.0.1:3100/api/health; then echo "$$(date -Is) OK"; else echo "$$(date -Is) FAIL"; fi >> "$$f"'
+TimeoutStartSec=60
+Nice=10

@@ -1,0 +1,44 @@
+# Build-context hygiene (shared VPS, tight disk): everything the image build
+# does not strictly need stays OUT of the context. npm ci recreates
+# node_modules inside the image; runtime data and secrets never enter layers.
+
+# secrets — NEVER in the build context
+.env
+.env.*
+!.env.example
+
+# dependencies / build output (recreated inside the image)
+node_modules
+vendor/*/node_modules
+.next
+*.tsbuildinfo
+dist
+build
+.turbo
+
+# runtime data / backups (bind-mounted or host-only)
+media
+backups
+uploads
+logs
+*.log
+coverage
+tmp
+
+# VCS / docs / ops (not needed to build the app)
+.git
+.gitignore
+docs
+deploy
+tests
+README.md
+CLAUDE.md
+PROJECT_BRIEF.md
+assets
+
+# OS / editor
+.DS_Store
+.idea
+.vscode
+*.swp
+*.swo

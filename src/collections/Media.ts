@@ -1,11 +1,8 @@
 import path from 'path'
-import { fileURLToPath } from 'url'
 
 import type { CollectionConfig } from 'payload'
 
 import { anyone, isEditorOrAdmin, isLoggedIn } from './access'
-
-const dirname = path.dirname(fileURLToPath(import.meta.url))
 
 /**
  * `media` — owned images ONLY (architecture.md §3): uploads by the redaction
@@ -29,8 +26,11 @@ export const Media: CollectionConfig = {
     delete: isEditorOrAdmin,
   },
   upload: {
-    // Repo-root ./media — bind-mounted by compose in production (arch §9).
-    staticDir: path.resolve(dirname, '../../media'),
+    // ./media relative to the process working directory: repo root in dev
+    // and for host-side workers, /app in the standalone container (compose
+    // bind-mounts ./media:/app/media — arch §9). NOT import.meta.url-based:
+    // inside the standalone bundle that would point into .next/server/.
+    staticDir: path.resolve(process.cwd(), 'media'),
     mimeTypes: ['image/*'],
     imageSizes: [
       { name: 'thumbnail', width: 480 },

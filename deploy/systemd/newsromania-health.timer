@@ -1,0 +1,14 @@
+# newsromania-health.timer — verificare /api/health la fiecare 5 minute.
+# Unitate systemd de UTILIZATOR (systemctl --user).
+
+[Unit]
+Description=NewsRomania — timer verificare sănătate (la fiecare 5 min)
+
+[Timer]
+OnCalendar=*:0/5
+# Fără Persistent: o verificare pierdută nu are valoare retroactivă.
+RandomizedDelaySec=20
+Unit=newsromania-health.service
+
+[Install]
+WantedBy=timers.target

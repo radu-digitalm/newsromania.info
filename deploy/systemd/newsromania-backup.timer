@@ -1,0 +1,16 @@
+# newsromania-backup.timer — backup PostgreSQL zilnic la 04:15.
+# Unitate systemd de UTILIZATOR (systemctl --user).
+
+[Unit]
+Description=NewsRomania — timer backup zilnic PostgreSQL (04:15)
+
+[Timer]
+OnCalendar=*-*-* 04:15:00
+# Recuperează o rulare pierdută (ex. server oprit la 04:15).
+Persistent=true
+# Desincronizează față de alte joburi de pe VPS-ul partajat.
+RandomizedDelaySec=300
+Unit=newsromania-backup.service
+
+[Install]
+WantedBy=timers.target

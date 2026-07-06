@@ -9,6 +9,7 @@
     "start": "next start -p 3100",
     "lint": "eslint .",
     "test": "vitest run",
+    "smoke": "bash scripts/smoke.sh",
     "typecheck": "tsc --noEmit",
     "icons": "node scripts/build-icons.mjs",
     "payload": "payload",

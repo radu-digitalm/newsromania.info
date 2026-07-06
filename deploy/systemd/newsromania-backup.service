@@ -1,0 +1,21 @@
+# newsromania-backup.service — o rulare a backupului PostgreSQL (pg_dump -Fc
+# prin docker exec, în backups/, păstrează cele mai noi 14).
+# Unitate systemd de UTILIZATOR (systemctl --user). Fără secrete aici:
+# scripts/db-backup.sh citește .env din rădăcina proiectului.
+# REGULĂ (arch §7): rulează scriptul și MANUAL înaintea oricărei migrări.
+# Instalare: deploy/systemd/install-user-units.sh
+
+[Unit]
+Description=NewsRomania — backup zilnic PostgreSQL (pg_dump, păstrează 14)
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/newsagent/workspace/newsromania
+Environment=DOCKER_HOST=unix:///run/user/1004/docker.sock
+ExecStart=/bin/bash -lc 'export PATH="$$HOME/bin:$$PATH"; cd /home/newsagent/workspace/newsromania && ./scripts/db-backup.sh'
+TimeoutStartSec=600
+# VPS partajat: prioritate redusă CPU/IO.
+Nice=10
+IOSchedulingClass=idle
