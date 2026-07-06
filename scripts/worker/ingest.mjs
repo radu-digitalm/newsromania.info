@@ -12,6 +12,7 @@
  *   - conditional GET (etag / If-Modified-Since persisted on the feed doc),
  *     15s timeout, UA newsromania-bot/1.0;
  *   - dedup by guid (guid || link);
+ *   - stored titles/excerpts normalized to comma-below diacritics (ş/ţ → ș/ț);
  *   - near-duplicate clustering: normalized-title Jaccard ≥ 0.6 against items
  *     from the last 48h ⇒ same story from another outlet ⇒ SKIP (keep earliest);
  *   - excerptPolicy 'ai-excerpt' ⇒ summarizeExcerpt + categorizeAndTag
@@ -39,6 +40,7 @@ import { summarizeExcerpt, categorizeAndTag } from '../../src/lib/llm.ts'
 import { purgeFeedCache } from '../../src/lib/redis.ts'
 import { roSlugify } from '../../src/lib/slugify.ts'
 import { CLUSTER_WINDOW_HOURS, findCluster, normalizeTitle } from './lib/cluster.mjs'
+import { fixRomanianDiacritics } from './lib/diacritics.mjs'
 import {
   createFeedParser,
   extractImage,
@@ -184,7 +186,7 @@ async function processFeedItems(payload, feed, items, ctx) {
       item,
       guid: itemGuid(item),
       publishedAt: ctx.dateOverrides?.get(item) ?? itemPublishedAt(item),
-      title: typeof item.title === 'string' ? item.title.trim() : '',
+      title: typeof item.title === 'string' ? fixRomanianDiacritics(item.title.trim()) : '',
     }))
     .filter((p) => p.guid !== null && p.title.length > 0)
     .sort((a, b) => a.publishedAt - b.publishedAt)
@@ -251,6 +253,7 @@ async function processFeedItems(payload, feed, items, ctx) {
           excerpt = null
         }
         if (excerpt !== null) {
+          excerpt = fixRomanianDiacritics(excerpt)
           linkOnly = false
           try {
             const cat = await categorizeAndTag({ title, excerpt })

@@ -180,10 +180,12 @@ frontPageMaxAgeHours: 72, maxSummariesPerRun: 40 }.
 
 - `newsromania-ingest` (every 20 min): scripts/worker/ingest.mjs — for each
   active feed: fetch (rss-parser, 15s timeout, etag/last-modified), dedup by
-  guid, cluster near-dups (normalized-title Jaccard ≥ 0.6 → same clusterKey,
-  keep earliest), respect excerptPolicy (link-only ⇒ no LLM), summarize+
-  categorize via llm.ts (≤ maxSummariesPerRun), image only from enclosure/
-  media:content, update feed health, archive items older than itemTtlDays.
+  guid, normalize legacy cedilla diacritics (ş/ţ → ș/ț) in stored titles/
+  excerpts, cluster near-dups (normalized-title Jaccard ≥ 0.6 → same
+  clusterKey, keep earliest), respect excerptPolicy (link-only ⇒ no LLM),
+  summarize+categorize via llm.ts (≤ maxSummariesPerRun), image only from
+  enclosure/media:content, update feed health, archive items older than
+  itemTtlDays.
 - `newsromania-social` (hourly): scripts/worker/social.mjs — new published
   originals + top aggregated → queued social-queue entries with captions at
   next schedule slots. Idempotent (one entry per story+platform).
