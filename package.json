@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start -p 3100",
     "lint": "eslint .",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "icons": "node scripts/build-icons.mjs",
     "payload": "payload",

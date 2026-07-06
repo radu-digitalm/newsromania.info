@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fixture de test pentru workerul de ingestie (scripts/worker/ingest.mjs \-\-fixture).
+  Conținut FICTIV, scris pentru acest proiect — nu provine de la un publisher real.
+  6 elemente: itemele 1 și 2 au titluri aproape identice (dovedesc clusteringul),
+  itemul 3 are imagine în media:content, itemul 6 are imagine în enclosure.
+-->
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>Știri Exemplu România</title>
+    <link>https://stiri-exemplu.invalid</link>
+    <description>Feed fictiv de test pentru NewsRomania</description>
+    <language>ro</language>
+    <item>
+      <title>Guvernul a aprobat bugetul pe 2026 cu investiții record în infrastructură</title>
+      <link>https://stiri-exemplu.invalid/politica/buget-2026-aprobat</link>
+      <guid isPermaLink="false">fixture-guid-0001</guid>
+      <pubDate>Mon, 06 Jul 2026 08:10:00 +0300</pubDate>
+      <description>Executivul a adoptat proiectul de buget pentru anul viitor, cu alocări majorate pentru autostrăzi și căi ferate, potrivit unui comunicat fictiv de test.</description>
+    </item>
+    <item>
+      <title>Guvernul a aprobat bugetul pe 2026: investiții record în infrastructură</title>
+      <link>https://alt-ziar-exemplu.invalid/economie/buget-2026</link>
+      <guid isPermaLink="false">fixture-guid-0002</guid>
+      <pubDate>Mon, 06 Jul 2026 09:25:00 +0300</pubDate>
+      <description>Titlu aproape identic cu itemul precedent — trebuie să intre în același cluster și să NU fie creat (păstrăm varianta cea mai veche).</description>
+    </item>
+    <item>
+      <title>Simona Popescu câștigă turneul de tenis de la București</title>
+      <link>https://stiri-exemplu.invalid/sport/popescu-turneu-bucuresti</link>
+      <guid isPermaLink="false">fixture-guid-0003</guid>
+      <pubDate>Mon, 06 Jul 2026 10:40:00 +0300</pubDate>
+      <description>Jucătoarea fictivă s-a impus în trei seturi în finala turneului de test din Capitală.</description>
+      <media:content url="https://stiri-exemplu.invalid/img/popescu-trofeu.jpg" type="image/jpeg" medium="image" width="960" height="640" />
+    </item>
+    <item>
+      <title>Prețul energiei electrice scade cu 5% de la 1 august</title>
+      <link>https://stiri-exemplu.invalid/economie/pret-energie-scadere</link>
+      <guid isPermaLink="false">fixture-guid-0004</guid>
+      <pubDate>Mon, 06 Jul 2026 11:05:00 +0300</pubDate>
+      <description>Autoritatea fictivă de reglementare anunță o ieftinire a energiei pentru consumatorii casnici începând cu luna august.</description>
+    </item>
+    <item>
+      <title>Ministerul Educației anunță calendarul examenelor naționale</title>
+      <link>https://stiri-exemplu.invalid/actualitate/calendar-examene</link>
+      <guid isPermaLink="false">fixture-guid-0005</guid>
+      <pubDate>Mon, 06 Jul 2026 12:15:00 +0300</pubDate>
+      <description>Probele scrise fictive vor începe în a doua parte a lunii, potrivit calendarului de test publicat astăzi.</description>
+    </item>
+    <item>
+      <title>Vremea se răcește accentuat în weekend, cu ploi în vestul țării</title>
+      <link>https://stiri-exemplu.invalid/actualitate/vremea-weekend</link>
+      <guid isPermaLink="false">fixture-guid-0006</guid>
+      <pubDate>Mon, 06 Jul 2026 13:30:00 +0300</pubDate>
+      <description>Meteorologii fictivi anunță o scădere a temperaturilor și averse însemnate cantitativ în jumătatea de vest.</description>
+      <enclosure url="https://stiri-exemplu.invalid/img/vreme-weekend.png" type="image/png" length="123456" />
+    </item>
+  </channel>
+</rss>

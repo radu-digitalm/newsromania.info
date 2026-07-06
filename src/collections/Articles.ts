@@ -2,6 +2,7 @@ import type { CollectionConfig, Where } from 'payload'
 import { Forbidden } from 'payload'
 
 import { purgeFeedCache } from '../lib/redis'
+import { seoAnalyzeBeforeChange } from '../lib/seo-analyzer/hook'
 import { slugifyHook } from '../lib/slugify'
 import { getRole, isEditorOrAdmin, isLoggedIn } from './access'
 
@@ -77,6 +78,9 @@ export const Articles: CollectionConfig = {
         }
         return data
       },
+      // Adevărul SEO de pe server: scrie seo.seoScore/seoReport și aplică
+      // poarta de publicare blockPublishOnRed (arch §4).
+      seoAnalyzeBeforeChange,
     ],
     afterChange: [
       async ({ doc, previousDoc, req }) => {
@@ -171,6 +175,16 @@ export const Articles: CollectionConfig = {
       label: 'SEO',
       type: 'group',
       fields: [
+        {
+          // Panoul live „Analiză SEO” (semafor + verificări + snippet Google).
+          name: 'seoPanel',
+          type: 'ui',
+          admin: {
+            components: {
+              Field: '@/components/admin/SeoPanel#SeoPanel',
+            },
+          },
+        },
         {
           name: 'metaTitle',
           label: 'Meta titlu',

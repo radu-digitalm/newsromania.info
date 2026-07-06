@@ -368,6 +368,8 @@ export interface Feed {
   lastItemAt?: string | null
   lastError?: string | null
   consecutiveFailures?: number | null
+  etag?: string | null
+  httpLastModified?: string | null
   updatedAt: string
   createdAt: string
 }
@@ -861,6 +863,8 @@ export interface FeedsSelect<T extends boolean = true> {
   lastItemAt?: T
   lastError?: T
   consecutiveFailures?: T
+  etag?: T
+  httpLastModified?: T
   updatedAt?: T
   createdAt?: T
 }

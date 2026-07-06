@@ -1,0 +1,16 @@
+# newsromania-ingest.timer — pornește ingestia RSS la fiecare 20 de minute.
+# Unitate systemd de UTILIZATOR (systemctl --user).
+
+[Unit]
+Description=NewsRomania — timer ingestie RSS (la fiecare 20 min)
+
+[Timer]
+OnCalendar=*:0/20
+# Recuperează o rulare pierdută (ex. după repornirea serverului).
+Persistent=true
+# Desincronizează pornirea față de alte joburi de pe VPS-ul partajat.
+RandomizedDelaySec=45
+Unit=newsromania-ingest.service
+
+[Install]
+WantedBy=timers.target

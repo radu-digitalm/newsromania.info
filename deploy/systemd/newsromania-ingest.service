@@ -1,0 +1,20 @@
+# newsromania-ingest.service — o rulare a workerului de ingestie RSS.
+# Unitate systemd de UTILIZATOR (systemctl --user). Fără secrete aici:
+# `npx payload run` încarcă .env din rădăcina proiectului.
+# Instalare: deploy/systemd/install-user-units.sh
+
+[Unit]
+Description=NewsRomania — ingestie RSS (agregare știri)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/newsagent/workspace/newsromania
+# bash -lc ca să preia PATH-ul utilizatorului (node via ~/bin, regula CLAUDE.md).
+ExecStart=/bin/bash -lc 'export PATH="$HOME/bin:$PATH"; cd /home/newsagent/workspace/newsromania && npx payload run scripts/worker/ingest.mjs'
+# Workerul se limitează singur la 5 minute; systemd taie la 8 ca plasă de siguranță.
+TimeoutStartSec=480
+# VPS partajat: prioritate redusă CPU/IO.
+Nice=10
+IOSchedulingClass=idle

@@ -107,6 +107,19 @@ export const Feeds: CollectionConfig = {
           defaultValue: 0,
           admin: { readOnly: true },
         },
+        {
+          // HTTP conditional-GET validators (RFC 9110) persisted between runs
+          // so the ingest worker can send If-None-Match / If-Modified-Since
+          // and skip unchanged feeds (304). Internal — hidden in admin.
+          name: 'etag',
+          type: 'text',
+          admin: { hidden: true },
+        },
+        {
+          name: 'httpLastModified',
+          type: 'text',
+          admin: { hidden: true },
+        },
       ],
     },
   ],
