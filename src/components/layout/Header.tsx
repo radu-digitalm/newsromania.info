@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { siteConfig } from '@/config/site'
+import { CategoryNavList } from './CategoryNavList'
 import { TricolorBar } from './TricolorBar'
 import logoFull from '../../../assets/logo-full.png'
 
@@ -26,8 +26,9 @@ function currentDateRo(): { iso: string; label: string } {
 }
 
 /**
- * Site header (design §3.2), zero JavaScript: tricolor bar → white masthead
- * with the full lockup + search entry point → sticky category nav.
+ * Site header (design §3.2): tricolor bar → white masthead with the full
+ * lockup + search entry point → sticky category nav. Fully functional without
+ * JavaScript (sticky is pure CSS; the nav's active state is server-rendered).
  *
  * The whole header is `position: sticky` with a negative top offset equal to
  * the tricolor bar + masthead height, so once the page scrolls only the 48px
@@ -44,7 +45,8 @@ export function Header() {
       {/* Masthead — white, with the 2px ink „fold rule” as its bottom edge */}
       <div className="border-b-2 border-ink bg-surface">
         <div className="mx-auto flex h-16 w-full max-w-[1200px] items-center justify-between px-4 md:h-[88px] md:px-6">
-          <Link href="/" className="shrink-0 active:opacity-85">
+          {/* h-11 keeps the anchor's hit box ≥44px on mobile, where the logo renders at 36px. */}
+          <Link href="/" className="flex h-11 shrink-0 items-center active:opacity-85 md:h-12">
             <Image src={logoFull} alt="NewsRomania" priority className="h-9 w-auto md:h-12" />
           </Link>
           <div className="flex items-center gap-4">
@@ -79,21 +81,11 @@ export function Header() {
         </div>
       </div>
 
-      {/* Category nav — horizontally scrollable on mobile, right-edge fade hint */}
+      {/* Category nav — horizontally scrollable on mobile, right-edge fade hint,
+          current section marked with the inset red bar (CategoryNavList). */}
       <nav aria-label="Navigare principală" className="border-b border-border bg-surface">
         <div className="mx-auto w-full max-w-[1200px] px-4 md:px-6">
-          <ul className="-mx-3 flex overflow-x-auto [-webkit-overflow-scrolling:touch] [scrollbar-width:none] max-md:[mask-image:linear-gradient(90deg,#000_calc(100%-24px),transparent)] [&::-webkit-scrollbar]:hidden">
-            {siteConfig.categories.map((category) => (
-              <li key={category.slug} className="shrink-0">
-                <Link
-                  href={`/categorie/${category.slug}`}
-                  className="block whitespace-nowrap px-3 py-3.5 font-sans text-sm font-semibold leading-5 text-ink transition-colors hover:text-link active:opacity-85"
-                >
-                  {category.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <CategoryNavList />
         </div>
       </nav>
     </header>

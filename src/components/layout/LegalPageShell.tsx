@@ -17,7 +17,7 @@ export function LegalPageShell({ title, children }: { title: string; children: R
           <div aria-hidden="true" className="relative mt-5 h-px bg-ink">
             <span className="absolute -top-px left-0 h-[3px] w-12 bg-brand-red" />
           </div>
-          <p className="mt-6 rounded-[2px] border border-[#C9D4EC] bg-accent-bg px-5 py-4 font-sans text-[15px] leading-[22px] text-ink">
+          <p className="mt-6 rounded-[2px] border border-border-pill bg-accent-bg px-5 py-4 font-sans text-[15px] leading-[22px] text-ink">
             Această pagină este în curs de finalizare și va fi completată înainte de lansare.
           </p>
           <div className="mt-10 space-y-10">{children}</div>

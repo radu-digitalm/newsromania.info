@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 
-import type { FeedItem, ImageRef } from '@/types/content'
+import type { Category, FeedItem, ImageRef } from '@/types/content'
 
 import { formatFeedDate } from './format-date'
 
@@ -36,7 +36,7 @@ function itemImage(item: FeedItem): ImageRef {
   )
 }
 
-function ExternalLinkIcon({ className }: { className?: string }) {
+export function ExternalLinkIcon({ className }: { className?: string }) {
   return (
     <svg
       aria-hidden="true"
@@ -72,10 +72,11 @@ export function ArticleTitleLink({ item, className }: { item: FeedItem; classNam
       href={item.sourceUrl}
       target="_blank"
       rel="noopener noreferrer nofollow"
-      className={className}
+      className={`group ${className ?? ''}`}
     >
       {item.title}
-      <ExternalLinkIcon className="ml-1.5 inline-block h-[0.65em] w-[0.65em] align-baseline text-ink-muted" />
+      {/* Trailing ↗ shifts to link blue on hover (§4.2). */}
+      <ExternalLinkIcon className="ml-1.5 inline-block h-[0.65em] w-[0.65em] align-baseline text-ink-muted transition-colors group-hover:text-link" />
       <span className="sr-only">
         {' '}
         (link extern către {item.source.name} — se deschide în fereastră nouă)
@@ -84,20 +85,25 @@ export function ArticleTitleLink({ item, className }: { item: FeedItem; classNam
   )
 }
 
-function Kicker({ item }: { item: FeedItem }) {
+/**
+ * Red category kicker (§4.1) — the editorial category label grammar used on
+ * hero, feed rows and article pages. Vertical padding stretches the tap target
+ * to 44px (14+16+14) while the negative margin cancels the layout impact.
+ */
+export function Kicker({ category }: { category: Category }) {
   return (
     <Link
-      href={`/categorie/${item.category.slug}`}
-      className="-my-2 inline-block py-2 font-sans text-xs font-bold uppercase leading-4 tracking-[0.08em] text-[#C0121F] transition-colors hover:text-link-hover"
+      href={`/categorie/${category.slug}`}
+      className="-my-3.5 inline-block py-3.5 font-sans text-xs font-bold uppercase leading-4 tracking-[0.08em] text-red-text transition-colors hover:text-link-hover"
     >
-      {item.category.name}
+      {category.name}
     </Link>
   )
 }
 
-function SourcePill({ name }: { name: string }) {
+export function SourcePill({ name }: { name: string }) {
   return (
-    <span className="inline-flex h-6 items-center gap-1 rounded-full border border-[#C9D4EC] bg-[#EFF2FA] px-2.5 font-sans text-xs font-semibold leading-4 text-[#35508F]">
+    <span className="inline-flex h-6 items-center gap-1 rounded-full border border-border-pill bg-accent-bg px-2.5 font-sans text-xs font-semibold leading-4 text-pill-text">
       Sursa: {name}
       <ExternalLinkIcon className="h-3 w-3" />
     </span>
@@ -182,7 +188,7 @@ export function ArticleCard({ item, as = 'h3', variant = 'feed' }: ArticleCardPr
           sizes="(min-width: 1024px) 776px, 100vw"
         />
         <div className="mt-4">
-          <Kicker item={item} />
+          <Kicker category={item.category} />
           <Heading className="mt-2 font-serif text-[28px] font-bold leading-[34px] tracking-[-0.015em] text-ink md:text-[40px] md:leading-[46px]">
             <ArticleTitleLink
               item={item}
@@ -201,7 +207,7 @@ export function ArticleCard({ item, as = 'h3', variant = 'feed' }: ArticleCardPr
   return (
     <article className="grid grid-cols-[1fr_auto] gap-4 border-b border-border py-5 last-of-type:border-b-0">
       <div className="min-w-0">
-        <Kicker item={item} />
+        <Kicker category={item.category} />
         <Heading className="mt-1.5 font-serif text-lg font-semibold leading-6 text-ink md:text-xl md:leading-[26px]">
           <ArticleTitleLink
             item={item}
@@ -213,9 +219,10 @@ export function ArticleCard({ item, as = 'h3', variant = 'feed' }: ArticleCardPr
         </p>
         <MetaRow item={item} />
       </div>
+      {/* self-start keeps the true 16:9 box (grid default stretch would override aspect-ratio) and top-aligns the thumb with the kicker (§3.4). */}
       <ThumbLink
         item={item}
-        className="aspect-video w-28 shrink-0 md:w-[220px]"
+        className="aspect-video w-28 shrink-0 self-start md:w-[220px]"
         sizes="(min-width: 768px) 220px, 112px"
       />
     </article>

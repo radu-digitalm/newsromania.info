@@ -9,7 +9,7 @@ const columnHeadingClass =
 
 // Footer sits on ink, so focus rings flip to yellow (design §6).
 const footerLinkClass =
-  'block py-2.5 font-sans text-[15px] leading-6 text-[#C7D0E2] transition-colors hover:text-white hover:underline hover:decoration-brand-yellow hover:decoration-2 hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-yellow active:opacity-85'
+  'block py-2.5 font-sans text-[15px] leading-6 text-footer-link transition-colors hover:text-white hover:underline hover:decoration-brand-yellow hover:decoration-2 hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-yellow active:opacity-85'
 
 /** Site footer (design §3.6) — the page's single `contentinfo` landmark. */
 export function Footer() {
@@ -22,7 +22,7 @@ export function Footer() {
           <Image src={logoSymbol} alt="" className="h-10 w-auto" />
           <div>
             <p className="font-serif text-xl font-bold leading-6 text-white">NewsRomania</p>
-            <p className="mt-1 font-sans text-[15px] leading-[22px] text-[#C7D0E2]">
+            <p className="mt-1 font-sans text-[15px] leading-[22px] text-footer-link">
               Știri din România, la zi.
             </p>
           </div>
@@ -45,7 +45,7 @@ export function Footer() {
           <div>
             <h2 className={columnHeadingClass}>Informații</h2>
             <ul className="mt-3">
-              {siteConfig.legalPages.map((page) => (
+              {siteConfig.infoPages.map((page) => (
                 <li key={page.slug}>
                   <Link href={`/${page.slug}`} className={footerLinkClass}>
                     {page.title}
@@ -56,7 +56,7 @@ export function Footer() {
           </div>
           <div>
             <h2 className={columnHeadingClass}>Surse</h2>
-            <p className="mt-5 font-sans text-[15px] leading-6 text-[#C7D0E2]">
+            <p className="mt-5 font-sans text-[15px] leading-6 text-footer-link">
               Materialele agregate sunt prezentate ca extrase scurte, cu atribuire și legătură către
               publicația-sursă.
             </p>
@@ -65,10 +65,10 @@ export function Footer() {
 
         {/* Legal bar */}
         <div className="mt-12 border-t border-white/15 pt-6">
-          <p className="font-sans text-[13px] leading-[18px] text-[#AEB9CF]">
+          <p className="font-sans text-[13px] leading-[18px] text-footer-meta">
             © 2026 NewsRomania · Conținutul preluat aparține surselor citate.
           </p>
-          <p className="mt-2 font-sans text-[13px] leading-[18px] text-[#AEB9CF]">
+          <p className="mt-2 font-sans text-[13px] leading-[18px] text-footer-meta">
             Materialele agregate aparțin publicațiilor-sursă și sunt citate cu atribuire.
           </p>
         </div>

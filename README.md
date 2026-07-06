@@ -30,12 +30,30 @@ Verified free before reservation (`ss -tlnp`, 2026-07-06): nothing listens in
   One-time finish after the owner applies `deploy/sudo-block-1-container-runtime.sh`:
   `bash scripts/setup-rootless-docker.sh`
 
+## Development
+
+```bash
+npm run dev        # dev server on :3100
+npm run build      # production build (lint + typecheck are separate)
+npm run start      # serve the production build on :3100
+npm run lint && npm run typecheck
+npm run icons      # regenerate favicon/app icons/OG/placeholders from assets/
+```
+
+Step 1 (public skeleton) is live: home with featured hero + feed + rail,
+`/stiri/[slug]` (originals full-text self-canonical; aggregated landing pages
+canonical→publisher), `/categorie/[slug]`, `/cautare`, legal + info stubs
+(noindex), branded 404, robots/sitemap/manifest. Content is mock data until
+Payload (step 3) and the RSS pipeline (step 5). Design system: "Broadsheet
+Tricolor" — see `docs/design-direction.md` and `docs/design-tokens.md`.
+
 ## Layout
 
 - `assets/` — brand logos (`logo-full.png`: header + OG images; `logo-symbol.png`: favicon/app-icon source)
 - `vendor/` — vendored Amazon Creators API Node.js SDK (zip; extracted at build step 10)
 - `deploy/` — hand-over material for the owner (sudo blocks, nginx config template)
-- `scripts/` — operational scripts run as `newsagent` (setup, seed, maintenance)
+- `scripts/` — operational scripts run as `newsagent` (setup, seed, icons, maintenance)
+- `docs/` — design direction, design tokens (WCAG matrix), SEO foundation
 
 ## Secrets
 

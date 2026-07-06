@@ -7,13 +7,15 @@ import { absoluteUrl } from '@/lib/seo'
  * sitemap.xml — home, the 8 category pages, and every ORIGINAL article.
  *
  * Deliberately excluded:
- * - AGGREGATED items: they have no on-site detail page — cards link out to the
+ * - AGGREGATED items: their on-site landing pages canonicalize to the
  *   original publisher, whose page is the canonical one. Listing them would
  *   invite duplicate-content penalties (PROJECT_BRIEF Section 16).
- * - Legal pages (politica-de-confidentialitate, termeni-si-conditii,
- *   politica-de-cookies, mentiuni-legale): they ship as placeholder copy and
- *   carry noindex until the texts are finalized — a sitemap must never list
- *   noindex URLs. Re-add them when the noindex is lifted (step 5).
+ * - Info/legal pages (despre-noi, contact, politica-de-confidentialitate,
+ *   politica-de-cookies, termeni-si-conditii, mentiuni-legale): they ship as
+ *   placeholder copy and carry noindex until the texts are finalized — a
+ *   sitemap must never list noindex URLs. Re-add them when the noindex is
+ *   lifted (step 5).
+ * - /cautare: internal search results stay noindex permanently.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date()

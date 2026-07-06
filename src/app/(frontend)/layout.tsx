@@ -19,19 +19,17 @@ export const metadata: Metadata = {
   alternates: {
     canonical: './',
   },
+  // No og/twitter title or description here: hard-coding them in the layout
+  // would suppress Next's fallback to each page's resolved title/description.
   openGraph: {
     type: 'website',
     locale: 'ro_RO',
     siteName: siteConfig.name,
     url: './',
-    title: defaultTitle,
-    description: siteConfig.description,
     images: [{ url: '/og-default.png', width: 1200, height: 630, alt: 'NewsRomania' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: defaultTitle,
-    description: siteConfig.description,
     images: ['/og-default.png'],
   },
 }

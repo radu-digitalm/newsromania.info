@@ -102,7 +102,7 @@ const originalArticles: OriginalArticle[] = [
     author: authors.vlasceanu,
     body: [
       'Medicul de familie este primul contact cu sistemul public de sănătate: el asigură consultațiile de bază, monitorizează bolile cronice, eliberează rețete și bilete de trimitere către specialiști și se ocupă de prevenție, de la vaccinări la evaluările periodice. Fără înscrierea pe lista unui medic de familie, accesul la multe servicii decontate devine complicat și mai costisitor.',
-      'Primul pas este să găsești un medic care primește pacienți noi. Casele de asigurări de sănătate publică pe site-urile lor listele cabinetelor aflate în contract, cu datele de contact ale fiecăruia. În practică, ajută și recomandările vecinilor sau ale colegilor, dar sună întotdeauna la cabinet înainte: listele medicilor buni se completează repede, iar numărul de locuri este limitat.',
+      'Primul pas este să găsești un medic care primește pacienți noi. Listele cabinetelor aflate în contract sunt publicate de casele de asigurări de sănătate pe site-urile lor, cu datele de contact ale fiecăruia. În practică, ajută și recomandările vecinilor sau ale colegilor, dar sună întotdeauna la cabinet înainte: listele medicilor buni se completează repede, iar numărul de locuri este limitat.',
       'Înscrierea propriu-zisă este simplă: se face direct la cabinet, pe baza actului de identitate și, acolo unde este solicitat, a cardului de sănătate. Completezi o cerere-tip prin care soliciți includerea pe lista medicului, iar cabinetul se ocupă de restul formalităților în relația cu casa de asigurări. Nu se percep taxe pentru înscriere.',
       'Pentru copii, înscrierea o fac părinții sau reprezentanții legali, cu certificatul de naștere al copilului și actul de identitate al părintelui. Persoanele neasigurate au și ele dreptul la un pachet minimal de servicii la medicul de familie, care include consultații pentru urgențe, monitorizarea sarcinii și serviciile de prevenție de bază.',
       'Dacă nu ești mulțumit, poți schimba medicul de familie, de regulă după cel puțin șase luni de la ultima înscriere — termenul exact și excepțiile (mutarea în altă localitate, de exemplu) merită verificate la casa de asigurări. Schimbarea se face printr-o cerere la noul cabinet, fără să fie nevoie de acordul medicului de la care pleci.',
@@ -131,7 +131,7 @@ const originalArticles: OriginalArticle[] = [
       'Principiul este simplu: pe lângă ceva ce știi (parola), sistemul îți cere și ceva ce ai (telefonul, o aplicație, o cheie fizică). La fiecare conectare de pe un dispozitiv nou, după introducerea parolei, trebuie să confirmi identitatea prin acest al doilea factor. Un atacator care are doar parola se oprește aici.',
       'Cea mai răspândită formă este codul primit prin SMS. Este mai bună decât nimic, dar și cea mai fragilă variantă: mesajele pot fi interceptate, iar numărul de telefon poate fi preluat prin fraude de tip duplicare a cartelei. Folosește SMS-ul doar acolo unde nu există alternativă.',
       'Un pas mai sus se află aplicațiile de autentificare, care generează coduri temporare direct pe telefon, fără să depindă de rețeaua mobilă. Cel mai înalt nivel îl oferă cheile de securitate fizice și tehnologia passkey, care leagă autentificarea de dispozitivul tău și fac aproape imposibile atacurile de tip phishing, pentru că nu există niciun cod care să poată fi divulgat.',
-      'Activarea durează câteva minute: intră în setările contului, secțiunea de securitate, și caută opțiunea „autentificare în doi pași" sau „verificare în două etape". Începe cu conturile critice — e-mailul principal (cheia de recuperare a tuturor celorlalte conturi), serviciile bancare, conturile de social media și contul de la locul de muncă.',
+      'Activarea durează câteva minute: intră în setările contului, secțiunea de securitate, și caută opțiunea „autentificare în doi pași” sau „verificare în două etape”. Începe cu conturile critice — e-mailul principal (cheia de recuperare a tuturor celorlalte conturi), serviciile bancare, conturile de social media și contul de la locul de muncă.',
       'La activare, serviciile îți oferă coduri de rezervă pentru situația în care pierzi telefonul. Salvează-le într-un loc sigur, separat de telefon — ideal într-un manager de parole sau imprimate. Fără ele, recuperarea unui cont cu 2FA activ poate dura zile întregi.',
       'Un ultim avertisment: niciun operator serios nu îți va cere vreodată codul de autentificare prin telefon sau mesaj. Dacă cineva ți-l solicită, este o tentativă de fraudă. Al doilea factor funcționează doar dacă rămâne ceea ce trebuie să fie: un secret care nu părăsește niciodată mâinile tale.',
     ],
@@ -155,7 +155,7 @@ const originalArticles: OriginalArticle[] = [
     author: authors.vlasceanu,
     body: [
       'Orice lege începe cu o inițiativă legislativă. Dreptul de a propune legi îl au Guvernul (prin proiecte de lege), deputații și senatorii (prin propuneri legislative) și cetățenii — pentru inițiativele cetățenești este nevoie de cel puțin 100.000 de semnături, cu o distribuție teritorială minimă, iar unele domenii, precum cele fiscale, sunt excluse.',
-      'Parlamentul României este bicameral, iar Constituția stabilește pentru fiecare tip de lege o „primă Cameră sesizată" și o „Cameră decizională". Prima Cameră are un termen limitat de dezbatere — dacă nu se pronunță în acest termen, proiectul se consideră adoptat tacit și trece mai departe. Decizia finală aparține întotdeauna Camerei decizionale.',
+      'Parlamentul României este bicameral, iar Constituția stabilește pentru fiecare tip de lege o „primă Cameră sesizată” și o „Cameră decizională”. Prima Cameră are un termen limitat de dezbatere — dacă nu se pronunță în acest termen, proiectul se consideră adoptat tacit și trece mai departe. Decizia finală aparține întotdeauna Camerei decizionale.',
       'Munca de detaliu se face în comisiile parlamentare de specialitate. Acolo proiectul primește avize și un raport, iar parlamentarii pot depune amendamente care modifică textul inițial. Raportul comisiei — de adoptare, de adoptare cu modificări sau de respingere — însoțește proiectul la votul din plen și cântărește decisiv în dezbatere.',
       'În plen, proiectul se dezbate mai întâi pe articole, apoi se votează în ansamblu. Majoritatea necesară depinde de tipul legii: legile ordinare au nevoie de votul majorității parlamentarilor prezenți, legile organice — de votul majorității membrilor fiecărei Camere, iar revizuirea Constituției urmează o procedură specială, cu praguri și mai ridicate.',
       'După adoptarea în ambele Camere, legea merge la președintele României pentru promulgare. Președintele poate cere Parlamentului, o singură dată, reexaminarea legii sau poate sesiza Curtea Constituțională. La rândul lor, un număr de parlamentari, Guvernul, Înalta Curte sau Avocatul Poporului pot contesta legea la Curte înainte de promulgare.',
@@ -355,9 +355,12 @@ export function getOriginalArticles(): OriginalArticle[] {
   return mockFeed.filter((item): item is OriginalArticle => item.type === 'original')
 }
 
-/** Look up an original article by slug (aggregated items have no on-site page). */
-export function getArticleBySlug(slug: string): OriginalArticle | undefined {
-  return getOriginalArticles().find((article) => article.slug === slug)
+/**
+ * Look up any feed item by slug. Originals get the full article page;
+ * aggregated items get the excerpt + attribution landing page (design §3.5).
+ */
+export function getFeedItemBySlug(slug: string): FeedItem | undefined {
+  return mockFeed.find((item) => item.slug === slug)
 }
 
 /** All feed items in a category, newest first. */

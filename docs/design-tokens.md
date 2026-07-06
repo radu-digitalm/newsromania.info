@@ -49,7 +49,9 @@ or, inside handwritten CSS, through the CSS variables (`var(--color-page)`, …)
 
 `src/lib/fonts.ts` exports `fontSans` / `fontSerif` (`next/font/google`, subsets
 `['latin', 'latin-ext']` — full coverage of Ș/ș/Ț/ț U+0218–U+021B — `display: 'swap'`,
-variables `--font-sans` / `--font-serif`). The layout must attach both variable classes:
+variables `--font-inter` / `--font-source-serif`, deliberately distinct from the theme
+token names so the `@theme inline` mapping never self-references). The layout must
+attach both variable classes:
 
 ```tsx
 import { fontSans, fontSerif } from '@/lib/fonts'

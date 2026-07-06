@@ -64,7 +64,14 @@ export default function PoliticaDeCookiesPage() {
           Tabelul de mai jos prezintă categoriile de cookie-uri folosite. Lista completă (denumire,
           furnizor, scop, durată) va fi completată înainte de lansare.
         </p>
-        <div className="overflow-x-auto">
+        {/* Focusable scroll region: keyboard users must be able to reach the
+            columns clipped on narrow viewports (WCAG 2.1.1). */}
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label="Categoriile de cookie-uri"
+          className="overflow-x-auto"
+        >
           <table className="w-full min-w-[560px] border-collapse text-left font-sans text-sm leading-[22px]">
             <thead>
               <tr className="border-b-2 border-ink">

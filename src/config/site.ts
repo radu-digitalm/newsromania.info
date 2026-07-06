@@ -1,7 +1,7 @@
 import type { Category } from '@/types/content'
 
-/** Legal/info page rendered at /<slug> and linked from the footer. */
-export interface LegalPage {
+/** Info/legal page rendered at /<slug> and linked from the footer „Informații” column. */
+export interface InfoPage {
   slug: string
   title: string
 }
@@ -13,7 +13,7 @@ export interface SiteConfig {
   description: string
   adsensePublisherId: string
   categories: Category[]
-  legalPages: LegalPage[]
+  infoPages: InfoPage[]
 }
 
 /**
@@ -28,20 +28,26 @@ export const siteConfig: SiteConfig = {
     'Știri din România și din lume, la zi: actualitate, politică, economie, externe, sport, tehnologie, sănătate și cultură.',
   // Public-facing AdSense publisher id (PROJECT_BRIEF 6.4) — safe to have in code.
   adsensePublisherId: process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID ?? 'ca-pub-8098077913729716',
+  // Exact order per design direction §3.2: Actualitate, Politică, Economie,
+  // Externe, Sport, Sănătate, Tehnologie, Cultură.
   categories: [
     { slug: 'actualitate', name: 'Actualitate' },
     { slug: 'politica', name: 'Politică' },
     { slug: 'economie', name: 'Economie' },
     { slug: 'externe', name: 'Externe' },
     { slug: 'sport', name: 'Sport' },
-    { slug: 'tehnologie', name: 'Tehnologie' },
     { slug: 'sanatate', name: 'Sănătate' },
+    { slug: 'tehnologie', name: 'Tehnologie' },
     { slug: 'cultura', name: 'Cultură' },
   ],
-  legalPages: [
+  // Footer „Informații” column, order per design direction §3.6.2; „Mențiuni
+  // legale” is an extra entry kept after the five specced ones.
+  infoPages: [
+    { slug: 'despre-noi', title: 'Despre noi' },
+    { slug: 'contact', title: 'Contact' },
     { slug: 'politica-de-confidentialitate', title: 'Politica de confidențialitate' },
-    { slug: 'termeni-si-conditii', title: 'Termeni și condiții' },
     { slug: 'politica-de-cookies', title: 'Politica de cookies' },
+    { slug: 'termeni-si-conditii', title: 'Termeni și condiții' },
     { slug: 'mentiuni-legale', title: 'Mențiuni legale' },
   ],
 }

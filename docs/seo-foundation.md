@@ -21,7 +21,8 @@ Canonical/metadata emission lives with the page owners (Next.js `metadata.altern
 
 - **Original** → full `NewsArticle`: `headline` (≤110 chars), `description` = excerpt,
   `datePublished`, `dateModified` (mirrors publish until Payload provides a real `updatedAt`),
-  `inLanguage: 'ro'`, `articleSection` = category name, `author` = real `Person` byline,
+  `inLanguage: 'ro'`, `articleSection` = category name, `author` = the real byline
+  (`Person` for named journalists, `Organization` for the collective „Redacția NewsRomania”),
   `publisher` = Organization „NewsRomania" with `logo` → `/icons/icon-512.png`,
   `image` (absolute, when present), `mainEntityOfPage` = the article URL.
 - **Aggregated** → `articleJsonLd` returns **`null`**. Aggregated items must never claim
@@ -46,9 +47,11 @@ Canonical/metadata emission lives with the page owners (Next.js `metadata.altern
 - `sitemap.ts`: `/` (hourly, 1.0), the 8 `/categorie/<slug>` pages (hourly, 0.7), and every
   **original** article `/stiri/<slug>` (weekly, 0.8, `lastModified` from `publishedAt`).
 - Excluded from the sitemap:
-  - **Aggregated items** — no on-site detail pages; the publisher's page is canonical.
-  - **Legal pages** — placeholder copy, noindex for now; a sitemap must never list noindex
-    URLs. Re-add once finalized.
+  - **Aggregated items** — their on-site landing pages (excerpt + attribution + link-out
+    button, design §3.5) canonicalize to the publisher; the publisher's page is canonical.
+  - **Info/legal pages** (despre-noi, contact + the legal set) — placeholder copy, noindex
+    for now; a sitemap must never list noindex URLs. Re-add once finalized.
+  - **/cautare** — internal search results stay noindex permanently.
 
 ## What must change later
 

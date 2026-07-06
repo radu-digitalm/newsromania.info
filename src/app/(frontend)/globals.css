@@ -1,5 +1,16 @@
 @import 'tailwindcss';
 
+/* §6 hover gating: every hover: utility compiles to the compound query
+   (hover: hover) AND (pointer: fine), so hybrid devices with a coarse
+   primary pointer never get sticky hover states. */
+@custom-variant hover {
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      @slot;
+    }
+  }
+}
+
 /* ============================================================================
    NewsRomania — design tokens „Broadsheet Tricolor”
    Source of truth: docs/design-direction.md · reference: docs/design-tokens.md
@@ -34,12 +45,12 @@
   --color-footer-meta: #aeb9cf; /* footer copyright/meta on ink */
 }
 
-/* Fonts: pass-through to the next/font variables set by src/lib/fonts.ts.
-   `inline` makes the utilities resolve the runtime variable on <html>/<body>
-   instead of a self-referential :root token. Fallback stacks per §2.1. */
+/* Fonts: the next/font variables (src/lib/fonts.ts) use DISTINCT names
+   (--font-inter / --font-source-serif) so mapping them onto the theme tokens
+   never produces a self-referential :root declaration. Fallback stacks §2.1. */
 @theme inline {
-  --font-sans: var(--font-sans, system-ui, -apple-system, 'Segoe UI', sans-serif);
-  --font-serif: var(--font-serif, Georgia, 'Times New Roman', serif);
+  --font-sans: var(--font-inter, system-ui, -apple-system, 'Segoe UI', sans-serif);
+  --font-serif: var(--font-source-serif, Georgia, 'Times New Roman', serif);
 }
 
 @layer base {

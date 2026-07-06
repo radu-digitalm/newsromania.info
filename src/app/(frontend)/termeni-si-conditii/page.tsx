@@ -19,7 +19,7 @@ export default function TermeniSiConditiiPage() {
       <LegalSection title="1. Acceptarea termenilor">
         <p>
           Această secțiune va preciza că utilizarea site-ului newsromania.info implică acceptarea
-          prezentelor termeni și condiții, precum și cine este entitatea care operează site-ul.
+          acestor termeni și condiții, precum și cine este entitatea care operează site-ul.
         </p>
       </LegalSection>
 
