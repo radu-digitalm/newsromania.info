@@ -1,1 +1,100 @@
 @import 'tailwindcss';
+
+/* ============================================================================
+   NewsRomania — design tokens „Broadsheet Tricolor”
+   Source of truth: docs/design-direction.md · reference: docs/design-tokens.md
+   Every text/background pair below is WCAG AA verified (matrix in the docs).
+   ==========================================================================*/
+
+@theme {
+  /* --- Contract tokens (consumed by every agent as generated utilities) --- */
+  --color-page: #faf9f6; /* page background — warm paper */
+  --color-surface: #ffffff; /* masthead, nav, reading column, image well */
+  --color-border: #e3e0d9; /* decorative hairlines (feed dividers, nav bottom) */
+  --color-ink: #14181d; /* headlines, body, primary text, masthead rules */
+  --color-ink-secondary: #3f4754; /* excerpts, standfirst, secondary text */
+  --color-ink-muted: #57606e; /* meta: timestamps, captions, ad label (≥4.5:1 everywhere) */
+  --color-link: #4463ad; /* links, primary buttons (brand wordmark blue) */
+  --color-link-hover: #35508f; /* link/button hover + active */
+  --color-focus: #4463ad; /* :focus-visible ring on light surfaces (#F6EF49 on ink) */
+  --color-brand-blue: #4463ad; /* wordmark blue — only brand color allowed on small text */
+  --color-brand-periwinkle: #6e85c3; /* decorative only — never text (3.62:1) */
+  --color-brand-yellow: #f6ef49; /* decorative + dark-surface only — never text */
+  --color-brand-red: #ed2024; /* non-text + large-text only — banned below 24px/18.5px bold */
+  --color-accent-bg: #eff2fa; /* subtle brand tint: source-pill bg, placeholder bg */
+
+  /* --- Extended broadsheet tokens (design direction §1.1) --- */
+  --color-surface-2: #f3f2ee; /* AdSlot background, blockquote well */
+  --color-red-text: #c0121f; /* category kickers, small red text (AA-safe deep red) */
+  --color-pill-text: #35508f; /* text inside periwinkle-tinted pills */
+  --color-border-strong: #14181d; /* masthead rule, section rules */
+  --color-border-functional: #838c9b; /* form inputs, meaning-bearing outlines (≥3:1 on all light surfaces) */
+  --color-border-pill: #c9d4ec; /* source-pill border (decorative) */
+  --color-footer-link: #c7d0e2; /* footer link text on ink */
+  --color-footer-meta: #aeb9cf; /* footer copyright/meta on ink */
+}
+
+/* Fonts: pass-through to the next/font variables set by src/lib/fonts.ts.
+   `inline` makes the utilities resolve the runtime variable on <html>/<body>
+   instead of a self-referential :root token. Fallback stacks per §2.1. */
+@theme inline {
+  --font-sans: var(--font-sans, system-ui, -apple-system, 'Segoe UI', sans-serif);
+  --font-serif: var(--font-serif, Georgia, 'Times New Roman', serif);
+}
+
+@layer base {
+  body {
+    background-color: var(--color-page);
+    color: var(--color-ink);
+    font-family: var(--font-sans, system-ui, -apple-system, 'Segoe UI', sans-serif);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background-color: var(--color-border-pill);
+    color: var(--color-ink);
+  }
+
+  /* Visible focus on every interactive element; never removed without replacement.
+     Dark (ink) surfaces override outline-color to var(--color-brand-yellow). */
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  /* The only transition recipe (§6): color moves, nothing else. */
+  a,
+  button {
+    transition:
+      color 150ms ease-out,
+      background-color 150ms ease-out,
+      border-color 150ms ease-out,
+      text-decoration-color 150ms ease-out;
+  }
+
+  /* Instant touch feedback, no JS (§6). */
+  a:active,
+  button:active {
+    opacity: 0.85;
+  }
+}
+
+/* Broadsheet restraint: nothing depends on animation to be understood (§6). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
