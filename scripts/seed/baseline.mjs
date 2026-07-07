@@ -187,11 +187,12 @@ try {
           adSensePublisherId:
             process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID ?? 'ca-pub-8098077913729716',
           adUnitIds: [],
+          // Per-marketplace tags from the owner's Amazon Associates OneLink
+          // ("Link Stores"). Each partnerTag MUST match its marketplace.
           amazonPartnerTags: [
-            {
-              marketplace: 'www.amazon.de',
-              tag: process.env.AMAZON_PARTNER_TAG_DEFAULT ?? 'newsr01-21',
-            },
+            { marketplace: 'www.amazon.co.uk', tag: 'newsr01-21' },
+            { marketplace: 'www.amazon.de', tag: 'newsromania02-21' },
+            { marketplace: 'www.amazon.fr', tag: 'newsromaniafr-21' },
           ],
         },
         // Country → region/adSet mapping consumed by resolveGeo(); unmatched
