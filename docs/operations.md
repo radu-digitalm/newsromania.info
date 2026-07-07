@@ -98,6 +98,16 @@ npx payload migrate                          # apply (DATABASE_URL in .env alrea
 If a bad release shipped together with a migration, roll back the image
 (`deploy/DEPLOY.md` §7) AND restore the pre-migration dump.
 
+**Rebuild checklist rule:** the app container starts with plain `node
+server.js` — it NEVER auto-migrates. Any image rebuild that ships new files
+in `src/migrations/` MUST run the backup + `npx payload migrate` block above
+before (re)starting the container, then verify with read-only psql that
+`select name from payload_migrations` lists every registered migration.
+Skipping this leaves new enum values/columns missing in prod (admin saves
+fail, dependent features stay silently inert). Every image build also ends
+with `docker image prune -f` + a `df -h /` check (disk discipline, §7 /
+DEPLOY.md §2).
+
 ## 5. Enabling RSS feeds (legal gate — PROJECT_BRIEF 0.1)
 
 All feeds are seeded **disabled** (`active: false`) with

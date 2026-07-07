@@ -3,8 +3,12 @@
  *
  * Uses Intl.DateTimeFormat with an explicit Europe/Bucharest time zone so the
  * output is identical on every build machine (zero hydration/SSG drift).
- * Relative labels („acum 3 ore") arrive with the live RSS pipeline (step 5) —
- * statically generated mock pages must render identically on every build.
+ *
+ * Feed/card meta (design direction v2 §2.2 / v1 §4.6): items published in the
+ * last 24 h get a RELATIVE label („acum 3 ore”, „acum 20 de minute”); older
+ * ones the absolute „6 iul. 2026”. Every consumer renders the label inside a
+ * <time dateTime={iso}> wrapper, and the feed routes are force-dynamic, so
+ * the server-rendered relative label is computed per request.
  */
 
 /** Feed / card style: „6 iul. 2026" */
@@ -32,8 +36,34 @@ const articleTimeFormat = new Intl.DateTimeFormat('ro-RO', {
   timeZone: 'Europe/Bucharest',
 })
 
-export function formatFeedDate(iso: string): string {
-  return feedDateFormat.format(new Date(iso))
+const MINUTE_MS = 60_000
+const HOUR_MS = 60 * MINUTE_MS
+const DAY_MS = 24 * HOUR_MS
+
+/**
+ * Romanian cardinal + noun: 1 uses the article form passed in („un minut”,
+ * „o oră”); 2–19 take the bare plural („3 ore”); 20+ take „de” + plural
+ * („20 de minute”). Under 24 h the counts stay ≤ 59, so the ≥20 rule is all
+ * the „de” grammar we need.
+ */
+function roCount(n: number, one: string, many: string): string {
+  if (n === 1) return one
+  return n >= 20 ? `${n} de ${many}` : `${n} ${many}`
+}
+
+/**
+ * Feed/card meta label: relative under 24 h, absolute („6 iul. 2026”) beyond.
+ * `now` is injectable for tests; future-dated items fall back to absolute.
+ */
+export function formatFeedDate(iso: string, now: Date = new Date()): string {
+  const date = new Date(iso)
+  const diff = now.getTime() - date.getTime()
+  if (Number.isFinite(diff) && diff >= 0 && diff < DAY_MS) {
+    if (diff < MINUTE_MS) return 'chiar acum'
+    if (diff < HOUR_MS) return `acum ${roCount(Math.floor(diff / MINUTE_MS), 'un minut', 'minute')}`
+    return `acum ${roCount(Math.floor(diff / HOUR_MS), 'o oră', 'ore')}`
+  }
+  return feedDateFormat.format(date)
 }
 
 export function formatArticleDate(iso: string): string {

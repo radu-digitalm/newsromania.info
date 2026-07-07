@@ -28,9 +28,23 @@ import { blendKeywords, contextualKeywords } from './keywords'
 // Contract types (architecture.md §4)
 // ---------------------------------------------------------------------------
 
-export type AdPlacement = 'feed' | 'article' | 'rail' | 'leaderboard'
+export type AdPlacement = 'feed' | 'article' | 'article-end' | 'rail' | 'leaderboard'
 
-export const AD_PLACEMENTS: readonly AdPlacement[] = ['feed', 'article', 'rail', 'leaderboard']
+/**
+ * Placements the engine actually PLANS (design direction v2 §4.4): the
+ * sidebar is gone, so 'rail' remains in the AdPlacement union ONLY for
+ * compatibility (fixed architecture.md §4 signature + historical site-config
+ * rows) — it is never emitted in an AdPlan and the UI never renders it.
+ * 'article-end' is the end-of-article slot on both article types (v2 §3.5),
+ * planned separately from the in-article 'article' slot so each can carry its
+ * own configured unit.
+ */
+export const AD_PLACEMENTS: readonly AdPlacement[] = [
+  'feed',
+  'article',
+  'article-end',
+  'leaderboard',
+]
 
 export interface AdSenseDecision {
   /** AdSense ad-unit id — undefined until units exist (review pending) ⇒ the slot renders reserved-empty. */
@@ -113,19 +127,27 @@ export const DEFAULT_EVERY_NTH = 4
 /**
  * Per-placement default formats when a site-config unit row leaves `format`
  * empty (and for the inert pre-approval decision). AdSenseUnit maps these to
- * the concrete <ins> attributes (PROJECT_BRIEF §6.4):
- * feed → 'fluid' (in-feed), article → 'in-article', rail → 'rectangle'
- * (300×250 fixed), leaderboard → 'horizontal' (728×90 fixed).
+ * the concrete <ins> attributes (PROJECT_BRIEF §6.4, design direction v2
+ * §4.4): feed → 'fluid' (in-feed), article → 'in-article',
+ * article-end → 'rectangle' (300×250 fixed), leaderboard → 'horizontal'
+ * (responsive banner: 320×100 <768px / 728×90 ≥768px, CSS-sized by AdSlot).
+ * 'rail' keeps its v1 default only because the Record is total over the
+ * union — the placement is never planned.
  */
 export const DEFAULT_FORMAT: Record<AdPlacement, string> = {
   feed: 'fluid',
   article: 'in-article',
+  'article-end': 'rectangle',
   rail: 'rectangle',
   leaderboard: 'horizontal',
 }
 
-/** Amazon placements (§6.2): product ads sit beside content, never in-feed. */
-const AMAZON_PLACEMENTS: ReadonlySet<AdPlacement> = new Set(['rail', 'article'])
+/**
+ * Amazon placements (§6.2): product ads sit beside content, never in-feed and
+ * never in the top banner. v2: the sidebar rail is gone — its Amazon
+ * inventory moved to the end-of-article slot.
+ */
+const AMAZON_PLACEMENTS: ReadonlySet<AdPlacement> = new Set(['article', 'article-end'])
 
 /**
  * Country → Amazon marketplace (PROJECT_BRIEF §6.4; no amazon.ro — RO and

@@ -125,18 +125,34 @@ describe('buildAdPlan — AdSense unit resolution', () => {
     const plan = buildAdPlan(input(), config)
     expect(decisionFor(plan, 'feed')?.adsense?.unitId).toBe('1234567890')
     // No unit configured ⇒ unitId undefined ⇒ the slot renders reserved-empty.
-    expect(decisionFor(plan, 'rail')?.adsense?.unitId).toBeUndefined()
+    expect(decisionFor(plan, 'article-end')?.adsense?.unitId).toBeUndefined()
     expect(decisionFor(plan, 'leaderboard')?.adsense?.unitId).toBeUndefined()
   })
 
-  it('every placement still gets an adsense decision with the seeded (empty) config', () => {
+  it('every planned placement still gets an adsense decision with the seeded (empty) config', () => {
     const plan = buildAdPlan(input(), seededConfig())
-    for (const placement of ['feed', 'article', 'rail', 'leaderboard'] as const) {
+    for (const placement of ['feed', 'article', 'article-end', 'leaderboard'] as const) {
       const slot = decisionFor(plan, placement)
       expect(slot?.adsense).toBeDefined()
       expect(slot?.adsense?.unitId).toBeUndefined()
       expect(slot?.adsense?.format).toBeTruthy()
     }
+  })
+
+  it("never plans the legacy 'rail' placement (v2: no sidebar), even when configured", () => {
+    // 'rail' stays in the AdPlacement union (compat) but is never emitted —
+    // a historical site-config row for it is simply ignored.
+    const config = seededConfig({
+      adUnitIds: [{ slot: 'rail', unitId: '5555555555', format: 'rectangle' }],
+    })
+    const plan = buildAdPlan(input(), config)
+    expect(decisionFor(plan, 'rail')).toBeUndefined()
+    expect(plan.slots.map((slot) => slot.placement)).toEqual([
+      'feed',
+      'article',
+      'article-end',
+      'leaderboard',
+    ])
   })
 })
 
@@ -164,7 +180,7 @@ describe('keywords — consent gating & blending', () => {
 
   it('no consent ⇒ contextual keywords only (never from the profile)', () => {
     const plan = buildAdPlan(input({ consent: 'refused', profile: PROFILE }), seededConfig())
-    const amazon = decisionFor(plan, 'rail')?.amazon
+    const amazon = decisionFor(plan, 'article')?.amazon
     expect(amazon?.keywords).toEqual(contextualKeywords('tehnologie'))
     // Nothing from the (illegally-passed) profile leaks into the keywords.
     for (const kw of amazon?.keywords ?? []) {
@@ -192,7 +208,7 @@ describe('keywords — consent gating & blending', () => {
       input({ consent: 'accepted', profile: PROFILE }),
       seededConfig({ behaviouralTargetingEnabled: false }),
     )
-    expect(decisionFor(plan, 'rail')?.amazon?.keywords).toEqual(contextualKeywords('tehnologie'))
+    expect(decisionFor(plan, 'article')?.amazon?.keywords).toEqual(contextualKeywords('tehnologie'))
   })
 
   it('topInterests ranks by weight and ignores unknown slugs', () => {
@@ -227,10 +243,12 @@ describe('marketplaceForCountry', () => {
 })
 
 describe('buildAdPlan — Amazon decisions', () => {
-  it('emits amazon only for rail + article placements', () => {
+  it('emits amazon only for the article placements (never in-feed/banner)', () => {
+    // v2: the rail is gone — its Amazon inventory moved to the
+    // end-of-article slot ('article-end').
     const plan = buildAdPlan(input(), seededConfig())
-    expect(decisionFor(plan, 'rail')?.network).toBe('amazon')
     expect(decisionFor(plan, 'article')?.network).toBe('amazon')
+    expect(decisionFor(plan, 'article-end')?.network).toBe('amazon')
     expect(decisionFor(plan, 'feed')?.network).toBe('adsense')
     expect(decisionFor(plan, 'leaderboard')?.network).toBe('adsense')
     expect(decisionFor(plan, 'feed')?.amazon).toBeUndefined()
@@ -239,15 +257,15 @@ describe('buildAdPlan — Amazon decisions', () => {
   it('requires a partnerTag matching the visitor marketplace', () => {
     // RO visitor → www.amazon.de → seeded tag matches.
     const ro = buildAdPlan(input({ country: 'RO' }), seededConfig())
-    expect(decisionFor(ro, 'rail')?.amazon).toEqual({
+    expect(decisionFor(ro, 'article-end')?.amazon).toEqual({
       keywords: contextualKeywords('tehnologie'),
       marketplace: 'www.amazon.de',
       partnerTag: 'newsr01-21',
     })
     // GB visitor → www.amazon.co.uk → no tag seeded ⇒ AdSense keeps the slot.
     const gb = buildAdPlan(input({ country: 'GB', region: 'UK' }), seededConfig())
-    expect(decisionFor(gb, 'rail')?.network).toBe('adsense')
-    expect(decisionFor(gb, 'rail')?.amazon).toBeUndefined()
+    expect(decisionFor(gb, 'article-end')?.network).toBe('adsense')
+    expect(decisionFor(gb, 'article-end')?.amazon).toBeUndefined()
     // Add a .co.uk tag ⇒ the GB visitor gets it, marketplace-matched.
     const withUkTag = seededConfig({
       amazonPartnerTags: [
@@ -263,13 +281,13 @@ describe('buildAdPlan — Amazon decisions', () => {
   it('falls back to the region for the marketplace when country is absent', () => {
     const plan = buildAdPlan(input({ country: undefined, region: 'UK' }), seededConfig())
     // Region UK → co.uk marketplace → no seeded tag ⇒ no amazon decision.
-    expect(decisionFor(plan, 'rail')?.amazon).toBeUndefined()
+    expect(decisionFor(plan, 'article')?.amazon).toBeUndefined()
   })
 
   it('requires resolved keywords (homepage without profile ⇒ no amazon)', () => {
     const plan = buildAdPlan(input({ categorySlug: undefined }), seededConfig())
-    expect(decisionFor(plan, 'rail')?.network).toBe('adsense')
-    expect(decisionFor(plan, 'rail')?.amazon).toBeUndefined()
+    expect(decisionFor(plan, 'article')?.network).toBe('adsense')
+    expect(decisionFor(plan, 'article')?.amazon).toBeUndefined()
   })
 
   it('homepage WITH consent + profile still gets interest-driven amazon keywords', () => {
@@ -277,7 +295,7 @@ describe('buildAdPlan — Amazon decisions', () => {
       input({ categorySlug: undefined, consent: 'accepted', profile: PROFILE }),
       seededConfig(),
     )
-    const amazon = decisionFor(plan, 'rail')?.amazon
+    const amazon = decisionFor(plan, 'article')?.amazon
     expect(amazon).toBeDefined()
     expect(amazon?.keywords.some((kw) => CATEGORY_KEYWORDS.sport.includes(kw))).toBe(true)
   })

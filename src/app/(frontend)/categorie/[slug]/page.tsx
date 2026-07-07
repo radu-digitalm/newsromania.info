@@ -2,19 +2,20 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-import { CategoryChip } from '@/components/articles/CategoryChip'
 import { FeedList } from '@/components/articles/FeedList'
-import { NextPageLink } from '@/components/articles/NextPageLink'
+import { Pagination } from '@/components/articles/NextPageLink'
 import { siteConfig } from '@/config/site'
 import { getRequestAdPlan } from '@/lib/ads/plan-for-request'
 import { getFeed } from '@/lib/content'
 import { absoluteUrl } from '@/lib/seo'
 
 /**
- * Category page — chips row for switching categories, then the category feed
- * with per-request, region-frequency in-feed ad positions (ad engine,
- * architecture.md §4 — the category slug feeds contextual keywords) and the
- * same server-side pagination as the home feed.
+ * Category page (design direction v2 §3.4): header block (h1 + meta line),
+ * then the same full-width card grid as the homepage with per-request,
+ * region-frequency in-feed ad positions (ad engine, architecture.md §4 — the
+ * category slug feeds contextual keywords) and server-side pagination.
+ * No duplicate chips row — the sticky chip nav already marks the active
+ * category.
  */
 
 interface CategoryPageProps {
@@ -23,7 +24,7 @@ interface CategoryPageProps {
 }
 
 // Fully dynamic: the feed comes from Payload per request (Redis-cached 60s)
-// and ad decisions become per-request (architecture.md §2). The taxonomy is
+// and ad decisions are per-request (architecture.md §2). The taxonomy is
 // still a fixed set — unknown category slugs hit notFound() below.
 export const dynamic = 'force-dynamic'
 
@@ -55,32 +56,33 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   ])
 
   return (
-    <div className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-8 md:px-6">
-      <h1 className="font-serif text-[26px] font-bold leading-8 tracking-[-0.01em] text-ink md:text-4xl md:leading-[44px]">
-        {category.name}
-      </h1>
-
-      {/* Chips row — horizontal scroll on mobile with the same 24px right-edge
-          fade as the nav (§4.3/§3.2), wraps on desktop. */}
-      <nav aria-label="Categorii" className="mt-5">
-        <ul className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] max-md:[mask-image:linear-gradient(90deg,#000_calc(100%-24px),transparent)] md:flex-wrap md:overflow-visible [&::-webkit-scrollbar]:hidden">
-          {siteConfig.categories.map((c) => (
-            <li key={c.slug} className="shrink-0">
-              <CategoryChip category={c} active={c.slug === category.slug} />
-            </li>
-          ))}
-        </ul>
-      </nav>
+    <div className="mx-auto w-full max-w-[1280px] px-4 pb-16 pt-8 md:px-6 xl:px-8">
+      <header>
+        <span aria-hidden="true" className="inline-block h-5 w-1 rounded-[2px] bg-brand-red" />
+        <h1 className="mt-3 font-serif text-[28px] font-extrabold leading-[34px] tracking-[-0.015em] text-ink md:text-[38px] md:leading-[44px]">
+          {category.name}
+        </h1>
+        <p className="mt-2 font-sans text-[13px] font-medium leading-[18px] text-ink-muted">
+          Cele mai noi știri din categoria {category.name}
+          {page > 1 ? ` · pagina ${page}` : ''}
+        </p>
+      </header>
 
       {items.length > 0 ? (
-        <div className="mt-4">
-          {/* In-feed AdSlots at region-frequency positions from the ad plan (§6.2/§4.5). */}
-          <FeedList items={items} adPlan={adPlan} headingAs="h2" />
-          {hasNextPage && <NextPageLink href={`/categorie/${category.slug}?page=${page + 1}`} />}
-        </div>
+        <>
+          <div className="mt-6">
+            {/* In-feed ad cards at region-frequency positions from the ad plan (§6.2/§4.4). */}
+            <FeedList items={items} adPlan={adPlan} headingAs="h2" />
+          </div>
+          <Pagination
+            page={page}
+            hasNextPage={hasNextPage}
+            hrefFor={(n) => `/categorie/${category.slug}?page=${n}`}
+          />
+        </>
       ) : (
-        <div className="mt-10 rounded-[2px] border border-border bg-surface px-6 py-12 text-center">
-          <p className="font-serif text-xl font-semibold leading-7 text-ink">
+        <div className="mt-10 rounded-[16px] border border-border bg-surface px-6 py-12 text-center">
+          <p className="font-serif text-xl font-bold leading-7 text-ink">
             Încă nu avem articole în această categorie.
           </p>
           <p className="mt-2 font-sans text-[15px] leading-[22px] text-ink-secondary">

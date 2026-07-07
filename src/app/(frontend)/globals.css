@@ -12,45 +12,58 @@
 }
 
 /* ============================================================================
-   NewsRomania — design tokens „Broadsheet Tricolor”
-   Source of truth: docs/design-direction.md · reference: docs/design-tokens.md
-   Every text/background pair below is WCAG AA verified (matrix in the docs).
+   NewsRomania — design tokens „Prim-Plan Tricolor” (v2, magazin vizual modern)
+   Source of truth: docs/design-direction-v2.md · reference: docs/design-tokens.md
+   Token NAMES are the fixed contract (unchanged from v1); only VALUES changed,
+   plus four additive extended tokens (scrim, ink-inverse, overlay-meta,
+   accent-bg-strong). Every text/background pair below is WCAG AA verified —
+   independently recomputed matrix in docs/design-tokens.md.
    ==========================================================================*/
 
 @theme {
   /* --- Contract tokens (consumed by every agent as generated utilities) --- */
-  --color-page: #faf9f6; /* page background — warm paper */
-  --color-surface: #ffffff; /* masthead, nav, reading column, image well */
-  --color-border: #e3e0d9; /* decorative hairlines (feed dividers, nav bottom) */
-  --color-ink: #14181d; /* headlines, body, primary text, masthead rules */
-  --color-ink-secondary: #3f4754; /* excerpts, standfirst, secondary text */
-  --color-ink-muted: #57606e; /* meta: timestamps, captions, ad label (≥4.5:1 everywhere) */
-  --color-link: #4463ad; /* links, primary buttons (brand wordmark blue) */
-  --color-link-hover: #35508f; /* link/button hover + active */
-  --color-focus: #4463ad; /* :focus-visible ring on light surfaces (#F6EF49 on ink) */
-  --color-brand-blue: #4463ad; /* wordmark blue — only brand color allowed on small text */
-  --color-brand-periwinkle: #6e85c3; /* decorative only — never text (3.62:1) */
-  --color-brand-yellow: #f6ef49; /* decorative + dark-surface only — never text */
+  --color-page: #f2f4f8; /* page canvas — cool near-white; white cards read as elevation */
+  --color-surface: #ffffff; /* cards, masthead, chip nav, article reading surface */
+  --color-border: #e2e6ed; /* decorative hairlines: card borders, nav bottom, dividers */
+  --color-ink: #10161f; /* headlines, body, primary text, active-chip bg, footer bg */
+  --color-ink-secondary: #3c4655; /* excerpts, standfirst, secondary text */
+  --color-ink-muted: #556170; /* meta: timestamps, captions, ad label (≥4.5:1 everywhere) */
+  --color-link: #2e5aae; /* links, primary buttons/CTA, hover accents (modernized brand blue) */
+  --color-link-hover: #234684; /* link/button hover + active */
+  --color-focus: #2e5aae; /* :focus-visible ring on light surfaces (#F6EF49 on ink/overlay) */
+  --color-brand-blue: #4463ad; /* literal logo blue — brand/decorative use; text UI uses link */
+  --color-brand-periwinkle: #6e85c3; /* decorative only — never text (3.61:1) */
+  --color-brand-yellow: #f6ef49; /* overlay kicker-chip bg (ink text), dark-surface decor — never text-color */
   --color-brand-red: #ed2024; /* non-text + large-text only — banned below 24px/18.5px bold */
-  --color-accent-bg: #eff2fa; /* subtle brand tint: source-pill bg, placeholder bg */
+  --color-accent-bg: #e9eef9; /* source-pill bg, chip hover bg, placeholder gradient start */
 
-  /* --- Extended broadsheet tokens (design direction §1.1) --- */
-  --color-surface-2: #f3f2ee; /* AdSlot background, blockquote well */
-  --color-red-text: #c0121f; /* category kickers, small red text (AA-safe deep red) */
-  --color-pill-text: #35508f; /* text inside periwinkle-tinted pills */
-  --color-border-strong: #14181d; /* masthead rule, section rules */
-  --color-border-functional: #838c9b; /* form inputs, meaning-bearing outlines (≥3:1 on all light surfaces) */
-  --color-border-pill: #c9d4ec; /* source-pill border (decorative) */
-  --color-footer-link: #c7d0e2; /* footer link text on ink */
-  --color-footer-meta: #aeb9cf; /* footer copyright/meta on ink */
+  /* --- Extended tokens (design direction v2 §1.2) --- */
+  --color-surface-2: #eef1f6; /* AdSlot well, blockquote well */
+  --color-red-text: #c0121f; /* category kickers, „Cele mai citite” numerals (AA-safe deep red) */
+  --color-pill-text: #2e5aae; /* text inside accent-bg source pills */
+  --color-border-strong: #10161f; /* section rules where used */
+  --color-border-functional: #7c8695; /* form inputs, pagination borders (≥3:1 on all light surfaces) */
+  --color-border-pill: #c9d6ee; /* source-pill border (decorative) */
+  --color-footer-link: #c3cde0; /* footer links on ink */
+  --color-footer-meta: #94a0b5; /* footer ©/meta on ink */
+
+  /* --- New in v2 (additive; no existing name renamed or removed) --- */
+  --color-scrim: #0a101b; /* gradient-overlay base on featured/secondary overlay cards */
+  --color-ink-inverse: #ffffff; /* titles/text on scrim and dark surfaces */
+  --color-overlay-meta: #d7dee9; /* meta text on scrim */
+  --color-accent-bg-strong: #dbe3f2; /* placeholder gradient end */
 }
 
 /* Fonts: the next/font variables (src/lib/fonts.ts) use DISTINCT names
-   (--font-inter / --font-source-serif) so mapping them onto the theme tokens
-   never produces a self-referential :root declaration. Fallback stacks §2.1. */
+   (--font-inter / --font-archivo) so mapping them onto the theme tokens never
+   produces a self-referential :root declaration. Fallback stacks §2.1 —
+   system sans for BOTH slots; no serif anywhere in v2. */
 @theme inline {
   --font-sans: var(--font-inter, system-ui, -apple-system, 'Segoe UI', sans-serif);
-  --font-serif: var(--font-source-serif, Georgia, 'Times New Roman', serif);
+  /* v2: the --font-serif token NAME stays (contract), but it is filled with the
+     Archivo DISPLAY face — every existing `font-serif` utility is now the
+     headline face with zero component-contract churn. */
+  --font-serif: var(--font-archivo, system-ui, -apple-system, 'Segoe UI', sans-serif);
 }
 
 @layer base {
@@ -75,13 +88,14 @@
   }
 
   /* Visible focus on every interactive element; never removed without replacement.
-     Dark (ink) surfaces override outline-color to var(--color-brand-yellow). */
+     Dark surfaces (footer, overlay cards) override outline-color to
+     var(--color-brand-yellow) (15.01:1 on ink). */
   :focus-visible {
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;
   }
 
-  /* The only transition recipe (§6): color moves, nothing else. */
+  /* Transition recipe A (§6): color moves on links/buttons/chips. */
   a,
   button {
     transition:
@@ -91,6 +105,19 @@
       text-decoration-color 150ms ease-out;
   }
 
+  /* Transition recipe B (§6): elevation on cards + photo zoom inside the
+     card's clipped media box. Components opt in with these classes; the
+     reduced-motion kill block below collapses both to instant state changes. */
+  .transition-elevation {
+    transition:
+      transform 200ms ease-out,
+      box-shadow 200ms ease-out;
+  }
+
+  .transition-photo {
+    transition: transform 300ms ease-out;
+  }
+
   /* Instant touch feedback, no JS (§6). */
   a:active,
   button:active {
@@ -98,7 +125,8 @@
   }
 }
 
-/* Broadsheet restraint: nothing depends on animation to be understood (§6). */
+/* Nothing depends on animation to be understood (§6): transforms and scales
+   collapse to instant state changes. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

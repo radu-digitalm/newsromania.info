@@ -17,20 +17,26 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SYMBOL = path.join(root, 'assets', 'logo-symbol.png')
 const LOGO_FULL = path.join(root, 'assets', 'logo-full.png')
 
-// Brand palette — docs/design-direction.md ("Broadsheet Tricolor")
+// Brand palette — docs/design-direction-v2.md („Prim-Plan Tricolor”); the
+// tricolor bar itself is unchanged from v1 (brand signature).
 const BRAND = {
   blue: '#4463AD',
   yellow: '#F6EF49',
   red: '#ED2024',
 }
 
-// Placeholder treatment per design direction §5.2 — ONE treatment site-wide
-// (restraint over per-category art): bg #EFF2FA (--color-tint-periwinkle),
-// the ring motif recolored to MONOCHROME #6E85C3 at opacity 0.14, and the
-// category name bottom-left in kicker style #35508F.
-const PLACEHOLDER_BG = '#EFF2FA'
+// Placeholder treatment per design-direction-v2 §5.3 — ONE treatment
+// site-wide: bg gradient 135° accent-bg #E9EEF9 → accent-bg-strong #DBE3F2,
+// ring motif MONOCHROME #6E85C3 (brand-periwinkle) at opacity 0.18, width
+// 120% of the box, anchored right:-16% / bottom:-36% (arcs crop in —
+// watermark, not logo slap), and the category label bottom-left in a solid
+// #FFFFFF pill, kicker style in red-text #C0121F (6.27:1 on white).
+const PLACEHOLDER_BG_START = '#E9EEF9' // --color-accent-bg
+const PLACEHOLDER_BG_END = '#DBE3F2' // --color-accent-bg-strong
 const PLACEHOLDER_RING = { r: 0x6e, g: 0x85, b: 0xc3 } // #6E85C3, decorative only
-const PLACEHOLDER_LABEL_COLOR = '#35508F' // 6.96:1 on the tint
+const PLACEHOLDER_RING_OPACITY = 0.18
+const PLACEHOLDER_LABEL_COLOR = '#C0121F' // --color-red-text on the white pill
+const PLACEHOLDER_PILL_BG = '#FFFFFF'
 
 // Category slugs (src/config/site.ts contract) + generic, with the label text.
 const PLACEHOLDER_LABELS = {
@@ -70,8 +76,9 @@ async function withOpacity(pngBuffer, opacity) {
 
 /**
  * Recolor every non-transparent pixel to a single flat color, keeping the
- * alpha channel — turns the multicolor ring into the monochrome motif §5.2
- * requires (yellow/red arcs are banned on light surfaces).
+ * alpha channel — turns the multicolor ring into the monochrome motif
+ * design-direction-v2 §5.3 requires (yellow/red arcs are banned on light
+ * surfaces).
  */
 async function monochrome(pngBuffer, { r, g, b }) {
   const { data, info } = await sharp(pngBuffer).ensureAlpha().raw().toBuffer({
@@ -168,25 +175,65 @@ async function buildOgDefault() {
   await save('public/og-default.png', card)
 }
 
+/**
+ * Kicker-style label raster (uppercase, bold, +0.06em tracking per v2 §2.2),
+ * alpha-trimmed so the pill can be sized to the REAL text bounds instead of
+ * a per-font width guess.
+ */
+async function kickerLabel(label, fontSize) {
+  const pad = fontSize * 2
+  const svg = Buffer.from(
+    `<svg width="${Math.ceil(label.length * fontSize * 1.4 + pad * 2)}" ` +
+      `height="${fontSize * 4}" xmlns="http://www.w3.org/2000/svg">` +
+      `<text x="${pad}" y="${fontSize * 2.5}" ` +
+      `font-family="Inter, 'DejaVu Sans', sans-serif" font-size="${fontSize}" ` +
+      `font-weight="700" letter-spacing="${(fontSize * 0.06).toFixed(2)}" ` +
+      `fill="${PLACEHOLDER_LABEL_COLOR}">${label.toUpperCase()}</text></svg>`,
+  )
+  const trimmed = await sharp(await sharp(svg).png().toBuffer())
+    .trim()
+    .png()
+    .toBuffer()
+  const meta = await sharp(trimmed).metadata()
+  return { buf: trimmed, width: meta.width, height: meta.height }
+}
+
 async function buildPlaceholders(symbolBuf) {
-  // 1200x675 (16:9) branded placeholders per design direction §5.2 — one
-  // treatment site-wide: bg #EFF2FA, the ring recolored to MONOCHROME #6E85C3
-  // at opacity 0.14, composited large and off-center so only the sweeping
-  // arcs crop into frame (130% width, right: -18%, bottom: -38%), plus the
-  // category name bottom-left in kicker style (#35508F).
+  // 1200x675 (16:9) branded placeholders per design-direction-v2 §5.3 — one
+  // treatment site-wide: gradient bg 135° #E9EEF9 → #DBE3F2, the ring
+  // recolored to MONOCHROME periwinkle at opacity 0.18, width 120% of the
+  // box, anchored right:-16% / bottom:-36% so only the sweeping arcs crop
+  // into frame, plus the category label bottom-left in a solid white pill
+  // (kicker style, red-text #C0121F, 12px CSS inset).
   const W = 1200
   const H = 675
-  const OPACITY = 0.14
+  // The raster is 1200px wide but typically displayed ~380px (3-col grid
+  // card), so CSS-pixel values from the spec scale by ~3.16 to stay true at
+  // the common display sizes: 11px kicker → 35, 12px inset → 38,
+  // 10px/3px pill padding → 32/10.
+  const FONT_SIZE = 35
+  const INSET = 38
+  const PILL_PAD_X = 32
+  const PILL_PAD_Y = 10
+
+  const gradientBg = Buffer.from(
+    `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">` +
+      `<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">` +
+      `<stop offset="0%" stop-color="${PLACEHOLDER_BG_START}"/>` +
+      `<stop offset="100%" stop-color="${PLACEHOLDER_BG_END}"/>` +
+      `</linearGradient></defs>` +
+      `<rect width="${W}" height="${H}" fill="url(#g)"/></svg>`,
+  )
 
   const ring = await sharp(await monochrome(symbolBuf, PLACEHOLDER_RING))
-    .resize({ width: Math.round(W * 1.3) })
+    .resize({ width: Math.round(W * 1.2) })
     .png()
     .toBuffer()
   const rm = await sharp(ring).metadata()
 
-  // CSS-equivalent anchoring: right: -18%; bottom: -38% (fractions of the container)
-  const left = W + Math.round(W * 0.18) - rm.width
-  const top = H + Math.round(H * 0.38) - rm.height
+  // CSS-equivalent anchoring: right: -16%; bottom: -36% (fractions of the container)
+  const left = W + Math.round(W * 0.16) - rm.width
+  const top = H + Math.round(H * 0.36) - rm.height
 
   // sharp requires the overlay to fit inside the canvas: crop to the visible intersection
   const srcX = Math.max(0, -left)
@@ -199,28 +246,28 @@ async function buildPlaceholders(symbolBuf) {
     .extract({ left: srcX, top: srcY, width: visW, height: visH })
     .png()
     .toBuffer()
-  const watermark = await withOpacity(cropped, OPACITY)
+  const watermark = await withOpacity(cropped, PLACEHOLDER_RING_OPACITY)
 
   for (const [slug, label] of Object.entries(PLACEHOLDER_LABELS)) {
-    // Kicker-style label (uppercase, bold, +0.08em tracking). The raster is
-    // 1200px wide but mostly displayed much smaller (hero ~776px, thumbs
-    // 220/112px), so size/inset are scaled up from the CSS-pixel kicker spec
-    // to stay legible at the common display sizes.
-    const fontSize = 48
-    const inset = 40
-    const labelSvg = Buffer.from(
-      `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">` +
-        `<text x="${inset}" y="${H - inset}" ` +
-        `font-family="Inter, 'DejaVu Sans', sans-serif" font-size="${fontSize}" ` +
-        `font-weight="700" letter-spacing="${(fontSize * 0.08).toFixed(2)}" ` +
-        `fill="${PLACEHOLDER_LABEL_COLOR}">${label.toUpperCase()}</text></svg>`,
+    const text = await kickerLabel(label, FONT_SIZE)
+    const pillW = text.width + PILL_PAD_X * 2
+    const pillH = text.height + PILL_PAD_Y * 2
+    const pillLeft = INSET
+    const pillTop = H - INSET - pillH
+    const pillSvg = Buffer.from(
+      `<svg width="${pillW}" height="${pillH}" xmlns="http://www.w3.org/2000/svg">` +
+        `<rect width="${pillW}" height="${pillH}" rx="${(pillH / 2).toFixed(1)}" ` +
+        `fill="${PLACEHOLDER_PILL_BG}"/></svg>`,
     )
-    const img = await sharp({
-      create: { width: W, height: H, channels: 4, background: PLACEHOLDER_BG },
-    })
+    const img = await sharp(gradientBg)
       .composite([
         { input: watermark, left: dstX, top: dstY },
-        { input: labelSvg, left: 0, top: 0 },
+        { input: pillSvg, left: pillLeft, top: pillTop },
+        {
+          input: text.buf,
+          left: pillLeft + PILL_PAD_X,
+          top: pillTop + Math.round((pillH - text.height) / 2),
+        },
       ])
       .removeAlpha()
       .png()

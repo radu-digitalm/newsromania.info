@@ -54,9 +54,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ConsentModeScript consent={consent} />
         <SkipLink />
         <Header />
-        {/* scroll-mt: the pinned 48px category nav (+hairline) must not cover
+        {/* scroll-mt: the pinned 56px chip nav (+hairline) must not cover
             the content top when the skip link jumps here. */}
-        <main id="continut" className="flex-1 scroll-mt-[52px]">
+        <main id="continut" className="flex-1 scroll-mt-[60px]">
           {children}
         </main>
         <Footer />

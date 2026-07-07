@@ -11,7 +11,7 @@ import { searchProductsWithTimeout, type AmazonProduct } from '@/lib/ads/amazon'
  * budget (searchProductsWithTimeout): past the budget, or with no products
  * (throttle + no stale copy, tag/marketplace rejection, empty result), the
  * slot falls back to the same reserved-empty „Publicitate" treatment as
- * AdSlot (design direction §4.5) — no fake products, no skeletons, no CLS.
+ * AdSlot (design direction v2 §4.4) — no fake products, no skeletons, no CLS.
  *
  * Compliance (PROJECT_BRIEF §6.4 + Associates policy):
  * - visible „Publicitate" label — always, products or not;
@@ -25,7 +25,7 @@ const SLOT_MIN_HEIGHT = 298 // matches AdSlot's reserved 300×250 treatment
 
 function AdLabel() {
   return (
-    <p className="flex h-6 items-center justify-center font-sans text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted">
+    <p className="flex h-6 items-center justify-center font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
       Publicitate
     </p>
   )
@@ -37,7 +37,7 @@ function EmptySlot() {
     <aside
       aria-label="Publicitate"
       style={{ height: SLOT_MIN_HEIGHT }}
-      className="my-5 overflow-hidden rounded-[2px] border border-border bg-surface-2"
+      className="my-7 overflow-hidden rounded-[14px] border border-border bg-surface-2"
     >
       <AdLabel />
       <div className="mx-auto h-[250px] max-w-[300px]" />
@@ -102,7 +102,7 @@ export async function AmazonProductAd({ decision }: { decision: AmazonDecision }
     <aside
       aria-label="Publicitate"
       style={{ minHeight: SLOT_MIN_HEIGHT }}
-      className="my-5 overflow-hidden rounded-[2px] border border-border bg-surface-2"
+      className="my-7 overflow-hidden rounded-[14px] border border-border bg-surface-2"
     >
       <AdLabel />
       <ul className="mx-auto max-w-[300px]">

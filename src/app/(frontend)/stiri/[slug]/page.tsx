@@ -1,26 +1,33 @@
 import type { Metadata } from 'next'
-import Image from 'next/image'
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Fragment } from 'react'
 
 import { AdSlot } from '@/components/ads/AdSlot'
-import { ExternalLinkIcon, Kicker, SourcePill } from '@/components/articles/ArticleCard'
+import { ArticleCard, ExternalLinkIcon, SourcePill } from '@/components/articles/ArticleCard'
+import { ArticleImage } from '@/components/articles/ArticleImage'
+import { CategoryChip } from '@/components/articles/CategoryChip'
 import { formatArticleDate } from '@/components/articles/format-date'
-import { decisionFor } from '@/lib/ads/engine'
+import { decisionFor, type AdPlan } from '@/lib/ads/engine'
 import { getRequestAdPlan } from '@/lib/ads/plan-for-request'
-import { getFeedItemBySlug } from '@/lib/content'
+import { getFeed, getFeedItemBySlug } from '@/lib/content'
 import { absoluteUrl, articleJsonLd, serializeJsonLd } from '@/lib/seo'
 import { siteConfig } from '@/config/site'
-import type { AggregatedItem, FeedItem, ImageRef } from '@/types/content'
+import type { AggregatedItem, FeedItem } from '@/types/content'
 
 /**
- * Article page (design direction §3.5) — both content types:
+ * Article page — /stiri/<slug> (design direction v2 §3.5), both content types:
+ *
  * - ORIGINAL: full body, byline, NewsArticle JSON-LD, self-canonical.
- * - AGGREGATED: source-pill row + short fair-use excerpt ONLY (never full
- *   text), ending in the full-width „Citește articolul integral pe {Sursă} ↗”
- *   button. Canonical points to the original publisher (PROJECT_BRIEF §16)
+ * - AGGREGATED (the owner's flow — card → THIS page → external button):
+ *   source-pill attribution + short fair-use excerpt ONLY (never full text),
+ *   then the prominent full-width „Citește articolul integral pe {Sursă}”
+ *   button (new tab, rel="noopener noreferrer nofollow") + disclaimer line.
+ *   Canonical keeps pointing to the original publisher (PROJECT_BRIEF §16)
  *   and no structured data is emitted — we never claim authorship.
+ *
+ * Ads (owner requirement 3): BOTH types carry the responsive top banner
+ * (above the <article> — never between title and attribution), one in-article
+ * slot and one end-of-article slot, exactly like each other.
  */
 
 interface ArticlePageProps {
@@ -28,7 +35,7 @@ interface ArticlePageProps {
 }
 
 // Fully dynamic: new articles must resolve without a rebuild, and ad
-// decisions become per-request (architecture.md §2). Unknown slugs 404 via
+// decisions are per-request (architecture.md §2). Unknown slugs 404 via
 // notFound() below.
 export const dynamic = 'force-dynamic'
 
@@ -77,83 +84,151 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
   }
 }
 
-function LeadImage({ image }: { image: ImageRef }) {
+/** Lead image (§3.5 ⑤): real photo, 16:9, radius 16px, eager + high priority. */
+function LeadImage({ article }: { article: FeedItem }) {
+  // „Foto: {Sursă}” only over a REAL publisher photo — never over our own
+  // branded placeholder (attribution accuracy, PROJECT_BRIEF 0.1/0.2). The
+  // read layer falls back to /placeholders/<slug>.png when imageUrl is
+  // missing/disallowed, so the path prefix is the placeholder signal.
+  const hasPublisherPhoto = Boolean(
+    article.image && !article.image.url.startsWith('/placeholders/'),
+  )
   return (
-    <figure className="mt-5">
-      <div className="relative aspect-video overflow-hidden rounded-[2px] after:pointer-events-none after:absolute after:inset-0 after:rounded-[2px] after:shadow-[inset_0_0_0_1px_rgba(20,24,29,0.08)] after:content-['']">
-        <Image
-          src={image.url}
-          alt={image.alt}
-          fill
+    <figure className="mt-6">
+      <div className="aspect-video overflow-hidden rounded-[16px] shadow-[inset_0_0_0_1px_rgba(16,22,31,0.06)]">
+        <ArticleImage
+          src={article.image?.url ?? null}
+          alt={article.image?.alt ?? article.title}
+          categorySlug={article.category.slug}
           priority
           sizes="(min-width: 768px) 680px, 100vw"
-          className="object-cover"
         />
       </div>
+      {article.type === 'aggregated' && hasPublisherPhoto && (
+        <figcaption className="mt-2 font-sans text-[13px] leading-[18px] text-ink-muted">
+          Foto: {article.source.name}
+        </figcaption>
+      )}
     </figure>
   )
 }
 
-function BackToHomeLink() {
+/**
+ * The primary CTA (owner requirement 2 / v2 §3.5.2): full-width up to 560px,
+ * 52px, „Citește articolul integral pe {Sursă}” + ↗, new tab,
+ * rel="noopener noreferrer nofollow", with the disclaimer line beneath it.
+ */
+function ReadFullArticleCta({ article }: { article: AggregatedItem }) {
   return (
-    <p className="mt-8">
-      <Link
-        href="/"
-        className="inline-block py-3 font-sans text-[15px] font-semibold leading-5 text-link transition-colors hover:text-link-hover"
+    <div className="mt-8">
+      <a
+        href={article.sourceUrl}
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+        className="flex h-[52px] w-full max-w-[560px] items-center justify-center gap-2 rounded-[12px] bg-link px-5 text-center font-sans text-base font-semibold leading-[22px] text-white transition-colors hover:bg-link-hover active:opacity-85"
       >
-        ← Înapoi la prima pagină
-      </Link>
-    </p>
+        Citește articolul integral pe {article.source.name}
+        <ExternalLinkIcon className="h-[18px] w-[18px] shrink-0" />
+        <span className="sr-only">
+          {' '}
+          (link extern către {article.source.name} — se deschide în filă nouă)
+        </span>
+      </a>
+      <p className="mt-3 font-sans text-[13px] leading-[18px] text-ink-muted">
+        Fragmentul de mai sus este un rezumat. Articolul integral aparține {article.source.name}.
+      </p>
+    </div>
   )
 }
 
-/** Full-width primary link-button to the publisher (§3.5, „Quiet Tricolor” graft). */
-function ReadFullArticleButton({ article }: { article: AggregatedItem }) {
-  return (
-    <a
-      href={article.sourceUrl}
-      target="_blank"
-      rel="noopener noreferrer nofollow"
-      className="mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-[2px] bg-link px-5 text-center font-sans text-[15px] font-semibold leading-5 text-white transition-colors hover:bg-link-hover active:opacity-85"
-    >
-      Citește articolul integral pe {article.source.name}
-      <ExternalLinkIcon className="h-3.5 w-3.5 shrink-0" />
-      <span className="sr-only"> (link extern către {article.source.name})</span>
-    </a>
-  )
-}
-
+/** Shared header block (§3.5 ②–④): category chip, h1, attribution/meta row. */
 function ArticleHeader({ article }: { article: FeedItem }) {
   return (
     <>
-      <Kicker category={article.category} />
+      <CategoryChip category={article.category} size="small" />
 
-      <h1 className="mt-4 font-serif text-[26px] font-bold leading-8 tracking-[-0.01em] text-ink md:text-4xl md:leading-[44px]">
+      <h1 className="mt-4 font-serif text-[28px] font-extrabold leading-[34px] tracking-[-0.015em] text-ink md:text-[38px] md:leading-[44px]">
         {article.title}
       </h1>
 
       {article.type === 'original' ? (
-        <p className="mt-3 font-sans text-[13px] leading-[18px] text-ink-muted">
+        <p className="mt-4 font-sans text-[13px] leading-[18px] text-ink-muted">
           de <span className="font-semibold text-ink">{article.author.name}</span>
           {' · '}
           <time dateTime={article.publishedAt}>{formatArticleDate(article.publishedAt)}</time>
         </p>
       ) : (
-        <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 font-sans text-[13px] leading-[18px] text-ink-muted">
-          <SourcePill name={article.source.name} />
+        <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 font-sans text-[13px] leading-[18px] text-ink-muted">
+          {/* On the attribution row the pill links to the publisher homepage (§4.3). */}
+          <SourcePill name={article.source.name} href={article.source.url} />
           <span aria-hidden="true">·</span>
           <time dateTime={article.publishedAt}>{formatArticleDate(article.publishedAt)}</time>
         </p>
       )}
 
-      {/* Standfirst — the lead paragraph (§2.2); for aggregated items this IS
-          the whole fair-use excerpt. */}
-      <p className="mt-5 font-serif text-lg leading-7 text-ink-secondary md:text-xl md:leading-8">
-        {article.excerpt}
-      </p>
-
-      {article.image && <LeadImage image={article.image} />}
+      <LeadImage article={article} />
     </>
+  )
+}
+
+/** „Mai multe știri” (§3.5 ⑧): 3 standard cards from the same category. */
+async function MoreFromCategory({ article }: { article: FeedItem }) {
+  const { items } = await getFeed({ page: 1, categorySlug: article.category.slug })
+  const related = items.filter((item) => item.slug !== article.slug).slice(0, 3)
+  if (related.length === 0) return null
+  return (
+    <section aria-labelledby="mai-multe-stiri" className="mx-auto mt-10 w-full max-w-[1280px]">
+      <h2
+        id="mai-multe-stiri"
+        className="flex items-center gap-2.5 font-serif text-[22px] font-bold leading-7 tracking-[-0.01em] text-ink md:text-[28px] md:leading-[34px]"
+      >
+        <span aria-hidden="true" className="h-5 w-1 shrink-0 rounded-[2px] bg-brand-red" />
+        Mai multe știri din {article.category.name}
+      </h2>
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
+        {related.map((item) => (
+          <ArticleCard key={item.id} item={item} as="h3" />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/** Standfirst / aggregated fair-use excerpt block (§2.2 standfirst token). */
+function Standfirst({ text }: { text: string }) {
+  return (
+    <p className="mt-6 font-sans text-lg font-medium leading-7 text-ink-secondary md:text-xl md:leading-8">
+      {text}
+    </p>
+  )
+}
+
+function ArticleShell({
+  adPlan,
+  children,
+  after,
+}: {
+  adPlan: AdPlan
+  children: React.ReactNode
+  after?: React.ReactNode
+}) {
+  return (
+    <div className="pb-16">
+      {/* Top banner (§3.5 ①) — above the <article>, so no ad ever sits
+          between title and attribution (hard rule kept). */}
+      <div className="mx-auto w-full max-w-[1280px] px-4 md:px-6 xl:px-8">
+        <AdSlot variant="leaderboard" decision={decisionFor(adPlan, 'leaderboard')} />
+      </div>
+
+      {/* Reading surface: full-bleed white section on the page canvas. */}
+      <div className="bg-surface">
+        <div className="mx-auto w-full max-w-[1280px] px-4 md:px-6 xl:px-8">
+          <article className="mx-auto max-w-[760px] py-8 md:py-10">{children}</article>
+        </div>
+      </div>
+
+      {after && <div className="mx-auto w-full max-w-[1280px] px-4 md:px-6 xl:px-8">{after}</div>}
+    </div>
   )
 }
 
@@ -162,27 +237,33 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const article = await getFeedItemBySlug(slug)
   if (!article) notFound()
 
-  if (article.type === 'aggregated') {
-    return (
-      <div className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-8 md:px-6">
-        <article className="mx-auto max-w-[680px] rounded-[2px] bg-surface px-4 py-6 md:px-8 md:py-8">
-          <ArticleHeader article={article} />
-          <ReadFullArticleButton article={article} />
-          <BackToHomeLink />
-        </article>
-      </div>
-    )
-  }
-
   // Per-request ad decisions (architecture.md §4) — the article's category
   // drives contextual keywords; consent/profile handled inside the helper.
   const adPlan = await getRequestAdPlan(article.category.slug)
   const articleAd = decisionFor(adPlan, 'article')
+  // End-of-article slot has its OWN placement in the plan ('article-end',
+  // rectangle default, its own unit pool + Amazon eligibility — ads engine v2).
+  const articleEndAd = decisionFor(adPlan, 'article-end')
+
+  if (article.type === 'aggregated') {
+    return (
+      <ArticleShell adPlan={adPlan} after={<MoreFromCategory article={article} />}>
+        <ArticleHeader article={article} />
+        {/* Fair-use excerpt — NEVER full text (PROJECT_BRIEF 0.1/0.2). */}
+        <Standfirst text={article.excerpt} />
+        {/* CTA directly after the excerpt; the ad comes only BELOW the CTA
+            block — never between excerpt and CTA (misclick protection). */}
+        <ReadFullArticleCta article={article} />
+        <AdSlot variant="article" decision={articleAd} />
+        <AdSlot variant="article" decision={articleEndAd} />
+      </ArticleShell>
+    )
+  }
 
   const jsonLd = articleJsonLd(article)
 
   return (
-    <div className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-8 md:px-6">
+    <ArticleShell adPlan={adPlan} after={<MoreFromCategory article={article} />}>
       {jsonLd && (
         <script
           type="application/ld+json"
@@ -190,27 +271,27 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
         />
       )}
 
-      <article className="mx-auto max-w-[680px] rounded-[2px] bg-surface px-4 py-6 md:px-8 md:py-8">
-        <ArticleHeader article={article} />
+      <ArticleHeader article={article} />
+      <Standfirst text={article.excerpt} />
 
-        <div className="mt-6 font-serif text-[17px] leading-[29px] text-ink md:text-lg md:leading-[31px]">
-          {article.body.map((paragraph, index) => (
-            <Fragment key={index}>
-              <p className="mt-5 first:mt-0">{paragraph}</p>
-              {/* One in-article slot after the 3rd paragraph — never between title and byline (§4.5). */}
-              {index === 2 && article.body.length > 3 && (
-                <AdSlot variant="article" decision={articleAd} />
-              )}
-            </Fragment>
-          ))}
-        </div>
+      {/* Original body — 680px reading column (§3.5.1). */}
+      <div className="max-w-[680px] font-sans text-[17px] leading-7 text-ink md:text-lg md:leading-[30px]">
+        {article.body.map((paragraph, index) => (
+          <Fragment key={index}>
+            <p className="mt-5">{paragraph}</p>
+            {/* One in-article slot after the 3rd paragraph — never between
+                title and byline (§4.4 placement ethics). */}
+            {index === 2 && article.body.length > 3 && (
+              <AdSlot variant="article" decision={articleAd} />
+            )}
+          </Fragment>
+        ))}
+      </div>
 
-        {/* Second in-article slot at article end (§3.5/§4.5) — index 1 rotates
-            to the next configured article unit, if any. */}
-        <AdSlot variant="article" decision={articleAd} index={1} />
-
-        <BackToHomeLink />
-      </article>
-    </div>
+      {/* End-of-article slot (§3.5 ⑦) — the SAME dedicated 'article-end'
+          placement as on aggregated pages, so both content types draw from
+          one unit pool and Amazon eligibility for this slot. */}
+      <AdSlot variant="article" decision={articleEndAd} />
+    </ArticleShell>
   )
 }

@@ -3,8 +3,9 @@ import Link from 'next/link'
 import { CategoryNavList } from './CategoryNavList'
 import { TricolorBar } from './TricolorBar'
 import logoFull from '../../../assets/logo-full.png'
+import logoSymbol from '../../../assets/logo-symbol.png'
 
-/** Romanian long-form current date, e.g. „luni, 6 iulie 2026” (server-rendered). */
+/** Romanian long-form current date, e.g. „marți, 7 iulie 2026” (server-rendered). */
 function currentDateRo(): { iso: string; label: string } {
   const now = new Date()
   const timeZone = 'Europe/Bucharest'
@@ -26,37 +27,38 @@ function currentDateRo(): { iso: string; label: string } {
 }
 
 /**
- * Site header (design §3.2): tricolor bar → white masthead with the full
- * lockup + search entry point → sticky category nav. Fully functional without
- * JavaScript (sticky is pure CSS; the nav's active state is server-rendered).
+ * Site header v2 (design direction v2 §3.2): tricolor bar → white masthead
+ * (logo + date + search) → sticky chip nav with the brand symbol. Fully
+ * functional without JavaScript — the sticky nav is pure CSS and the active
+ * chip is server-rendered from the pathname.
  *
- * The whole header is `position: sticky` with a negative top offset equal to
- * the tricolor bar + masthead height, so once the page scrolls only the 48px
- * category nav stays pinned to the viewport top — pure CSS, no JS.
- * Mobile: -(3 + 64 + 2) = -69px · Desktop: -(3 + 88 + 2) = -93px.
+ * Sticky mechanics: the whole header is `position: sticky` with a negative
+ * top offset equal to tricolor bar + masthead (incl. its 1px border), so once
+ * the page scrolls only the 56px chip nav stays pinned to the viewport top.
+ * Mobile: -(3 + 60 + 1) = -64px · Desktop: -(3 + 72 + 1) = -76px.
  */
 export function Header() {
   const today = currentDateRo()
 
   return (
-    <header className="sticky top-[-69px] z-50 md:top-[-93px]">
+    <header className="sticky top-[-64px] z-50 md:top-[-76px]">
       <TricolorBar />
 
-      {/* Masthead — white, with the 2px ink „fold rule” as its bottom edge */}
-      <div className="border-b-2 border-ink bg-surface">
-        <div className="mx-auto flex h-16 w-full max-w-[1200px] items-center justify-between px-4 md:h-[88px] md:px-6">
-          {/* h-11 keeps the anchor's hit box ≥44px on mobile, where the logo renders at 36px. */}
-          <Link href="/" className="flex h-11 shrink-0 items-center active:opacity-85 md:h-12">
-            <Image src={logoFull} alt="NewsRomania" priority className="h-9 w-auto md:h-12" />
+      {/* Masthead — white, 60px / 72px, hairline bottom edge (no broadsheet fold rule). */}
+      <div className="border-b border-border bg-surface">
+        <div className="mx-auto flex h-[60px] w-full max-w-[1280px] items-center justify-between px-4 md:h-[72px] md:px-6 xl:px-8">
+          {/* h-11 keeps the anchor's hit box ≥44px on mobile, where the logo renders at 32px. */}
+          <Link href="/" className="flex h-11 shrink-0 items-center active:opacity-85">
+            <Image src={logoFull} alt="NewsRomania" priority className="h-8 w-auto md:h-10" />
           </Link>
           <div className="flex items-center gap-4">
             <time
               dateTime={today.iso}
-              className="hidden font-sans text-[13px] leading-[18px] text-ink-muted md:block"
+              className="hidden font-sans text-[13px] font-medium leading-[18px] text-ink-muted md:block"
             >
               {today.label}
             </time>
-            {/* Search is a page (/cautare), not a dropdown — zero JS */}
+            {/* Search is a page (/cautare), not a dropdown — zero JS. */}
             <Link
               href="/cautare"
               className="flex h-11 w-11 items-center justify-center text-ink-muted transition-colors hover:text-link active:opacity-85"
@@ -81,10 +83,20 @@ export function Header() {
         </div>
       </div>
 
-      {/* Category nav — horizontally scrollable on mobile, right-edge fade hint,
-          current section marked with the inset red bar (CategoryNavList). */}
-      <nav aria-label="Navigare principală" className="border-b border-border bg-surface">
-        <div className="mx-auto w-full max-w-[1200px] px-4 md:px-6">
+      {/* Chip nav (§3.2.3) — 56px, frosted white (solid fallback when
+          backdrop-filter is unsupported), brand symbol persists after the
+          masthead scrolls away. Horizontal scroll + right fade on mobile. */}
+      <nav
+        aria-label="Navigare principală"
+        className="border-b border-border bg-surface supports-[backdrop-filter:blur(1px)]:bg-white/[0.92] supports-[backdrop-filter:blur(1px)]:backdrop-blur-[8px]"
+      >
+        <div className="mx-auto flex h-14 w-full max-w-[1280px] items-center gap-2 px-4 md:px-6 xl:px-8">
+          <Link
+            href="/"
+            className="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center active:opacity-85"
+          >
+            <Image src={logoSymbol} alt="NewsRomania — prima pagină" className="h-7 w-auto" />
+          </Link>
           <CategoryNavList />
         </div>
       </nav>

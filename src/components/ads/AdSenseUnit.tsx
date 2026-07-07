@@ -20,9 +20,12 @@ import type { AdSenseDecision } from '@/lib/ads/engine'
  *     'fluid' / 'in-feed'[:layoutKey] → responsive in-feed (data-ad-format
  *       "fluid", optional data-ad-layout-key from the dashboard snippet)
  *     'in-article'                    → fluid + data-ad-layout "in-article"
- *     'rectangle' / '300x250'         → fixed 300×250 (rail)
- *     'horizontal' / '728x90'         → fixed 728×90 (leaderboard)
- *     any 'WxH'                       → fixed W×H
+ *     'rectangle' / '300x250'         → fixed 300×250 (article-end default)
+ *     'horizontal' / 'leaderboard'    → CSS-sized responsive banner: the
+ *       <ins> carries no inline size and no data-ad-format; AdSlot's
+ *       media-query classes size it (320×100 <768px / 728×90 ≥768px) —
+ *       Google's documented CSS-sized responsive method
+ *     any 'WxH' (e.g. '728x90')       → fixed W×H
  *     'auto' / unknown                → responsive auto, full-width
  * - The push script is a per-slot inline next/script keyed by useId with an
  *   idempotent guard (data-nr-ad-pushed) so a slot never requests two fills.
@@ -61,8 +64,11 @@ export function formatAttributes(format: string): AdSenseFormatAttributes {
   if (kind === 'rectangle' || fixed?.[0] === '300x250') {
     return { style: { display: 'inline-block', width: 300, height: 250 } }
   }
-  if (kind === 'horizontal' || kind === 'leaderboard' || fixed?.[0] === '728x90') {
-    return { style: { display: 'inline-block', width: 728, height: 90 } }
+  if (kind === 'horizontal' || kind === 'leaderboard') {
+    // Responsive banner (design direction v2 §4.4): no inline size, no
+    // data-ad-format — the slot's media-query classes decide 320×100 vs
+    // 728×90. An explicit 'WxH' format (e.g. '728x90') stays fixed below.
+    return { style: { display: 'block' } }
   }
   if (fixed) {
     return { style: { display: 'inline-block', width: Number(fixed[1]), height: Number(fixed[2]) } }

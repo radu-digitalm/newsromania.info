@@ -194,13 +194,42 @@ describe('aggregatedToFeedItem', () => {
     expect(item.source.url).toBe('https://alt.example/x')
   })
 
-  it('always uses the category placeholder (remote RSS images not yet allowed)', () => {
+  // Deliberate v2 behavior change (design-direction-v2 §5.1 — owner point 5):
+  // allowed remote publisher photos render for real; the placeholder is only
+  // the missing/disallowed fallback.
+  it('imageAllowed + imageUrl ⇒ real publisher photo (alt = title, 16:9 nominal box)', () => {
     const item = aggregatedToFeedItem(
       asAggregated(
-        aggregatedDoc({ imageUrl: 'https://publisher.example/foto.jpg', imageAllowed: true }),
+        aggregatedDoc({
+          title: 'Titlu foto',
+          imageUrl: 'https://publisher.example/foto.jpg',
+          imageAllowed: true,
+        }),
       ),
     )
-    expect(item.image?.url).toBe('/placeholders/sport.png')
+    expect(item.image).toEqual({
+      url: 'https://publisher.example/foto.jpg',
+      alt: 'Titlu foto',
+      width: 1200,
+      height: 675,
+    })
+  })
+
+  it('missing, blank or disallowed imageUrl ⇒ category placeholder', () => {
+    const missing = aggregatedToFeedItem(asAggregated(aggregatedDoc()))
+    expect(missing.image?.url).toBe('/placeholders/sport.png')
+
+    const blank = aggregatedToFeedItem(
+      asAggregated(aggregatedDoc({ imageUrl: '   ', imageAllowed: true })),
+    )
+    expect(blank.image?.url).toBe('/placeholders/sport.png')
+
+    const disallowed = aggregatedToFeedItem(
+      asAggregated(
+        aggregatedDoc({ imageUrl: 'https://publisher.example/foto.jpg', imageAllowed: false }),
+      ),
+    )
+    expect(disallowed.image?.url).toBe('/placeholders/sport.png')
   })
 
   it('ids can never collide with originals sharing the same numeric id', () => {

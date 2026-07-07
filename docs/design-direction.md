@@ -1,3 +1,5 @@
+> **SUPERSEDED (2026-07-07):** rejected by the owner — replaced by `docs/design-direction-v2.md` („Prim-Plan Tricolor”, v2). Kept for history only.
+
 # NewsRomania — FINAL Design Direction: „Broadsheet Tricolor”
 
 **Status: final. Zero open decisions. Every value below is exact and implementable as written.**

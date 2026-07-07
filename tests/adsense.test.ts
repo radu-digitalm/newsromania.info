@@ -37,13 +37,13 @@ function input(overrides: Partial<AdPlanInput> = {}): AdPlanInput {
   }
 }
 
-/** A fully-populated post-approval config: every placement has ≥1 unit. */
+/** A fully-populated post-approval config: every planned placement has ≥1 unit. */
 const APPROVED_UNITS: AdEngineConfig['adUnitIds'] = [
   { slot: 'feed', unitId: '1111111111', format: null },
   { slot: 'feed', unitId: '2222222222', format: 'fluid:-6t+ed+2i-1n-4w' },
   { slot: 'feed', unitId: '3333333333', format: null },
   { slot: 'article', unitId: '4444444444', format: 'in-article' },
-  { slot: 'rail', unitId: '5555555555', format: null },
+  { slot: 'article-end', unitId: '5555555555', format: null },
   { slot: 'leaderboard', unitId: '6666666666', format: '728x90' },
 ]
 
@@ -56,7 +56,7 @@ describe('buildAdPlan — unit selection by placement', () => {
     const plan = buildAdPlan(input(), config({ adUnitIds: APPROVED_UNITS }))
     expect(decisionFor(plan, 'feed')?.adsense?.unitId).toBe('1111111111')
     expect(decisionFor(plan, 'article')?.adsense?.unitId).toBe('4444444444')
-    expect(decisionFor(plan, 'rail')?.adsense?.unitId).toBe('5555555555')
+    expect(decisionFor(plan, 'article-end')?.adsense?.unitId).toBe('5555555555')
     expect(decisionFor(plan, 'leaderboard')?.adsense?.unitId).toBe('6666666666')
   })
 
@@ -73,16 +73,17 @@ describe('buildAdPlan — unit selection by placement', () => {
   it('an empty format falls back to the placement default', () => {
     const plan = buildAdPlan(input(), config({ adUnitIds: APPROVED_UNITS }))
     expect(decisionFor(plan, 'feed')?.adsense?.format).toBe(DEFAULT_FORMAT.feed)
-    expect(decisionFor(plan, 'rail')?.adsense?.format).toBe(DEFAULT_FORMAT.rail)
+    expect(decisionFor(plan, 'article-end')?.adsense?.format).toBe(DEFAULT_FORMAT['article-end'])
     // Explicit formats pass through untouched.
     expect(decisionFor(plan, 'article')?.adsense?.format).toBe('in-article')
     expect(decisionFor(plan, 'leaderboard')?.adsense?.format).toBe('728x90')
   })
 
-  it('placement defaults follow PROJECT_BRIEF §6.4 responsive mapping', () => {
+  it('placement defaults follow the v2 §4.4 mapping (rail kept for compat only)', () => {
     expect(DEFAULT_FORMAT).toEqual({
       feed: 'fluid',
       article: 'in-article',
+      'article-end': 'rectangle',
       rail: 'rectangle',
       leaderboard: 'horizontal',
     })
@@ -134,9 +135,11 @@ describe('adsenseAt — deterministic rotation by position index', () => {
 
   it('degrades safely: no units → base decision; no decision → undefined', () => {
     const empty = buildAdPlan(input(), config())
-    const rail = decisionFor(empty, 'rail')
-    expect(adsenseAt(rail, 2)).toEqual(rail?.adsense)
-    expect(adsenseAt(rail, 2)?.unitId).toBeUndefined()
+    const end = decisionFor(empty, 'article-end')
+    expect(adsenseAt(end, 2)).toEqual(end?.adsense)
+    expect(adsenseAt(end, 2)?.unitId).toBeUndefined()
+    // 'rail' is never planned in v2 ⇒ no decision ⇒ undefined all the way.
+    expect(adsenseAt(decisionFor(empty, 'rail'), 0)).toBeUndefined()
     expect(adsenseAt(undefined, 0)).toBeUndefined()
   })
 
@@ -156,7 +159,7 @@ describe('npa propagation — engine decision → rotated unit → <ins> attribu
     'consent=%s ⇒ npa=true survives rotation and reaches data-npa="1"',
     (consent) => {
       const plan = buildAdPlan(input({ consent }), config({ adUnitIds: APPROVED_UNITS }))
-      for (const placement of ['feed', 'article', 'rail', 'leaderboard'] as const) {
+      for (const placement of ['feed', 'article', 'article-end', 'leaderboard'] as const) {
         for (const index of [0, 1, 2]) {
           const rotated = adsenseAt(decisionFor(plan, placement), index)
           expect(rotated?.npa).toBe(true)
@@ -222,7 +225,7 @@ describe('formatAttributes — placement format mapping', () => {
     expect(attrs['data-ad-layout']).toBe('in-article')
   })
 
-  it('rail: rectangle/300x250 → fixed 300×250, no data-ad-format', () => {
+  it('article-end: rectangle/300x250 → fixed 300×250, no data-ad-format', () => {
     for (const format of ['rectangle', '300x250']) {
       const attrs = formatAttributes(format)
       expect(attrs.style).toEqual({ display: 'inline-block', width: 300, height: 250 })
@@ -230,14 +233,22 @@ describe('formatAttributes — placement format mapping', () => {
     }
   })
 
-  it('leaderboard: horizontal/728x90 → fixed 728×90', () => {
-    for (const format of ['horizontal', '728x90', 'leaderboard']) {
-      expect(formatAttributes(format).style).toEqual({
-        display: 'inline-block',
-        width: 728,
-        height: 90,
-      })
+  it('leaderboard: horizontal → CSS-sized responsive banner (no inline size, no format)', () => {
+    // v2 §4.4: the banner is no longer desktop-only — AdSlot's media-query
+    // classes size the <ins> (320×100 <768px / 728×90 ≥768px), so the
+    // attributes carry no fixed dimensions and no data-ad-format.
+    for (const format of ['horizontal', 'leaderboard']) {
+      const attrs = formatAttributes(format)
+      expect(attrs.style).toEqual({ display: 'block' })
+      expect(attrs['data-ad-format']).toBeUndefined()
+      expect(attrs['data-full-width-responsive']).toBeUndefined()
     }
+    // An explicit fixed size stays fixed (owner opted out of responsive).
+    expect(formatAttributes('728x90').style).toEqual({
+      display: 'inline-block',
+      width: 728,
+      height: 90,
+    })
   })
 
   it('any WxH → fixed custom size; unknown/auto → responsive auto', () => {

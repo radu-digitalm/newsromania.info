@@ -7,12 +7,16 @@ import type { FeedItem } from '@/types/content'
 import { ArticleCard } from './ArticleCard'
 
 /**
- * FeedList — chronological broadsheet feed (design direction §3.4): hairline
- * dividers between rows, no cards, no shadows. When given an AdPlan (computed
- * server-side per request by the ad engine — architecture.md §4), it injects
- * labelled in-feed AdSlots at region-frequency positions: after rows n, 2n,
- * 3n (everyNth from site-config adFrequency, e.g. UK 3 / RO 5 / default 4),
- * capped at 3 per page, never after the final row (PROJECT_BRIEF §6.2).
+ * FeedList — the FULL-WIDTH responsive card grid (design direction v2 §3.1/§3.3.4):
+ * 1 column below 640px, 2 at ≥640px, 3 at ≥1024px; no rail, no 8+4 split.
+ *
+ * When given an AdPlan (computed server-side per request by the ad engine —
+ * architecture.md §4), it injects labelled in-feed AdSlot CARDS as ordinary
+ * grid cells at region-frequency positions: after rows n, 2n, 3n (everyNth
+ * from site-config adFrequency, e.g. UK 3 / RO 5 / default 4), capped at 3
+ * per page, never after the final row (PROJECT_BRIEF §6.2). The frequency
+ * mechanics are byte-identical to v1 — only the presentation moved from
+ * divided rows to grid cells.
  */
 
 interface FeedListProps {
@@ -32,7 +36,7 @@ export function FeedList({ items, adPlan, headingAs = 'h3' }: FeedListProps) {
   const feedDecision = adPlan ? decisionFor(adPlan, 'feed') : undefined
 
   return (
-    <div>
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
       {items.map((item, index) => (
         <Fragment key={item.id}>
           <ArticleCard item={item} as={headingAs} />

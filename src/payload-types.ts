@@ -1028,7 +1028,7 @@ export interface SiteConfig {
     adSensePublisherId?: string | null;
     adUnitIds?:
       | {
-          slot: 'feed' | 'article' | 'rail' | 'leaderboard';
+          slot: 'feed' | 'article' | 'article-end' | 'rail' | 'leaderboard';
           unitId: string;
           format?: string | null;
           id?: string | null;

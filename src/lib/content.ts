@@ -135,6 +135,18 @@ export function articleToFeedItem(doc: PayloadArticle): OriginalArticle {
 
 export function aggregatedToFeedItem(doc: PayloadAggregatedItem): AggregatedItem {
   const category = mapCategory(doc.category)
+  // Real publisher photo (design-direction-v2 §5.1): imageUrl comes ONLY from
+  // RSS enclosure/media:content (ingest worker) or the owner-approved
+  // backfill, and renders only when imageAllowed. Remote URLs are hotlinked
+  // by ArticleImage via plain <img> (never proxied through next/image, so no
+  // remotePatterns needed); dimensions are the nominal 16:9 box — every
+  // surface crops with object-fit: cover, so intrinsic size never drives
+  // layout (zero CLS).
+  const imageUrl = typeof doc.imageUrl === 'string' ? doc.imageUrl.trim() : ''
+  const image: ImageRef =
+    doc.imageAllowed && imageUrl.length > 0
+      ? { url: imageUrl, alt: doc.title, width: 1200, height: 675 }
+      : placeholderImage(category)
   return {
     id: `aggregated-${doc.id}`,
     type: 'aggregated',
@@ -144,10 +156,7 @@ export function aggregatedToFeedItem(doc: PayloadAggregatedItem): AggregatedItem
     category,
     tags: mapTags(doc.tags),
     publishedAt: doc.publishedAt,
-    // Remote RSS images (imageUrl/imageAllowed) need next/image
-    // remotePatterns before they can render — until the ingest step wires
-    // that up, aggregated items use the category placeholder.
-    image: placeholderImage(category),
+    image,
     source: {
       name: doc.sourceName,
       url: doc.sourceHomepage ?? doc.sourceUrl,

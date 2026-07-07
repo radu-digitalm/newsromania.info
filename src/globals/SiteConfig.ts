@@ -43,8 +43,9 @@ export const SiteConfigGlobal: GlobalConfig = {
               required: true,
               options: [
                 { label: 'Flux (feed)', value: 'feed' },
-                { label: 'Articol', value: 'article' },
-                { label: 'Coloană laterală (rail)', value: 'rail' },
+                { label: 'Articol — în corp (article)', value: 'article' },
+                { label: 'Articol — final (article-end)', value: 'article-end' },
+                { label: 'Coloană laterală (rail — nefolosită în v2)', value: 'rail' },
                 { label: 'Banner sus (leaderboard)', value: 'leaderboard' },
               ],
             },

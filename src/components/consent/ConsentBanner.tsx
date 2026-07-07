@@ -26,7 +26,7 @@ import { useState } from 'react'
  */
 
 const choiceButtonClass =
-  'inline-flex h-11 flex-1 items-center justify-center rounded-[2px] bg-link px-5 font-sans text-[15px] font-semibold leading-5 text-white transition-colors hover:bg-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:opacity-85 disabled:cursor-not-allowed disabled:opacity-60'
+  'inline-flex h-11 flex-1 items-center justify-center rounded-full bg-link px-5 font-sans text-[15px] font-semibold leading-5 text-white transition-colors hover:bg-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:opacity-85 disabled:cursor-not-allowed disabled:opacity-60'
 
 export function ConsentBanner() {
   const [busy, setBusy] = useState(false)
@@ -65,9 +65,9 @@ export function ConsentBanner() {
       role="region"
       aria-label="Consimțământ pentru cookie-uri"
       aria-live="polite"
-      className="sticky bottom-0 z-50 w-full border-t-2 border-ink bg-surface shadow-[0_-4px_16px_rgba(20,24,29,0.12)]"
+      className="sticky bottom-0 z-50 w-full border-t border-border bg-surface shadow-[0_-8px_24px_rgba(16,22,31,0.12)]"
     >
-      <div className="mx-auto w-full max-w-[1200px] px-4 py-4 md:px-6 md:py-5">
+      <div className="mx-auto w-full max-w-[1280px] px-4 py-4 md:px-6 md:py-5 xl:px-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-8">
           <div className="flex-1">
             <h2 className="font-sans text-[15px] font-bold leading-5 text-ink">

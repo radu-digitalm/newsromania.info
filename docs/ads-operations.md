@@ -25,12 +25,16 @@ every knob. Nothing below requires a code change or a deploy — it is all
 AdSense → **Ads → By ad unit**. Create one unit per placement (names are
 suggestions; the type/format is what matters):
 
-| Placement on site         | Dashboard unit type             | Suggested name     | Notes                                                                   |
-| ------------------------- | ------------------------------- | ------------------ | ----------------------------------------------------------------------- |
-| `feed` (between articles) | **In-feed ad**                  | `nr-feed-1`        | Copy the `data-ad-layout-key` from the generated snippet (see step 2).  |
-| `article` (inside body)   | **In-article ad**               | `nr-article-1`     | Two positions exist per article (after 3rd paragraph + at article end). |
-| `rail` (right column)     | **Display ad → Fixed, 300×250** | `nr-rail-300x250`  | The layout reserves exactly 300×250.                                    |
-| `leaderboard` (top strip) | **Display ad → Fixed, 728×90**  | `nr-leader-728x90` | Desktop-only strip; mobile never shows it.                              |
+| Placement on site           | Dashboard unit type             | Suggested name   | Notes                                                                                                |
+| --------------------------- | ------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------- |
+| `feed` (in-feed grid card)  | **In-feed ad**                  | `nr-feed-1`      | Copy the `data-ad-layout-key` from the generated snippet (see step 2).                               |
+| `article` (inside body)     | **In-article ad**               | `nr-article-1`   | In-article position: after the 3rd paragraph (originals) / below the CTA block (aggregated pages).  |
+| `article-end` (article end) | **Display ad → Fixed, 300×250** | `nr-end-300x250` | End-of-article position on BOTH article types; the layout reserves exactly 300×250.                 |
+| `leaderboard` (top banner)  | **Display ad → Responsive**     | `nr-banner-1`    | Renders on ALL viewports (design v2): 320×100 below 768px, 728×90 above — sized by the layout CSS.  |
+
+The v1 `rail` placement (right sidebar) no longer exists in the layout: the
+engine ignores any historical `rail` rows in site-config — do not create
+units for it.
 
 From each generated snippet you only need the **`data-ad-slot` number**
 (10 digits) — the code renders everything else itself.
@@ -39,28 +43,31 @@ From each generated snippet you only need the **`data-ad-slot` number**
 
 Group **„Rețele de publicitate" → „Unități AdSense"**. Add one row per unit:
 
-- **Poziție (slot):** `feed`, `article`, `rail` or `leaderboard` — this maps
-  the unit 1:1 to the placement above.
+- **Poziție (slot):** `feed`, `article`, `article-end` or `leaderboard` — this
+  maps the unit 1:1 to the placement above (`rail` stays selectable only for
+  historical rows; the engine never plans it).
 - **ID unitate (unitId):** the `data-ad-slot` number from the snippet.
 - **format** (optional — leave empty to use the placement default):
 
   | Value                      | Renders as                                                                                                       |
   | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-  | _(empty)_                  | Placement default: feed→`fluid`, article→`in-article`, rail→`rectangle`, leaderboard→`horizontal`                |
+  | _(empty)_                  | Placement default: feed→`fluid`, article→`in-article`, article-end→`rectangle`, leaderboard→`horizontal`         |
   | `fluid` or `in-feed`       | Responsive in-feed (`data-ad-format="fluid"`)                                                                    |
   | `fluid:<layout-key>`       | In-feed **with** the dashboard's `data-ad-layout-key`, e.g. `fluid:-6t+ed+2i-1n-4w` — recommended for feed units |
   | `in-article`               | Fluid in-article (`data-ad-layout="in-article"`)                                                                 |
   | `rectangle` or `300x250`   | Fixed 300×250                                                                                                    |
-  | `horizontal` or `728x90`   | Fixed 728×90                                                                                                     |
+  | `horizontal`               | Responsive banner sized by the layout (320×100 mobile / 728×90 desktop) — recommended for `leaderboard`          |
+  | `728x90`                   | Fixed 728×90 (desktop-sized even on mobile — prefer `horizontal`)                                                |
   | any `WxH` (e.g. `300x600`) | Fixed custom size (make sure the layout box fits it)                                                             |
   | `auto`                     | Fully responsive auto format                                                                                     |
 
 - **Rotation:** you may add **several rows with the same Poziție**. The engine
   rotates them **deterministically by position on the page**: the 1st in-feed
   slot shows unit 1, the 2nd shows unit 2, the 3rd unit 3, then it wraps —
-  same page, same visitor, same result (no flicker, no randomness). Same for
-  the two in-article positions. This is how you A/B-compare units per
-  placement once reporting data flows.
+  same page, same visitor, same result (no flicker, no randomness). The
+  in-article and end-of-article positions are separate placements
+  (`article` / `article-end`), each with its own row(s). This is how you
+  A/B-compare units per placement once reporting data flows.
 
 ### 3. Wait ≤ 5 minutes, then verify
 
