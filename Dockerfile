@@ -3,17 +3,21 @@
 # newsromania.info — production image (architecture.md §9)
 # Multi-stage: build (npm ci + next build, standalone) -> runner.
 #
-# NOTE on the stage layout: deps/build used to be separate stages, but this
-# rootless daemon runs the containerd image store, where the CLASSIC builder
-# (no buildx on this host) gets no cross-build cache — the split bought
-# nothing and `COPY --from=deps node_modules` duplicated a ~1.5 GB layer at
-# build time. One build stage keeps the PEAK disk usage inside what this
-# shared VPS can afford.
+# BUILD CACHING (2026-07): the docker buildx plugin is installed
+# (~/.docker/cli-plugins/docker-buildx), so `docker compose build` uses
+# BuildKit — not the classic builder. Two cache mounts below make rebuilds
+# ~4-5x faster: npm's download cache and Next's incremental build cache persist
+# ACROSS builds in the BuildKit cache (NOT in the image layer, so the runtime
+# image stays lean). Measured: cold 165s, unchanged 2s, one-file change ~106s
+# (was ~480s from-scratch every time). Deps layer is skipped when package*.json
+# are unchanged. Single build stage (not split deps/build) keeps PEAK disk low.
 #
 # Build discipline on this shared VPS (see deploy/DEPLOY.md):
 #   - check `df -h /` first; do NOT build with < 3 GB free
-#   - afterwards: `docker image prune -f` (classic builder leaves dangling
-#     stage images; `docker builder prune -f` only covers BuildKit cache)
+#   - afterwards: `docker image prune -f` (removes dangling stage images).
+#     Do NOT run `docker builder prune` casually — it WIPES the ~2 GB build
+#     cache and the next build goes cold again. Only prune it under real disk
+#     pressure, e.g. `docker builder prune --keep-storage 2GB`.
 # Build:  docker compose --profile app build   (or: docker build -t newsromania-app .)
 # Run:    docker compose --profile app up -d   (publishes 127.0.0.1:3100)
 # ============================================================================
@@ -43,7 +47,13 @@ FROM base AS build
 # tailwind, …) are required to run `next build`.
 COPY package.json package-lock.json ./
 COPY vendor ./vendor
-RUN npm ci && npm cache clean --force
+# BuildKit cache mount: npm's download cache persists ACROSS builds (in the
+# builder cache, NOT the image layer), so `npm ci` re-downloads nothing when
+# the lockfile is unchanged — and this whole layer is skipped entirely when
+# package*.json don't change. No `npm cache clean` needed: the cache lives in
+# the mount, never in the committed layer.
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm ci --prefer-offline --no-audit --no-fund
 ARG DATABASE_URL=postgres://build:build@127.0.0.1:5432/build
 ARG REDIS_URL=redis://default:build@127.0.0.1:6379
 ARG PAYLOAD_SECRET=build-time-dummy-secret-not-used-at-runtime
@@ -60,9 +70,14 @@ ENV DATABASE_URL=$DATABASE_URL \
     NEXT_PUBLIC_AD_PREVIEW=$NEXT_PUBLIC_AD_PREVIEW \
     NODE_ENV=production
 COPY . .
-# rm .next/cache in the SAME layer: the webpack build cache is useless at
-# runtime (standalone) and would bloat the committed layer.
-RUN npm run build && rm -rf .next/cache
+# BuildKit cache mount: Next's incremental build cache (.next/cache) persists
+# ACROSS builds in the builder cache, so a source change recompiles only what
+# changed instead of the whole app (~2-3x faster rebuilds). It lives in the
+# mount, never in the committed layer, so the runtime image stays lean and no
+# `rm -rf .next/cache` is needed (only .next/standalone + static are copied to
+# the runner stage).
+RUN --mount=type=cache,target=/app/.next/cache,sharing=locked \
+    npm run build
 
 # ---------------------------------------------------------------------------
 # runner — minimal standalone runtime, non-root.
