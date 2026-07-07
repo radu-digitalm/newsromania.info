@@ -7,6 +7,12 @@ import { isAdmin, noOne } from './access'
  * Create-only, written exclusively by POST /api/consent through the Local
  * API; no public read, never updated. `ipHash` = sha256(ip + PAYLOAD_SECRET),
  * never the raw IP.
+ *
+ * SUPERSEDED by Google's certified CMP (CMP reconciliation 2026-07): the
+ * custom banner that POSTed to /api/consent was retired, so no new rows are
+ * written in production — advertising consent (and its proof) is now handled
+ * by Google's CMP. This collection is left in place (harmless) in case the
+ * first-party consent flow is ever reinstated.
  */
 export const ConsentRecords: CollectionConfig = {
   slug: 'consent-records',

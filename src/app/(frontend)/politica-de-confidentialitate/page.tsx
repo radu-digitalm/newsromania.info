@@ -4,9 +4,11 @@ import { LegalPageShell, LegalSection } from '@/components/layout/LegalPageShell
 
 // Noindex until section 1 (operator identification — owner-supplied legal
 // entity data) is completed at DNS cutover. The processing descriptions
-// (sections 2–8) are complete and MUST stay in sync with the actual code:
-// src/lib/consent.ts, /api/consent (ipHash), the CDP collections and the
-// retention worker (scripts/worker/profiles.mjs).
+// (sections 2–8) MUST stay in sync with what actually runs. CMP reconciliation
+// (2026-07): advertising consent is now collected via Google's certified CMP
+// (3-choice, reject-as-easy-as-accept), not our retired first-party banner —
+// the first-party CDP profiling (nr_vid) is dormant. ipHash on the technical
+// access logs and the other facts remain accurate.
 // follow: true keeps internal links crawlable in the meantime.
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -41,15 +43,11 @@ export default function PoliticaDeConfidentialitatePage() {
             jurnalele tehnice ale serverului, strict pentru furnizarea și securitatea site-ului;
           </li>
           <li>
-            <strong>dovada alegerii privind consimțământul</strong>: la fiecare alegere explicită
-            (accept, refuz, retragere) înregistrăm alegerea, momentul, un <em>hash ireversibil</em>{' '}
-            al adresei IP (niciodată IP-ul în clar) și user agent-ul — obligația de a demonstra
-            consimțământul (GDPR art. 7);
-          </li>
-          <li>
-            <strong>date colectate prin cookie-uri</strong> — exclusiv după „Accept”: un
-            identificator pseudonim de vizitator (<code>nr_vid</code>) și categoriile de știri
-            citite, pentru publicitate mai relevantă (a se vedea{' '}
+            <strong>consimțământul pentru publicitate</strong>: este colectat prin platforma
+            certificată de consimțământ (CMP) a Google (opțiunile „De acord”, „Nu sunt de acord”,
+            „Gestionează opțiunile”); Google reține alegerea (prin șirul IAB TCF{' '}
+            <code>euconsent-v2</code> și cookie-urile Google asociate). Site-ul în sine nu mai
+            stochează cookie-uri proprii de consimțământ (a se vedea{' '}
             <Link href="/politica-de-cookies" className={linkClass}>
               Politica de cookies
             </Link>
@@ -77,17 +75,13 @@ export default function PoliticaDeConfidentialitatePage() {
             — interes legitim (art. 6 alin. 1 lit. f GDPR);
           </li>
           <li>
-            <strong>dovada consimțământului</strong> (înregistrările descrise la secțiunea 2) —
-            obligație legală (art. 6 alin. 1 lit. c coroborat cu art. 7 GDPR);
+            <strong>publicitate personalizată</strong> (cookie-urile Google AdSense de marketing,
+            colectate prin CMP-ul certificat Google) — exclusiv pe baza consimțământului (art. 6
+            alin. 1 lit. a GDPR), care poate fi retras oricând din fereastra Google;
           </li>
           <li>
-            <strong>publicitate personalizată și profil de interese</strong> (cookie-ul{' '}
-            <code>nr_vid</code>, cookie-urile Google AdSense de marketing) — exclusiv pe baza
-            consimțământului (art. 6 alin. 1 lit. a GDPR), care poate fi retras oricând;
-          </li>
-          <li>
-            <strong>publicitate nepersonalizată</strong> (fără cookie-uri, fără profil) pentru
-            vizitatorii care refuză — interes legitim.
+            <strong>publicitate nepersonalizată</strong> (fără personalizare) pentru vizitatorii
+            care refuză sau nu au ales — interes legitim.
           </li>
         </ul>
       </LegalSection>
@@ -99,7 +93,8 @@ export default function PoliticaDeConfidentialitatePage() {
         </p>
         <ul className="list-disc space-y-2 pl-6">
           <li>
-            <strong>Google AdSense</strong> — afișarea publicității; cookie-urile de marketing se
+            <strong>Google AdSense</strong> — afișarea publicității și colectarea consimțământului
+            prin platforma sa certificată de consimțământ (CMP); cookie-urile de marketing se
             activează doar după consimțământ (Google Consent Mode v2). Politica Google:{' '}
             <a
               href="https://policies.google.com/privacy?hl=ro"
@@ -132,20 +127,13 @@ export default function PoliticaDeConfidentialitatePage() {
       <LegalSection title="5. Durata stocării">
         <ul className="list-disc space-y-2 pl-6">
           <li>
-            cookie-ul <code>nr_consent</code> (alegerea dumneavoastră): 180 de zile;
+            consimțământul pentru publicitate și cookie-urile Google asociate (inclusiv șirul{' '}
+            <code>euconsent-v2</code>): reținute de Google conform politicilor sale (de regulă până
+            la 13 luni), până la schimbarea alegerii din fereastra Google;
           </li>
           <li>
-            identificatorul <code>nr_vid</code>: 365 de zile; este șters imediat la refuz sau la
-            retragerea consimțământului;
-          </li>
-          <li>
-            evenimentele de lectură și profilul de interese asociat: cel mult 365 de zile de la
-            ultima activitate — apoi sunt șterse automat; la retragerea consimțământului sunt șterse
-            imediat, fără a aștepta termenul;
-          </li>
-          <li>
-            înregistrările privind consimțământul: pe durata necesară demonstrării conformității
-            (termenul general de prescripție);
+            jurnalele tehnice de acces (adresa IP, user agent): pe durata necesară furnizării și
+            securității site-ului, apoi eliminate sau anonimizate;
           </li>
           <li>corespondența primită voluntar: pe durata soluționării solicitării.</li>
         </ul>
@@ -167,8 +155,8 @@ export default function PoliticaDeConfidentialitatePage() {
           <Link href="/contact" className={linkClass}>
             Contact
           </Link>
-          . Ștergerea profilului de interese se face și direct, fără nicio cerere, prin retragerea
-          consimțământului din pagina{' '}
+          . Consimțământul pentru publicitate poate fi schimbat oricând, direct și fără nicio
+          cerere, redeschizând fereastra de consimțământ Google din pagina{' '}
           <Link href="/setari-cookies" className={linkClass}>
             Setări cookies
           </Link>
@@ -183,10 +171,9 @@ export default function PoliticaDeConfidentialitatePage() {
           <Link href="/setari-cookies" className={linkClass}>
             Setări cookies
           </Link>
-          , accesibilă permanent din subsolul site-ului, are un buton dedicat „Retrag
-          consimțământul”. Retragerea șterge imediat identificatorul de vizitator, iar profilul de
-          interese și evenimentele asociate sunt eliminate automat; înregistrăm retragerea pentru
-          conformitate.
+          , accesibilă permanent din subsolul site-ului, are un buton care redeschide fereastra de
+          consimțământ Google, unde vă puteți retrage sau schimba alegerea. Fereastra oferă opțiuni
+          cu greutate egală, refuzul fiind la fel de simplu ca acordul.
         </p>
       </LegalSection>
 

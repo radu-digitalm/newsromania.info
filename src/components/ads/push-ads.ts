@@ -25,9 +25,10 @@
  * rail hidden at load fills once it becomes visible (rotation / resize). The
  * shared data-nr-ad-pushed marker keeps every such retry idempotent.
  *
- * NPA is page-scoped and global: ConsentModeScript sets
- * requestNonPersonalizedAds=1 before the AdSense site tag whenever consent ≠
- * accepted, and that flag governs every subsequent push(), batch pushes too.
+ * NPA is governed by Google's certified CMP + Consent Mode v2 (CMP
+ * reconciliation 2026-07): we no longer set requestNonPersonalizedAds
+ * ourselves, so every push() — batch pushes included — inherits whatever
+ * personalization state the CMP established for the visitor.
  *
  * The DOM/window surfaces are structural interfaces so the helper is
  * unit-testable in a node environment (tests/push-ads.test.ts).

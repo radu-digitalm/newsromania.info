@@ -805,7 +805,10 @@ by feed routes but stay exported and type-valid — architecture.md module paths
   selector skips them and the inline script never renders ⇒ zero `push()` calls; the reserved
   „Publicitate” box stays a flat empty field at full reserved height, in batches exactly as on
   page 1.
-- **NPA:** reused GLOBALLY — `ConsentModeScript` already sets
+- **NPA:** _(CMP reconciliation 2026-07: superseded — Google's certified CMP + Consent Mode v2 now
+  govern personalization; `ConsentModeScript` was deleted and the engine hard-sets `npa=false`. The
+  text below is historical; see docs/architecture.md “CMP reconciliation addendum”.)_ reused
+  GLOBALLY — `ConsentModeScript` already sets
   `requestNonPersonalizedAds = 1` before the AdSense site tag whenever consent ≠ accepted; that
   flag governs every subsequent `push()`, including batch pushes. Nothing per-slot changes;
   batch decisions still carry `npa` into the audit attribute `data-npa`. Edge (documented, safe

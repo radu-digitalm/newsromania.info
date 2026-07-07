@@ -4,6 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * Consent layer unit tests (architecture.md §10): cookie parsing edge cases,
  * consentVersion re-prompt logic, and the /api/consent route contract.
  * Payload and Redis are ALWAYS mocked — no live services.
+ *
+ * CMP reconciliation (2026-07): the custom consent banner that drove
+ * /api/consent was retired in favour of Google's certified CMP, so the route
+ * is no longer on the live consent path. The lib (parse/serialize/readConsent)
+ * and the route are LEFT IN PLACE (harmless, in case first-party consent is
+ * ever reinstated), and these unit tests keep validating that retained
+ * behaviour — they do not exercise any removed UI (banner / ConsentModeScript).
  */
 
 const mocks = vi.hoisted(() => ({

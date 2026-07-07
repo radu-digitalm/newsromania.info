@@ -46,9 +46,8 @@ import { AdSenseUnit } from './AdSenseUnit'
  *   <AdSenseUnit>: data-ad-slot only when the engine resolved a unitId;
  *   when several units are configured for the placement, the `index` prop
  *   (this slot's 0-based position on the page) rotates them deterministically
- *   via adsenseAt(). NPA is handled ONCE globally by ConsentModeScript (see
- *   AdSenseUnit.tsx for the exact coordination contract with the consent
- *   agent).
+ *   via adsenseAt(). NPA/personalization is governed by Google's certified CMP
+ *   + Consent Mode v2 (CMP reconciliation 2026-07) — see AdSenseUnit.tsx.
  *
  * Placement ethics (hard rules kept): an AdSlot never sits between a title
  * and its byline/attribution row, never between the aggregated excerpt and

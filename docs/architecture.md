@@ -203,6 +203,33 @@ search queries.
   link to /politica-de-cookies; zero cookies before choice; Google Consent
   Mode v2 defaults denied, updated on accept; withdraw at /setari-cookies.
 
+### CMP reconciliation addendum (2026-07)
+
+The owner enabled Google's **certified CMP** in AdSense (Privacy & messaging).
+To avoid two banners and conflicting Consent-Mode defaults, Google's CMP is now
+the **single** consent experience and the custom stack was retired:
+
+- **Removed:** `ConsentBanner` and the manual `ConsentModeScript` (deleted); their
+  mounts are gone from the frontend layout. The AdSense `<Script>` stays — it
+  now DELIVERS the CMP and sets Consent-Mode defaults itself.
+- **Ad personalization:** the engine no longer forces `npa` from our consent.
+  `buildAdPlan` hard-sets `npa=false` and lets the CMP + Consent Mode govern
+  personalization (forcing npa from our now-always-`unknown` `readConsent` would
+  serve non-personalized ads to CMP-consented users and fight the CMP). The
+  `npa` field is retained only as an audit attribute (`data-npa`).
+- **First-party layer DORMANT:** `nr_consent` is never written now, so
+  `readConsent()` is always `unknown`; `CdpBeacon` never mounts, `/api/cdp/events`
+  drops everything, and `POST /api/consent` + the `consent-records` collection
+  are unused (left in place, harmless). **To re-activate first-party analytics
+  later, gate it on Google's TCF / Consent-Mode signal** (IAB TCF `euconsent-v2`
+  / `__tcfapi` for the relevant purposes, or a Consent-Mode `analytics_storage`
+  read) — NOT on the removed `nr_consent` cookie.
+- **Cookie-management touchpoint:** `/setari-cookies` reopens the CMP via
+  `googlefc.callbackQueue.push(googlefc.showRevocationMessage)` (`CmpManageButton`),
+  with a browser-settings fallback when the CMP is not loaded/applicable.
+- **Server cookies:** anonymous requests now set **zero** Set-Cookie; Google's
+  CMP cookies (`euconsent-v2`, Google ad/measurement) are client-side.
+
 ## 7. Workers (systemd user timers)
 
 - `newsromania-ingest` (every 20 min): scripts/worker/ingest.mjs — for each

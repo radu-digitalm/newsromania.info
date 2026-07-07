@@ -89,7 +89,13 @@ Group **„Rețele de publicitate" → „Unități AdSense"**. Add one row per 
 ## NPA / consent behaviour (recap — do not change)
 
 Decided **server-side per request** by the ad engine; strictly enforced
-(PROJECT_BRIEF §6.3/§8):
+(PROJECT_BRIEF §6.3/§8).
+
+> **CMP reconciliation (2026-07):** superseded — Google's certified CMP now
+> owns Consent Mode v2 and ad personalization end-to-end. The manual
+> `ConsentModeScript` was deleted and the engine hard-sets `npa=false` (it no
+> longer forces NPA from our consent). The description below is retained for
+> historical context; see docs/architecture.md “CMP reconciliation addendum”.
 
 - **No choice yet or „Refuz":** Consent Mode v2 stays fully `denied`,
   `requestNonPersonalizedAds=1` is set globally before the AdSense tag runs

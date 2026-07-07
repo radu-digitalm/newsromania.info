@@ -150,7 +150,9 @@ describe('buildFeedBatchResponse', () => {
     expect(response.ads?.decisions[0]?.placement).toBe('feed')
     // Rotation pool travels with the decision (adsenseAt on the client).
     expect(response.ads?.decisions[0]?.adsense?.unitId).toBe('1234567890')
-    expect(response.ads?.decisions[0]?.adsense?.npa).toBe(true) // consent refused
+    // CMP reconciliation (2026-07): npa is always false — Google's certified
+    // CMP + Consent Mode v2 govern personalization, not our consent state.
+    expect(response.ads?.decisions[0]?.adsense?.npa).toBe(false)
   })
 
   it('strips the original full body from the wire DTO (cards never render it)', () => {

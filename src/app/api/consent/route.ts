@@ -15,6 +15,13 @@ import { getRedis, rkey } from '@/lib/redis'
  * POST /api/consent — the ONLY writer of the consent cookies
  * (architecture.md §5, PROJECT_BRIEF §8).
  *
+ * SUPERSEDED by Google's certified CMP (CMP reconciliation 2026-07): the
+ * custom consent banner that POSTed here was retired, so nothing in the app
+ * calls this route in production any more — advertising consent is collected
+ * through Google's CMP instead. The route + the consent-records collection are
+ * left in place (harmless, still unit-tested) in case the first-party consent
+ * flow is ever reinstated; they no longer participate in the live consent path.
+ *
  * Accepts JSON `{ choice }` (fetch from the banner) or an
  * application/x-www-form-urlencoded body (no-JS <form> fallback → 303 back
  * to the Referer). Valid choices: accepted | refused | withdrawn.

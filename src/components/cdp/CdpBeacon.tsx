@@ -16,6 +16,17 @@ import { useEffect, useRef } from 'react'
  *   /api/cdp/events route re-validates BOTH server-side on every batch, so
  *   even a mis-mounted beacon can never store anything without consent.
  *
+ * DORMANT since the CMP reconciliation (2026-07):
+ *   Our custom consent banner + POST /api/consent were retired in favour of
+ *   Google's certified CMP, so the `nr_consent` cookie is NEVER written and
+ *   readConsent() is always 'unknown'. This beacon therefore never mounts and
+ *   /api/cdp/events drops everything — a privacy-safe, error-free dormant
+ *   state (no cookies, no runtime code). To RE-ACTIVATE first-party analytics
+ *   later, gate mounting on Google's TCF / Consent-Mode signal (e.g. the IAB
+ *   TCF `euconsent-v2` / __tcfapi consent for the relevant purposes, or a
+ *   Consent-Mode `analytics_storage: granted` read), NOT on the removed
+ *   nr_consent cookie. See docs/architecture.md (Consent / CDP section).
+ *
  * What it emits (batched, max 20 per queue, flushed every 5 s or on
  * pagehide / route change / article click via navigator.sendBeacon):
  *   - page_view      on every route load (per pathname);

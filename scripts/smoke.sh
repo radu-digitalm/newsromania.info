@@ -12,8 +12,11 @@
 # What it checks (the §10 contract):
 #   /                       200, lang="ro", <main> landmark, NO Set-Cookie for
 #                           anonymous visitors (GDPR: nothing before consent)
-#   consent refuse (form)   303 back, nr_consent=refused, nr_vid cleared
-#   consent accept (JSON)   200, nr_vid issued, then /api/cdp/events -> 204
+#   consent (CMP)           CMP reconciliation 2026-07: Google's certified CMP
+#                           is the single consent banner (delivered via the
+#                           AdSense tag). The custom banner + manual Consent
+#                           Mode were retired, so we assert the AdSense/CMP
+#                           script is present and our old banner region is gone.
 #   /stiri/<original>       200 + NewsArticle JSON-LD (slug from sitemap.xml)
 #   /stiri/<aggregated>     canonical -> the ORIGINAL PUBLISHER, never us
 #   /categorie/actualitate  200
@@ -27,8 +30,9 @@
 #                           everyNth=3 for both geos
 #   404                     branded Romanian page
 #
-# NOTE (cleanup): the two consent POSTs create rows in the consent-records
-# collection — acceptable dev/staging data, nothing to clean up automatically.
+# NOTE (cleanup): consent is now handled entirely by Google's certified CMP —
+# this smoke no longer POSTs to /api/consent, so it creates no consent-records
+# rows and nothing needs cleanup.
 
 set -u
 
@@ -94,38 +98,31 @@ check '/ NU setează cookie-uri pentru vizitatori anonimi' \
   bash -c '! grep -qi "^set-cookie:" "$1"' _ "$TMP/home.h"
 
 # ---------------------------------------------------------------------------
-# 2. Consent REFUSE (form POST, ca din bannerul fără JS)
+# 2. Consent = Google's certified CMP (CMP reconciliation 2026-07)
+#    The single consent experience is delivered by Google's CMP through the
+#    AdSense site tag. Assert that tag is present on the homepage and that our
+#    retired custom banner region is gone.
 # ---------------------------------------------------------------------------
-fetch_with_headers "$BASE/api/consent" "$TMP/refuse.h" "$TMP/refuse.b" \
-  -X POST -H 'content-type: application/x-www-form-urlencoded' \
-  -H "referer: ${BASE}/" --data 'choice=refused'
-refuse_status="$(head -n 1 "$TMP/refuse.h" | awk '{print $2}')"
-check "consent refuz: form POST răspunde 303 (a fost: ${refuse_status})" \
-  test "$refuse_status" = 303
-refuse_consent="$(cookie_value "$TMP/refuse.h" nr_consent)"
-check 'consent refuz: nr_consent stochează alegerea „refused”' \
-  bash -c 'printf %s "$1" | grep -q refused' _ "$refuse_consent"
-check 'consent refuz: nr_vid este șters (Max-Age=0)' \
-  bash -c 'grep -i "^set-cookie: nr_vid=" "$1" | grep -q "Max-Age=0"' _ "$TMP/refuse.h"
+check '/ încarcă tag-ul AdSense (livrează CMP-ul Google, bannerul unic)' \
+  grep -q 'pagead2.googlesyndication.com/pagead/js/adsbygoogle.js' "$TMP/home.html"
+check '/ NU mai afișează bannerul propriu (retras în favoarea CMP-ului Google)' \
+  bash -c '! grep -q "Consimțământ pentru cookie-uri" "$1"' _ "$TMP/home.html"
 
 # ---------------------------------------------------------------------------
-# 3. Consent ACCEPT (jar proaspăt) -> nr_vid -> eveniment CDP acceptat (204)
+# 3. First-party CDP is DORMANT (CMP reconciliation): with the custom banner
+#    gone, nr_consent is never written, so an anonymous batch is DROPPED
+#    server-side (re-validation gates on consent + nr_vid). The endpoint
+#    always answers 204 (beacon contract — failures never surface) and must
+#    NEVER set a cookie in response to an anonymous, no-consent event.
 # ---------------------------------------------------------------------------
-fetch_with_headers "$BASE/api/consent" "$TMP/accept.h" "$TMP/accept.b" \
-  -X POST -H 'content-type: application/json' --data '{"choice":"accepted"}'
-accept_status="$(head -n 1 "$TMP/accept.h" | awk '{print $2}')"
-check "consent accept: JSON POST răspunde 200 (a fost: ${accept_status})" \
-  test "$accept_status" = 200
-accept_consent="$(cookie_value "$TMP/accept.h" nr_consent)"
-accept_vid="$(cookie_value "$TMP/accept.h" nr_vid)"
-check 'consent accept: nr_vid este emis (non-gol)' test -n "$accept_vid"
-
-cdp_status="$(status_of "$BASE/api/cdp/events" \
+fetch_with_headers "$BASE/api/cdp/events" "$TMP/cdp.h" "$TMP/cdp.b" \
   -X POST -H 'content-type: application/json' \
-  -H "Cookie: nr_consent=${accept_consent}; nr_vid=${accept_vid}" \
-  --data '{"events":[{"type":"page_view","path":"/"}]}')"
-check "CDP: eveniment cu consimțământ răspunde 204 (a fost: ${cdp_status})" \
-  test "$cdp_status" = 204
+  --data '{"events":[{"type":"page_view","path":"/"}]}'
+cdp_anon_status="$(head -n 1 "$TMP/cdp.h" | awk '{print $2}')"
+check "CDP: eveniment anonim răspunde 204 (contract beacon; a fost: ${cdp_anon_status})" \
+  test "$cdp_anon_status" = 204
+check 'CDP: eveniment anonim NU setează niciun cookie (dormant, fără urmărire)' \
+  bash -c '! grep -qi "^set-cookie:" "$1"' _ "$TMP/cdp.h"
 
 # ---------------------------------------------------------------------------
 # 4. Primul articol ORIGINAL (din sitemap): 200 + JSON-LD

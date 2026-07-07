@@ -152,30 +152,25 @@ describe('adsenseAt — deterministic rotation by position index', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 3. NPA propagation (consent !== 'accepted' ⇒ npa on every rendered unit)
+// 3. NPA propagation (CMP reconciliation 2026-07): Google's certified CMP +
+// Consent Mode v2 own personalization, so the engine no longer forces npa from
+// our consent — npa is always false ⇒ data-npa="0" for every consent state.
 // ---------------------------------------------------------------------------
 
 describe('npa propagation — engine decision → rotated unit → <ins> attributes', () => {
-  it.each(['unknown', 'refused'] as const)(
-    'consent=%s ⇒ npa=true survives rotation and reaches data-npa="1"',
+  it.each(['unknown', 'refused', 'accepted'] as const)(
+    'consent=%s ⇒ npa=false survives rotation and reaches data-npa="0"',
     (consent) => {
       const plan = buildAdPlan(input({ consent }), config({ adUnitIds: APPROVED_UNITS }))
       for (const placement of ['feed', 'article', 'article-end', 'rail', 'leaderboard'] as const) {
         for (const index of [0, 1, 2]) {
           const rotated = adsenseAt(decisionFor(plan, placement), index)
-          expect(rotated?.npa).toBe(true)
-          expect(adsenseInsProps(rotated!)['data-npa']).toBe('1')
+          expect(rotated?.npa).toBe(false)
+          expect(adsenseInsProps(rotated!)['data-npa']).toBe('0')
         }
       }
     },
   )
-
-  it('consent=accepted ⇒ npa=false ⇒ data-npa="0"', () => {
-    const plan = buildAdPlan(input({ consent: 'accepted' }), config({ adUnitIds: APPROVED_UNITS }))
-    const rotated = adsenseAt(decisionFor(plan, 'feed'), 1)
-    expect(rotated?.npa).toBe(false)
-    expect(adsenseInsProps(rotated!)['data-npa']).toBe('0')
-  })
 })
 
 // ---------------------------------------------------------------------------

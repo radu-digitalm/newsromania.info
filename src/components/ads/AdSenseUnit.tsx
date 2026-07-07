@@ -30,14 +30,13 @@ import type { AdSenseDecision } from '@/lib/ads/engine-core'
  * - The push script is a per-slot inline next/script keyed by useId with an
  *   idempotent guard (data-nr-ad-pushed) so a slot never requests two fills.
  *
- * NPA / consent contract (coordinated with the consent agent): the
- * non-personalized flag is set ONCE globally by ConsentModeScript
- * (src/components/consent/ConsentModeScript.tsx) as an inline script that
- * runs before the AdSense site tag —
- *   (window.adsbygoogle=window.adsbygoogle||[]).requestNonPersonalizedAds=1
- * whenever consent !== 'accepted'. This component NEVER sets it per-slot;
- * decision.npa is carried only so the rendered slot is auditable
- * (data-npa attribute) and tests can assert the gating.
+ * NPA / consent contract: since the CMP reconciliation (2026-07), ad
+ * personalization is governed ENTIRELY by Google's certified CMP + Consent
+ * Mode v2 (delivered through the AdSense tag). We no longer set
+ * requestNonPersonalizedAds ourselves — the retired ConsentModeScript used to,
+ * from our own consent, which would now always be 'unknown' and wrongly force
+ * NPA on CMP-consented users. buildAdPlan hard-sets decision.npa=false; this
+ * component still renders it as data-npa only so the slot stays auditable.
  */
 
 /** Attribute bundle derived from an AdSenseDecision.format value. */

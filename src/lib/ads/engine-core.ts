@@ -11,9 +11,18 @@ import { blendKeywords, contextualKeywords } from './keywords'
  * the request-time getAdPlan() wrapper and re-exports this module, so the
  * server-facing API is unchanged.
  *
- * Consent rules (PROJECT_BRIEF §6.3/§8 — non-negotiable):
- * - consent !== 'accepted' ⇒ npa=true (non-personalized AdSense) and keywords
- *   are CONTEXTUAL only (derived from the category, never from the visitor).
+ * Consent rules (PROJECT_BRIEF §6.3/§8):
+ * - Ad personalization (npa) is NO LONGER governed by our own consent state.
+ *   Since the CMP reconciliation (2026-07) Google's certified CMP + Consent
+ *   Mode v2 own AdSense personalization end-to-end, so buildAdPlan hard-sets
+ *   npa=false and lets the CMP decide (forcing npa from our now-always-'unknown'
+ *   readConsent would wrongly serve non-personalized ads to CMP-consented
+ *   users and fight the CMP). See engine-core npa note below.
+ * - Behavioural KEYWORDS remain consent-gated on our OWN state as a belt-and-
+ *   braces guard for the (currently dormant) first-party CDP profile: without
+ *   an explicit 'accepted' the profile is NEVER consulted — contextual
+ *   (page-derived) keywords only. With our banner retired consent is always
+ *   'unknown', so this path is contextual-only in practice.
  * - consent === 'accepted' + profile ⇒ blend top profile interests with the
  *   current category (category first). Gated additionally by site-config
  *   behaviouralTargeting.enabled.
@@ -47,7 +56,13 @@ export interface AdSenseDecision {
   unitId?: string
   /** Slot format key — interpreted by AdSenseUnit ('fluid', 'in-article', 'rectangle', 'horizontal', 'auto', 'WxH', …). */
   format: string
-  /** Non-personalized ads flag — true whenever consent !== 'accepted'. */
+  /**
+   * Non-personalized ads flag. Since the CMP reconciliation (2026-07) this is
+   * always false: Google's certified CMP + Consent Mode v2 govern AdSense
+   * personalization, so we NO LONGER force npa from our own consent. Kept on
+   * the decision only so the rendered slot stays auditable (data-npa attribute)
+   * and the wire DTO shape is unchanged.
+   */
   npa: boolean
 }
 
@@ -236,7 +251,12 @@ function amazonDecisionFor(
  * pending, so seeded config has none and slots render reserved-empty).
  */
 export function buildAdPlan(input: AdPlanInput, config: AdEngineConfig): AdPlan {
-  const npa = input.consent !== 'accepted'
+  // CMP reconciliation (2026-07): personalization is governed by Google's
+  // certified CMP + Consent Mode v2, never by our own consent state. We hard-
+  // set npa=false and let the CMP decide — forcing it from our now-always-
+  // 'unknown' readConsent would serve non-personalized ads to CMP-consented
+  // users (revenue loss) and fight the CMP.
+  const npa = false
   const keywords = resolveKeywords(input, config)
   const marketplace = marketplaceForCountry(input.country ?? input.region)
 

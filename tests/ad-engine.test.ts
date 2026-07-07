@@ -115,20 +115,20 @@ describe('feedAdPositions — n, 2n, 3n, capped, never after the last row', () =
 })
 
 // ---------------------------------------------------------------------------
-// NPA gating (npa ⇔ consent !== 'accepted')
+// NPA (CMP reconciliation 2026-07): personalization is governed by Google's
+// certified CMP + Consent Mode v2, NOT by our own consent — buildAdPlan
+// hard-sets npa=false for every consent state.
 // ---------------------------------------------------------------------------
 
-describe('buildAdPlan — npa gating', () => {
-  it.each(['unknown', 'refused'] as const)('consent=%s ⇒ npa=true on every slot', (consent) => {
-    const plan = buildAdPlan(input({ consent }), seededConfig())
-    expect(plan.slots).toHaveLength(5) // v2.2: feed, article, article-end, rail, leaderboard
-    for (const slot of plan.slots) expect(slot.adsense?.npa).toBe(true)
-  })
-
-  it('consent=accepted ⇒ npa=false on every slot', () => {
-    const plan = buildAdPlan(input({ consent: 'accepted' }), seededConfig())
-    for (const slot of plan.slots) expect(slot.adsense?.npa).toBe(false)
-  })
+describe('buildAdPlan — npa always false (CMP owns personalization)', () => {
+  it.each(['unknown', 'refused', 'accepted'] as const)(
+    'consent=%s ⇒ npa=false on every slot',
+    (consent) => {
+      const plan = buildAdPlan(input({ consent }), seededConfig())
+      expect(plan.slots).toHaveLength(5) // v2.2: feed, article, article-end, rail, leaderboard
+      for (const slot of plan.slots) expect(slot.adsense?.npa).toBe(false)
+    },
+  )
 })
 
 describe('buildAdPlan — AdSense unit resolution', () => {
