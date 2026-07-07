@@ -1,5 +1,7 @@
 import type { AmazonDecision } from '@/lib/ads/engine-core'
 import { searchProductsWithTimeout, type AmazonProduct } from '@/lib/ads/amazon'
+import { HOUSE_AMAZON_PRODUCTS } from '@/lib/ads/house-amazon-products'
+import { AD_PREVIEW } from '@/lib/ads/preview'
 
 /**
  * AmazonProductAd — server component rendering 1–3 real Amazon products for
@@ -88,12 +90,17 @@ function ProductRow({ product }: { product: AmazonProduct }) {
 }
 
 export async function AmazonProductAd({ decision }: { decision: AmazonDecision }) {
-  const products = await searchProductsWithTimeout({
+  let products = await searchProductsWithTimeout({
     keywords: decision.keywords,
     marketplace: decision.marketplace,
     partnerTag: decision.partnerTag,
     count: 3,
   })
+
+  // Preview/test only: while the live API is gated on sales-eligibility it
+  // returns nothing — show the real SiteStripe house products so the owner can
+  // see the placement filled. Off at launch (NEXT_PUBLIC_AD_PREVIEW=0).
+  if (products.length === 0 && AD_PREVIEW) products = HOUSE_AMAZON_PRODUCTS
 
   // Graceful null-products render: same reserved-empty box as AdSlot.
   if (products.length === 0) return <EmptySlot />
