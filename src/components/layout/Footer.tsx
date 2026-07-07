@@ -65,9 +65,13 @@ export function Footer() {
           </div>
           <div>
             <h2 className={columnHeadingClass}>Surse</h2>
+            {/* Legal basis (docs/legal-basis-aggregation.md): „în condițiile...”
+                cites the basis without claiming blanket legality — do not
+                strengthen. 94¹ = Unicode superscript one (official citation form). */}
             <p className="mt-5 font-sans text-[15px] leading-6 text-footer-link">
-              Materialele agregate sunt prezentate ca extrase scurte, cu atribuire și legătură către
-              publicația-sursă.
+              Preluăm din articolele agregate doar extrase foarte scurte sau scurte citate, cu
+              atribuire și legătură către publicația-sursă, în condițiile art. 35 alin. (1) lit. b)
+              și art. 94¹ alin. (2) din Legea nr. 8/1996 și ale art. 15 din Directiva (UE) 2019/790.
             </p>
           </div>
         </div>
@@ -76,9 +80,6 @@ export function Footer() {
         <div className="mt-12 border-t border-white/[0.14] pt-6">
           <p className="font-sans text-[13px] leading-[18px] text-footer-meta">
             © 2026 NewsRomania · Conținutul preluat aparține surselor citate.
-          </p>
-          <p className="mt-2 font-sans text-[13px] leading-[18px] text-footer-meta">
-            Materialele agregate aparțin publicațiilor-sursă și sunt citate cu atribuire.
           </p>
         </div>
       </div>

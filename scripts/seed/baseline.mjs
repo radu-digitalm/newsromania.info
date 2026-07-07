@@ -200,10 +200,12 @@ try {
           { country: 'GB', region: 'UK', adSet: 'UK' },
           { country: 'RO', region: 'RO', adSet: 'RO' },
         ],
+        // v2.2 owner decision: an ad block between max 3 news — every 3rd
+        // post for ALL regions (still owner-tunable per region in admin).
         adFrequency: [
           { region: 'UK', everyNth: 3 },
-          { region: 'RO', everyNth: 5 },
-          { region: 'default', everyNth: 4 },
+          { region: 'RO', everyNth: 3 },
+          { region: 'default', everyNth: 3 },
         ],
         behaviouralTargeting: { enabled: true, requiresConsent: true },
         socialPlatforms: {

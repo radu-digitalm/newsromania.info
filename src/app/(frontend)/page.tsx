@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import { AdSlot } from '@/components/ads/AdSlot'
+import { SideRailAd } from '@/components/ads/SideRailAd'
 import { ArticleCard } from '@/components/articles/ArticleCard'
 import { FeedList } from '@/components/articles/FeedList'
 import { FeedStream } from '@/components/articles/FeedStream'
@@ -13,8 +14,10 @@ import type { FeedItem } from '@/types/content'
 
 /**
  * Home — v2.1 „Flux Social” (design direction §8.3): a centered single-column
- * post stream (max-w-2xl) on the dimmed canvas — NO sidebar, NO grid, nothing
- * beside the column at any width. Top → bottom on page 1: featured post
+ * post stream (max-w-2xl) on the dimmed canvas. v2.2: at lg+ a 300px sticky
+ * rail ad column (SideRailAd) sits beside the stream — the feed column +
+ * rail are centered together as a pair; below lg nothing changes (no
+ * sidebar). Top → bottom on page 1: featured post
  * (§8.5c) → leaderboard AdSlot → „Ultimele știri” section head → PostCard
  * stream with SSR in-feed ad-posts at engine positions → „Cele mai citite”
  * strip-post after content post 6 → FeedStream (client, pages ≥2) with the
@@ -145,64 +148,72 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
   return (
     <div className="min-h-full bg-canvas-dim">
-      <div className="mx-auto w-full max-w-2xl px-0 pb-16 pt-4 sm:px-4 md:px-6 md:pt-6">
-        <h1 className="sr-only">NewsRomania — știri din România, la zi</h1>
+      {/* v2.2 pair container: identical to the lone max-w-2xl column below lg;
+          at lg+ it widens to fit feed (672px) + 300px rail, centered together. */}
+      <div className="mx-auto flex w-full max-w-2xl justify-center lg:max-w-[972px]">
+        <div className="w-full min-w-0 max-w-2xl px-0 pb-16 pt-4 sm:px-4 md:px-6 md:pt-6">
+          <h1 className="sr-only">NewsRomania — știri din România, la zi</h1>
 
-        {isFirstPage && !featuredItem && streamItems.length === 0 ? (
-          <EmptyFeed />
-        ) : (
-          <>
-            {/* Featured post — the „hero” of the single-column world (§8.5c). */}
-            {featuredItem && <PostCard item={featuredItem} variant="featured" as="h2" />}
+          {isFirstPage && !featuredItem && streamItems.length === 0 ? (
+            <EmptyFeed />
+          ) : (
+            <>
+              {/* Featured post — the „hero” of the single-column world (§8.5c). */}
+              {featuredItem && <PostCard item={featuredItem} variant="featured" as="h2" />}
 
-            {/* Leaderboard — full column width, reserved heights unchanged (§4.4). */}
-            <AdSlot variant="leaderboard" decision={decisionFor(adPlan, 'leaderboard')} />
+              {/* Leaderboard — full column width, reserved heights unchanged (§4.4). */}
+              <AdSlot variant="leaderboard" decision={decisionFor(adPlan, 'leaderboard')} />
 
-            {/* 8px inline padding <640px — must not touch the screen edge
+              {/* 8px inline padding <640px — must not touch the screen edge
                 between full-bleed cards (§8.3.3). */}
-            <div className="mb-4">
-              <SectionHead id="ultimele-stiri" title="Ultimele știri" className="px-2 sm:px-0" />
-            </div>
+              <div className="mb-4">
+                <SectionHead id="ultimele-stiri" title="Ultimele știri" className="px-2 sm:px-0" />
+              </div>
 
-            {/* Post stream — SSR ad-posts at engine positions; the „Cele mai
+              {/* Post stream — SSR ad-posts at engine positions; the „Cele mai
                 citite” strip-post lands after content post 6, page 1 only. */}
-            <FeedList
-              items={streamItems}
-              adPlan={adPlan}
-              headingAs="h3"
-              interludeAfter={isFirstPage ? 6 : undefined}
-              interlude={isFirstPage ? <MostReadStrip items={mostRead} /> : undefined}
-            />
-
-            {isFirstPage ? (
-              <>
-                {/* Client stream for pages ≥2 — its SSR paint is the REAL
-                    rel="next" pill, so no-JS visitors keep paging (§8.7/§8.11). */}
-                <FeedStream
-                  startPage={2}
-                  params={{}}
-                  initialHasMore={feed.hasNextPage}
-                  adOrdinalStart={adOrdinalStart}
-                  headingAs="h3"
-                  withAds
-                />
-                {/* Belt and braces (§8.11): classic pagination for noscript
-                    visitors; inert when JS is enabled. */}
-                {feed.hasNextPage && (
-                  <noscript>
-                    <Pagination page={1} hasNextPage hrefFor={(n) => `/?page=${n}`} />
-                  </noscript>
-                )}
-              </>
-            ) : (
-              <Pagination
-                page={page}
-                hasNextPage={feed.hasNextPage}
-                hrefFor={(n) => `/?page=${n}`}
+              <FeedList
+                items={streamItems}
+                adPlan={adPlan}
+                headingAs="h3"
+                interludeAfter={isFirstPage ? 6 : undefined}
+                interlude={isFirstPage ? <MostReadStrip items={mostRead} /> : undefined}
               />
-            )}
-          </>
-        )}
+
+              {isFirstPage ? (
+                <>
+                  {/* Client stream for pages ≥2 — its SSR paint is the REAL
+                    rel="next" pill, so no-JS visitors keep paging (§8.7/§8.11). */}
+                  <FeedStream
+                    startPage={2}
+                    params={{}}
+                    initialHasMore={feed.hasNextPage}
+                    adOrdinalStart={adOrdinalStart}
+                    headingAs="h3"
+                    withAds
+                  />
+                  {/* Belt and braces (§8.11): classic pagination for noscript
+                    visitors; inert when JS is enabled. */}
+                  {feed.hasNextPage && (
+                    <noscript>
+                      <Pagination page={1} hasNextPage hrefFor={(n) => `/?page=${n}`} />
+                    </noscript>
+                  )}
+                </>
+              ) : (
+                <Pagination
+                  page={page}
+                  hasNextPage={feed.hasNextPage}
+                  hrefFor={(n) => `/?page=${n}`}
+                />
+              )}
+            </>
+          )}
+        </div>
+
+        {/* v2.2 desktop rail — sticky 300px ad column, lg+ only; hidden ⇒
+            never pushed (visibility guard in both push paths). */}
+        <SideRailAd decision={decisionFor(adPlan, 'rail')} />
       </div>
     </div>
   )

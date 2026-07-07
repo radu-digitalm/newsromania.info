@@ -4,13 +4,14 @@ import { Fragment } from 'react'
 
 import { AdSlot } from '@/components/ads/AdSlot'
 import { ArticleAdSlot } from '@/components/ads/ArticleAdSlot'
-import { ArticleCard, ExternalLinkIcon, SourcePill } from '@/components/articles/ArticleCard'
+import { ExternalLinkIcon, SourcePill } from '@/components/articles/ArticleCard'
 import { ArticleImage } from '@/components/articles/ArticleImage'
 import { CategoryChip } from '@/components/articles/CategoryChip'
 import { formatArticleDate } from '@/components/articles/format-date'
+import { MoreNews } from '@/components/articles/MoreNews'
 import { decisionFor, type AdPlan } from '@/lib/ads/engine'
 import { getRequestAdPlan } from '@/lib/ads/plan-for-request'
-import { getFeed, getFeedItemBySlug } from '@/lib/content'
+import { getFeedItemBySlug } from '@/lib/content'
 import { absoluteUrl, articleJsonLd, serializeJsonLd } from '@/lib/seo'
 import { siteConfig } from '@/config/site'
 import type { AggregatedItem, FeedItem } from '@/types/content'
@@ -29,6 +30,12 @@ import type { AggregatedItem, FeedItem } from '@/types/content'
  * Ads (owner requirement 3): BOTH types carry the responsive top banner
  * (above the <article> — never between title and attribution), one in-article
  * slot and one end-of-article slot, exactly like each other.
+ *
+ * After the body/CTA, BOTH types mount the „Mai multe știri” section
+ * (owner requirement 4, <MoreNews>): six cards — same category first, then
+ * the latest from other categories — with exactly ONE card randomly replaced
+ * per request by the plan's 'feed' ad block (the page is force-dynamic, so
+ * the position varies per view).
  */
 
 interface ArticlePageProps {
@@ -172,29 +179,6 @@ function ArticleHeader({ article }: { article: FeedItem }) {
   )
 }
 
-/** „Mai multe știri” (§3.5 ⑧): 3 standard cards from the same category. */
-async function MoreFromCategory({ article }: { article: FeedItem }) {
-  const { items } = await getFeed({ page: 1, categorySlug: article.category.slug })
-  const related = items.filter((item) => item.slug !== article.slug).slice(0, 3)
-  if (related.length === 0) return null
-  return (
-    <section aria-labelledby="mai-multe-stiri" className="mx-auto mt-10 w-full max-w-[1280px]">
-      <h2
-        id="mai-multe-stiri"
-        className="flex items-center gap-2.5 font-serif text-[22px] font-bold leading-7 tracking-[-0.01em] text-ink md:text-[28px] md:leading-[34px]"
-      >
-        <span aria-hidden="true" className="h-5 w-1 shrink-0 rounded-[2px] bg-brand-red" />
-        Mai multe știri din {article.category.name}
-      </h2>
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
-        {related.map((item) => (
-          <ArticleCard key={item.id} item={item} as="h3" />
-        ))}
-      </div>
-    </section>
-  )
-}
-
 /** Standfirst / aggregated fair-use excerpt block (§2.2 standfirst token). */
 function Standfirst({ text }: { text: string }) {
   return (
@@ -248,7 +232,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
   if (article.type === 'aggregated') {
     return (
-      <ArticleShell adPlan={adPlan} after={<MoreFromCategory article={article} />}>
+      <ArticleShell adPlan={adPlan} after={<MoreNews article={article} adPlan={adPlan} />}>
         <ArticleHeader article={article} />
         {/* Fair-use excerpt — NEVER full text (PROJECT_BRIEF 0.1/0.2). */}
         <Standfirst text={article.excerpt} />
@@ -264,7 +248,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const jsonLd = articleJsonLd(article)
 
   return (
-    <ArticleShell adPlan={adPlan} after={<MoreFromCategory article={article} />}>
+    <ArticleShell adPlan={adPlan} after={<MoreNews article={article} adPlan={adPlan} />}>
       {jsonLd && (
         <script
           type="application/ld+json"

@@ -237,6 +237,83 @@ export async function getFeed({
   })
 }
 
+/**
+ * „Mai multe știri” pool for the article pages (owner requirement 4): up to
+ * `limit` recent items — same-category first (newest first), backfilled with
+ * the latest items from other categories — always excluding the article being
+ * read. Redis-cached 60s under `newsromania:feed:more:<cat|all>:<slug>:<n>`
+ * (inside the feed:* namespace, so the publish hook's purge covers it too).
+ *
+ * Only the ITEMS are cached — the random ad replacement inside <MoreNews>
+ * happens per request, after the cache read, and is never stored.
+ */
+export async function getMoreNews({
+  excludeSlug,
+  categorySlug,
+  limit = 6,
+}: {
+  excludeSlug: string
+  categorySlug?: string
+  limit?: number
+}): Promise<FeedItem[]> {
+  // Same sanitization spirit as getFeed's page clamp: garbage limits fall
+  // back to the section's 6, and the ceiling keeps one cache key from
+  // amplifying into a full-collection fetch.
+  const safeLimit =
+    Number.isFinite(limit) && limit >= 1 ? Math.min(Math.floor(limit), PAGE_SIZE * 2) : 6
+
+  return cacheJson(
+    rkey('feed', 'more', categorySlug ?? 'all', excludeSlug, safeLimit),
+    FEED_CACHE_TTL_SEC,
+    async () => {
+      const payload = await getPayloadClient()
+      // +1 past the window from EACH collection: the article being read may
+      // itself sit inside the fetched slice before the slug exclusion.
+      const fetchLimit = safeLimit + 1
+
+      const fetchNewest = async (catSlug?: string): Promise<FeedItem[]> => {
+        const [articles, aggregated] = await Promise.all([
+          payload.find({
+            collection: 'articles',
+            where: publishedArticlesWhere(catSlug),
+            sort: '-publishedAt',
+            limit: fetchLimit,
+            depth: 1,
+            draft: false,
+          }),
+          payload.find({
+            collection: 'aggregated-items',
+            where: liveAggregatedWhere(catSlug),
+            sort: '-publishedAt',
+            limit: fetchLimit,
+            depth: 1,
+          }),
+        ])
+        return [
+          ...articles.docs.map(articleToFeedItem),
+          ...aggregated.docs.map(aggregatedToFeedItem),
+        ]
+          .filter((item) => item.slug !== excludeSlug)
+          .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
+      }
+
+      // Same category first (newest first) …
+      const items = categorySlug ? (await fetchNewest(categorySlug)).slice(0, safeLimit) : []
+
+      // … then backfill with the latest items from everywhere else. The
+      // second round trip runs only when the category alone can't fill the
+      // section (or no category was given).
+      if (items.length < safeLimit) {
+        const seen = new Set(items.map((item) => item.id))
+        const latest = (await fetchNewest()).filter((item) => !seen.has(item.id))
+        items.push(...latest.slice(0, safeLimit - items.length))
+      }
+
+      return items
+    },
+  )
+}
+
 /** A PUBLISHED original article by slug, or null (drafts never leak). */
 export async function getArticle(slug: string): Promise<OriginalArticle | null> {
   const payload = await getPayloadClient()

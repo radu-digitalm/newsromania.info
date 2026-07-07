@@ -22,15 +22,18 @@ import {
 // Fixtures — pure, mocked site-config (no Payload/Redis anywhere in the core)
 // ---------------------------------------------------------------------------
 
-/** Mirrors the seeded site-config (scripts/seed/baseline.mjs, arch §3). */
+/**
+ * Mirrors the seeded site-config (scripts/seed/baseline.mjs, arch §3 + v2.2:
+ * owner decision — an ad block between max 3 news, all regions).
+ */
 function seededConfig(overrides: Partial<AdEngineConfig> = {}): AdEngineConfig {
   return {
     adUnitIds: [],
     amazonPartnerTags: [{ marketplace: 'www.amazon.de', tag: 'newsr01-21' }],
     adFrequency: [
       { region: 'UK', everyNth: 3 },
-      { region: 'RO', everyNth: 5 },
-      { region: 'default', everyNth: 4 },
+      { region: 'RO', everyNth: 3 },
+      { region: 'default', everyNth: 3 },
     ],
     behaviouralTargetingEnabled: true,
     ...overrides,
@@ -52,19 +55,30 @@ function input(overrides: Partial<AdPlanInput> = {}): AdPlanInput {
 const PROFILE = { interests: { sport: 5, sanatate: 3, tehnologie: 1 } }
 
 // ---------------------------------------------------------------------------
-// Frequency by region (adFrequency: UK 3, RO 5, default 4)
+// Frequency by region (v2.2 adFrequency: UK 3, RO 3, default 3)
 // ---------------------------------------------------------------------------
 
 describe('buildAdPlan — everyNth by region', () => {
-  it('resolves the seeded regional frequencies', () => {
+  it('resolves the seeded regional frequencies (v2.2: every 3rd post, all regions)', () => {
     const config = seededConfig()
     expect(buildAdPlan(input({ region: 'UK' }), config).everyNth).toBe(3)
+    expect(buildAdPlan(input({ region: 'RO' }), config).everyNth).toBe(3)
+    expect(buildAdPlan(input({ region: 'default' }), config).everyNth).toBe(3)
+  })
+
+  it('stays owner-tunable: a per-region admin override wins over the default row', () => {
+    const config = seededConfig({
+      adFrequency: [
+        { region: 'RO', everyNth: 5 },
+        { region: 'default', everyNth: 3 },
+      ],
+    })
     expect(buildAdPlan(input({ region: 'RO' }), config).everyNth).toBe(5)
-    expect(buildAdPlan(input({ region: 'default' }), config).everyNth).toBe(4)
+    expect(buildAdPlan(input({ region: 'UK' }), config).everyNth).toBe(3)
   })
 
   it('falls back to the default row for an unmapped region', () => {
-    expect(buildAdPlan(input({ region: 'FR' }), seededConfig()).everyNth).toBe(4)
+    expect(buildAdPlan(input({ region: 'FR' }), seededConfig()).everyNth).toBe(3)
   })
 
   it('matches regions case-insensitively', () => {
@@ -107,7 +121,7 @@ describe('feedAdPositions — n, 2n, 3n, capped, never after the last row', () =
 describe('buildAdPlan — npa gating', () => {
   it.each(['unknown', 'refused'] as const)('consent=%s ⇒ npa=true on every slot', (consent) => {
     const plan = buildAdPlan(input({ consent }), seededConfig())
-    expect(plan.slots).toHaveLength(4)
+    expect(plan.slots).toHaveLength(5) // v2.2: feed, article, article-end, rail, leaderboard
     for (const slot of plan.slots) expect(slot.adsense?.npa).toBe(true)
   })
 
@@ -131,7 +145,7 @@ describe('buildAdPlan — AdSense unit resolution', () => {
 
   it('every planned placement still gets an adsense decision with the seeded (empty) config', () => {
     const plan = buildAdPlan(input(), seededConfig())
-    for (const placement of ['feed', 'article', 'article-end', 'leaderboard'] as const) {
+    for (const placement of ['feed', 'article', 'article-end', 'rail', 'leaderboard'] as const) {
       const slot = decisionFor(plan, placement)
       expect(slot?.adsense).toBeDefined()
       expect(slot?.adsense?.unitId).toBeUndefined()
@@ -139,20 +153,30 @@ describe('buildAdPlan — AdSense unit resolution', () => {
     }
   })
 
-  it("never plans the legacy 'rail' placement (v2: no sidebar), even when configured", () => {
-    // 'rail' stays in the AdPlacement union (compat) but is never emitted —
-    // a historical site-config row for it is simply ignored.
-    const config = seededConfig({
-      adUnitIds: [{ slot: 'rail', unitId: '5555555555', format: 'rectangle' }],
-    })
-    const plan = buildAdPlan(input(), config)
-    expect(decisionFor(plan, 'rail')).toBeUndefined()
+  it("plans the 'rail' placement again (v2.2: desktop rail on home/category)", () => {
+    const plan = buildAdPlan(input(), seededConfig())
     expect(plan.slots.map((slot) => slot.placement)).toEqual([
       'feed',
       'article',
       'article-end',
+      'rail',
       'leaderboard',
     ])
+    // Default format: 300×600 desktop skyscraper (SideRailAd reserves 648px).
+    expect(decisionFor(plan, 'rail')?.adsense?.format).toBe('300x600')
+    // AdSense-only: the rail never carries Amazon inventory, even with a
+    // matching partnerTag configured (seededConfig has amazon.de).
+    expect(decisionFor(plan, 'rail')?.network).toBe('adsense')
+    expect(decisionFor(plan, 'rail')?.amazon).toBeUndefined()
+  })
+
+  it('a configured rail unit resolves and can override the format to 300×250', () => {
+    const config = seededConfig({
+      adUnitIds: [{ slot: 'rail', unitId: '5555555555', format: 'rectangle' }],
+    })
+    const rail = decisionFor(buildAdPlan(input(), config), 'rail')
+    expect(rail?.adsense?.unitId).toBe('5555555555')
+    expect(rail?.adsense?.format).toBe('rectangle')
   })
 })
 
@@ -243,15 +267,17 @@ describe('marketplaceForCountry', () => {
 })
 
 describe('buildAdPlan — Amazon decisions', () => {
-  it('emits amazon only for the article placements (never in-feed/banner)', () => {
-    // v2: the rail is gone — its Amazon inventory moved to the
-    // end-of-article slot ('article-end').
+  it('emits amazon only for the article placements (never in-feed/banner/rail)', () => {
+    // v2 moved the old sidebar's Amazon inventory to the end-of-article slot
+    // ('article-end'); the v2.2 desktop rail stays AdSense-only.
     const plan = buildAdPlan(input(), seededConfig())
     expect(decisionFor(plan, 'article')?.network).toBe('amazon')
     expect(decisionFor(plan, 'article-end')?.network).toBe('amazon')
     expect(decisionFor(plan, 'feed')?.network).toBe('adsense')
+    expect(decisionFor(plan, 'rail')?.network).toBe('adsense')
     expect(decisionFor(plan, 'leaderboard')?.network).toBe('adsense')
     expect(decisionFor(plan, 'feed')?.amazon).toBeUndefined()
+    expect(decisionFor(plan, 'rail')?.amazon).toBeUndefined()
   })
 
   it('requires a partnerTag matching the visitor marketplace', () => {

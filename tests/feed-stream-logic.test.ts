@@ -45,7 +45,7 @@ function adPositions(entries: ReturnType<typeof batchEntries>): number[] {
 }
 
 describe('batchEntries — ad interleaving per batch of 10 (§8.6)', () => {
-  it('UK (everyNth 3): 3 ads after items 3, 6, 9 with sequential ordinals', () => {
+  it('everyNth 3 (v2.2 seeded, all regions): 3 ads after items 3, 6, 9 with sequential ordinals', () => {
     const entries = batchEntries(batch(10), 3, 0)
     expect(adPositions(entries)).toEqual([3, 6, 9])
     expect(entries.filter((e) => e.kind === 'ad').map((e) => e.ordinal)).toEqual([0, 1, 2])
@@ -53,11 +53,11 @@ describe('batchEntries — ad interleaving per batch of 10 (§8.6)', () => {
     expect(entries.filter((e) => e.kind === 'post')).toHaveLength(10)
   })
 
-  it('default (everyNth 4): 2 ads after items 4 and 8', () => {
+  it('everyNth 4 (admin override): 2 ads after items 4 and 8', () => {
     expect(adPositions(batchEntries(batch(10), 4, 0))).toEqual([4, 8])
   })
 
-  it('RO (everyNth 5): 1 ad after item 5 — never after the final item', () => {
+  it('everyNth 5 (admin override): 1 ad after item 5 — never after the final item', () => {
     expect(adPositions(batchEntries(batch(10), 5, 0))).toEqual([5])
   })
 

@@ -16,7 +16,8 @@ import { PostCard } from './PostCard'
  * PostBatch is the ONE list renderer (§8.9): used by the SSR page-1 tree
  * (server) AND by FeedStream's client batches — byte-identical interleaving.
  * Ad-posts land at engine positions from feedAdPositions(everyNth, length):
- * after items n, 2n, 3n per batch of 10 (UK 3 / RO 5 / default 4, capped 3,
+ * after items n, 2n, 3n per batch of 10 (v2.2: every 3rd post for ALL
+ * regions — owner-tunable per region in site-config adFrequency, capped 3,
  * never after the batch's final item) — SERVER-decided per request, identical
  * mechanics to v2. Unit rotation keys on the ad's 0-based ordinal across the
  * WHOLE stream via `adOrdinalStart` (§8.6) — page 1 renders ordinals 0…k−1,

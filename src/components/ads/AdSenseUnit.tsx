@@ -114,14 +114,21 @@ export function adsenseInsProps(
 /**
  * Per-slot fill request, executed by an inline next/script. Idempotent: the
  * data-nr-ad-pushed marker guarantees at most ONE adsbygoogle.push() per
- * <ins>, even if the script re-runs. Failures (script blocked, offline) are
- * swallowed — the reserved box simply stays empty.
+ * <ins>, even if the script re-runs. Visibility-guarded (v2.2, mirrors
+ * push-ads.ts isAdSlotVisible): a display:none <ins> — e.g. the desktop-only
+ * rail below lg (`hidden lg:block`) — must NEVER be pushed to adsbygoogle;
+ * it returns early WITHOUT marking. This inline script runs once at load, so
+ * it fills the rail only when it is already visible then (desktop ≥lg); if the
+ * viewport later crosses lg, RailAdReveal re-runs the guarded, idempotent
+ * pushNewAdSlots over the rail subtree to fill it (see push-ads.ts header).
+ * Failures (script blocked, offline) are swallowed — the box stays empty.
  */
 export function pushScriptFor(insId: string): string {
   return (
     '(function(){' +
     `var el=document.getElementById(${JSON.stringify(insId)});` +
     "if(!el||el.getAttribute('data-nr-ad-pushed')==='1')return;" +
+    'if(el.offsetParent==null&&!(el.offsetWidth>0))return;' +
     "el.setAttribute('data-nr-ad-pushed','1');" +
     'try{(window.adsbygoogle=window.adsbygoogle||[]).push({});}catch(e){}' +
     '})();'

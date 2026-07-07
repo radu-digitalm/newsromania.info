@@ -46,8 +46,9 @@ yet, re-runs never overwrite knobs the owner has since tuned in the admin.
     byline account for the evergreen originals. Its password is random and is
     never printed or stored anywhere; an admin can reset it from the Payload
     admin if the account ever needs to log in.
-- **`site-config` global defaults** (arch §3): adFrequency UK:3 / RO:5 /
-  default:4; amazonPartnerTags `www.amazon.de` → `AMAZON_PARTNER_TAG_DEFAULT`
+- **`site-config` global defaults** (arch §3, v2.2): adFrequency UK:3 / RO:3 /
+  default:3 (owner decision: an ad block between max 3 news, still tunable in
+  admin); amazonPartnerTags `www.amazon.de` → `AMAZON_PARTNER_TAG_DEFAULT`
   from env (pending owner confirmation); postingSchedule 09:00 / 13:00 /
   18:00 / 21:00; GDPR consentVersion 1, cookie retention 180 days; CDP
   retention 365 days; editorial ro / 300 words / blockPublishOnRed off;

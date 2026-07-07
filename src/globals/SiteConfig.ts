@@ -45,7 +45,7 @@ export const SiteConfigGlobal: GlobalConfig = {
                 { label: 'Flux (feed)', value: 'feed' },
                 { label: 'Articol — în corp (article)', value: 'article' },
                 { label: 'Articol — final (article-end)', value: 'article-end' },
-                { label: 'Coloană laterală (rail — nefolosită în v2)', value: 'rail' },
+                { label: 'Coloană laterală desktop (rail)', value: 'rail' },
                 { label: 'Banner sus (leaderboard)', value: 'leaderboard' },
               ],
             },
@@ -89,10 +89,11 @@ export const SiteConfigGlobal: GlobalConfig = {
       name: 'adFrequency',
       label: 'Frecvență reclame',
       type: 'array',
+      // v2.2 owner decision: every 3rd post for ALL regions (owner-tunable).
       defaultValue: [
         { region: 'UK', everyNth: 3 },
-        { region: 'RO', everyNth: 5 },
-        { region: 'default', everyNth: 4 },
+        { region: 'RO', everyNth: 3 },
+        { region: 'default', everyNth: 3 },
       ],
       fields: [
         { name: 'region', label: 'Regiune', type: 'text', required: true },

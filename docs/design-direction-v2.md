@@ -258,8 +258,8 @@ container, 24px vertical margins — *above* the `<article>`, so no ad ever sits
 attribution (hard rule kept). ② CategoryChip (small, links to category). ③ `h1`. ④
 attribution/meta row. ⑤ lead image — real photo, 16:9, radius 16px, eager +
 `fetchpriority="high"`; caption `meta` with credit (aggregated: „Foto: {Sursă}”). ⑥ content. ⑦
-end-of-article AdSlot. ⑧ „Mai multe știri” — 3 standard cards from the same category (internal
-links).
+end-of-article AdSlot. ⑧ „Mai multe știri” — *(superseded by the v2.2 article-pages addendum
+below: 6 tiles, same-category-first, exactly one tile replaced by an ad)*.
 
 **3.5.1 Original:** ④ = byline row („de” + author Inter 600 13px `ink` + „ · ” + `<time>`); ⑥ =
 standfirst → body (680px column) with **in-article AdSlot after the 3rd paragraph**; dates incl.
@@ -283,8 +283,9 @@ Bg `ink`, 3px tricolor bar top edge, 48px top padding. ① Brand row: `logo-symb
 „NewsRomania” Archivo 700 20px `ink-inverse` + tagline „Știri din România, la zi.” Inter 15px
 `footer-link`. ② Link columns (stacked mobile / 3 cols ≥768px): **Categorii** (8 links),
 **Informații** (Despre noi, Contact, Politica de confidențialitate, Politica de cookies, Termeni
-și condiții, Mențiuni legale, Setări cookies), **Surse** (text: „Materialele agregate sunt
-prezentate ca extrase scurte, cu atribuire și legătură către publicația-sursă.”). Links
+și condiții, Mențiuni legale, Setări cookies), **Surse** (text: *superseded by the v2.2
+article-pages + footer addendum below — the column now carries the legally-grounded sentence
+citing Legea nr. 8/1996 and Directiva (UE) 2019/790*). Links
 `footer-link`, `padding-block: 10px` (≥44px targets), hover `#FFFFFF` + 2px underline
 `text-decoration-color: var(--color-brand-yellow)`. ③ Legal bar: 1px `rgba(255,255,255,0.14)`
 rule + „© 2026 NewsRomania · Conținutul preluat aparține surselor citate.” `footer-meta` 13px.
@@ -862,3 +863,90 @@ by feed routes but stay exported and type-valid — architecture.md module paths
   server does per request; secrets never printed; ports/prod stack untouched by this spec.
 - WCAG AA everywhere: every new text/UI pair recomputed in §8.1/§8.5a; focus-visible recipes,
   reduced-motion kill block, 44px targets and skip-link behavior inherited from v2 §6 verbatim.
+
+### v2.2 — Rail publicitar desktop + frecvență 3 (addendum)
+
+Owner decisions (iulie 2026), additive on top of v2.1 — feed routes only; search stays ad-free
+(§8.8 unchanged), article pages are covered by their own addendum.
+
+**a) Desktop rail (home + category).** At `lg+` a **300px sticky rail ad column** sits beside
+the centered feed (Facebook right-rail pattern); below `lg` NOTHING changes — no sidebar, no
+extra markup cost (the column is `hidden lg:block`).
+
+- **Engine:** `'rail'` returns to `AD_PLACEMENTS` (engine-core stays pure/client-safe) — every
+  plan carries a rail decision; only home + category render it. Default format **`'300x600'`**
+  (skyscraper); a site-config `adUnitIds` row on slot `rail` may override to
+  `'rectangle'`/`'300x250'`. The rail is **AdSense-only** (never Amazon, never in
+  `AMAZON_PLACEMENTS`).
+- **Component:** `src/components/ads/SideRailAd.tsx` (server) — v2 §4.4 recipe verbatim: fixed
+  24px „Publicitate” label row, bg `surface-2`, 1px `border`, radius 14px, height **reserved by
+  class before any script** (zero CLS): `300x600` → 648px shell (24+600+24), `300x250` → 298px
+  shell. Unitless (review pending) ⇒ flat empty reserved field. `sticky top-[72px]` (56px pinned
+  chip nav + 16px gap).
+- **Layout pair:** the feed column keeps `max-w-2xl` and all its classes (`min-w-0` added); both
+  are wrapped in `mx-auto flex w-full max-w-2xl justify-center lg:max-w-[972px]` — identical to
+  the lone column below `lg`, at `lg+` feed (672px incl. its 24px inline padding) + 300px rail =
+  972px, centered together. Visual gutter feed-cards→rail = the feed's own 24px padding.
+- **Visibility-guarded push (policy-critical):** a `display:none` `<ins>` must NEVER request a
+  fill. BOTH push paths now guard: `push-ads.ts` gets `isAdSlotVisible()`
+  (offsetParent non-null OR offsetWidth > 0 — fixed-position stays pushable) and skips hidden
+  slots WITHOUT marking them; `pushScriptFor` (AdSenseUnit inline script) early-returns on the
+  same check before the `data-nr-ad-pushed` mark. Below `lg` the rail therefore never pushes;
+  visible slots behave byte-identically to v2.1 §8.10.
+
+**b) In-feed frequency = 3 for ALL regions.** site-config `adFrequency` → **UK:3 / RO:3 /
+default:3** (owner: „un bloc de reclamă la maximum 3 știri”), applied to the LIVE global
+(`scripts/maintenance/set-ad-frequency-3.mjs`, one-off, idempotent, purges the
+`newsromania:ads:config` Redis slice) AND to the seed defaults (`scripts/seed/baseline.mjs`,
+`SiteConfig.ts` defaultValue). `DEFAULT_EVERY_NTH` fallback 4 → **3**. Mechanics unchanged
+(§8.6): positions from `feedAdPositions(everyNth, batch.length)` — with PAGE_SIZE 10 every
+region now gets 3 ad-posts per batch (after items 3, 6, 9), SSR page 1 and every `/api/feed`
+batch alike (the API reads the same config — no hardcoding). Still owner-tunable per region in
+the Payload admin.
+
+**c) Guards restated:** `/cautare` stays ad-free — no ad plan, no rail, `ads: null` on `q=`
+batches (§8.8 untouched, verified). WCAG AA: the rail reuses only recomputed v2 pairs
+(„Publicitate” kicker 5.57:1 on surface-2); keyboard/scroll behavior of the feed unchanged.
+Romanian copy with comma-below diacritics; Prettier on every touched file. Tests updated
+DELIBERATELY for the new defaults: ad-engine 3/3/3 + rail planned again, feed-api everyNth 3,
+push-ads visibility guard.
+
+### v2.2 — Pagini de articol + footer (addendum)
+
+Owner decisions (iulie 2026), same batch as the rail/frequency addendum above. This is the
+article-pages addendum referenced there; it supersedes §3.5 ⑧ and the §3.6 „Surse” column text.
+
+**a) „Mai multe știri” (`src/components/articles/MoreNews.tsx`, mounted on `/stiri/<slug>`).**
+Replaces the v2 §3.5 ⑧ three-card block. **SIX tiles** (`MORE_NEWS_COUNT = 6`): standard
+ArticleCards (h3 under the section h2, v2 §4.1a contract unchanged) from the **same category
+first (newest first), backfilled with the latest items from other categories** — read layer
+`getMoreNews()` in `src/lib/content.ts` (excludes the article being read; Redis-cached 60s).
+
+- **Exactly ONE tile is replaced by an ad** (never appended — the section stays 6 tiles). The
+  position comes from `pickAdIndex(count, rng)` (pure, exported, clamped into `[0, count-1]`;
+  returns −1 ⇒ no replacement when `count < 2`, so a lone news card is never swallowed by an
+  ad-only section). `rng` is **injectable for tests** and defaults to `Math.random`; article
+  pages are `force-dynamic`, so the position is decided **server-side per request** and varies
+  per view. The items come from the 60s cache; the ad choice is computed after the cache read
+  and is never cached.
+- The ad tile renders the page's existing `'feed'` placement decision
+  (`decisionFor(adPlan, 'feed')`) through the standard `<AdSlot variant="feed">` shell:
+  „Publicitate” label + reserved height (zero CLS); unitless (review pending) ⇒ reserved-empty,
+  never fake content. Tests: `tests/more-news.test.ts`.
+
+**b) Footer „Surse” (owner requirement 5, `src/components/layout/Footer.tsx`).** The old
+sentence „Materialele agregate sunt prezentate ca extrase scurte, cu atribuire și legătură către
+publicația-sursă.” is REPLACED and the redundant line „Materialele agregate aparțin
+publicațiilor-sursă și sunt citate cu atribuire.” is REMOVED entirely. The column now carries
+the verified, legally-grounded sentence (basis researched against primary sources — see
+`docs/legal-basis-aggregation.md`; 94¹ uses the Unicode superscript one, official citation
+form):
+
+> Preluăm din articolele agregate doar extrase foarte scurte sau scurte citate, cu atribuire și
+> legătură către publicația-sursă, în condițiile art. 35 alin. (1) lit. b) și art. 94¹ alin. (2)
+> din Legea nr. 8/1996 și ale art. 15 din Directiva (UE) 2019/790.
+
+The hedged „în condițiile…” construction is deliberate (describes practice + invoked basis, no
+claim of blanket legality) — do not strengthen it. The same formulation is mirrored in the
+aggregation paragraphs of `mentiuni-legale` §4 and `termeni-si-conditii` §3 for register
+consistency. All other footer rows (§3.6 ①–③) unchanged.

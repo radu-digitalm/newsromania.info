@@ -50,9 +50,10 @@ const ukConfig: AdEngineConfig = {
   adUnitIds: [{ slot: 'feed', unitId: '1234567890', format: null }],
   // Amazon tags configured — must still NEVER surface on the feed placement.
   amazonPartnerTags: [{ marketplace: 'www.amazon.co.uk', tag: 'newsro-21' }],
+  // v2.2 seeded defaults: every 3rd post for ALL regions.
   adFrequency: [
     { region: 'UK', everyNth: 3 },
-    { region: 'default', everyNth: 4 },
+    { region: 'default', everyNth: 3 },
   ],
   behaviouralTargetingEnabled: false,
 }

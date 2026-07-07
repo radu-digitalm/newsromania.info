@@ -40,10 +40,12 @@ export default function MentiuniLegalePage() {
 
       <LegalSection title="4. Responsabilitatea editorială">
         <p>
-          NewsRomania publică articole proprii și agregă știri din surse publice. Materialele
-          agregate sunt prezentate ca extrase scurte, cu atribuire și legătură către
-          publicația-sursă; răspunderea pentru conținutul original al acestora aparține
-          publicațiilor citate. Persoana responsabilă editorial va fi indicată aici.
+          NewsRomania publică articole proprii și agregă știri din surse publice. Preluăm din
+          articolele agregate doar extrase foarte scurte sau scurte citate, cu atribuire și legătură
+          către publicația-sursă, în condițiile art. 35 alin. (1) lit. b) și art. 94¹ alin. (2) din
+          Legea nr. 8/1996 și ale art. 15 din Directiva (UE) 2019/790; răspunderea pentru conținutul
+          original al acestora aparține publicațiilor citate. Persoana responsabilă editorial va fi
+          indicată aici.
         </p>
       </LegalSection>
 

@@ -2,11 +2,12 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+import { SideRailAd } from '@/components/ads/SideRailAd'
 import { FeedList } from '@/components/articles/FeedList'
 import { FeedStream } from '@/components/articles/FeedStream'
 import { Pagination } from '@/components/articles/NextPageLink'
 import { siteConfig } from '@/config/site'
-import { feedAdPositions } from '@/lib/ads/engine'
+import { decisionFor, feedAdPositions } from '@/lib/ads/engine'
 import { getRequestAdPlan } from '@/lib/ads/plan-for-request'
 import { getFeed } from '@/lib/content'
 import { absoluteUrl } from '@/lib/seo'
@@ -16,7 +17,9 @@ import { absoluteUrl } from '@/lib/seo'
  * header block unchanged ABOVE the stream, then the centered single-column
  * PostCard stream (max-w-2xl on the dimmed canvas) with in-feed ad-posts at
  * per-request, region-frequency engine positions — the category slug drives
- * contextual keywords exactly as before. No leaderboard, no „Cele mai
+ * contextual keywords exactly as before. v2.2: at lg+ a 300px sticky rail ad
+ * column (SideRailAd) sits beside the stream, centered together as a pair;
+ * below lg nothing changes. No leaderboard, no „Cele mai
  * citite” (unchanged). Page 1 mounts FeedStream (+ noscript pagination);
  * ?page≥2 renders the classic SSR page with §4.5 Pagination pills (§8.11).
  * No duplicate chips row — the sticky chip nav already marks the active
@@ -67,67 +70,75 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
 
   return (
     <div className="min-h-full bg-canvas-dim">
-      <div className="mx-auto w-full max-w-2xl px-0 pb-16 pt-4 sm:px-4 md:px-6 md:pt-6">
-        {/* Header block (§3.4) unchanged above the stream; 16px inline padding
+      {/* v2.2 pair container: identical to the lone max-w-2xl column below lg;
+          at lg+ it widens to fit feed (672px) + 300px rail, centered together. */}
+      <div className="mx-auto flex w-full max-w-2xl justify-center lg:max-w-[972px]">
+        <div className="w-full min-w-0 max-w-2xl px-0 pb-16 pt-4 sm:px-4 md:px-6 md:pt-6">
+          {/* Header block (§3.4) unchanged above the stream; 16px inline padding
             <640px because the column is edge-to-edge there (§8.2). */}
-        <header className="px-4 sm:px-0">
-          <span aria-hidden="true" className="inline-block h-5 w-1 rounded-[2px] bg-brand-red" />
-          <h1 className="mt-3 font-serif text-[28px] font-extrabold leading-[34px] tracking-[-0.015em] text-ink md:text-[38px] md:leading-[44px]">
-            {category.name}
-          </h1>
-          <p className="mt-2 font-sans text-[13px] font-medium leading-[18px] text-ink-muted">
-            Cele mai noi știri din categoria {category.name}
-            {page > 1 ? ` · pagina ${page}` : ''}
-          </p>
-        </header>
+          <header className="px-4 sm:px-0">
+            <span aria-hidden="true" className="inline-block h-5 w-1 rounded-[2px] bg-brand-red" />
+            <h1 className="mt-3 font-serif text-[28px] font-extrabold leading-[34px] tracking-[-0.015em] text-ink md:text-[38px] md:leading-[44px]">
+              {category.name}
+            </h1>
+            <p className="mt-2 font-sans text-[13px] font-medium leading-[18px] text-ink-muted">
+              Cele mai noi știri din categoria {category.name}
+              {page > 1 ? ` · pagina ${page}` : ''}
+            </p>
+          </header>
 
-        {items.length > 0 ? (
-          <>
-            <div className="mt-6">
-              {/* Single-column post stream with ad-posts at region-frequency
+          {items.length > 0 ? (
+            <>
+              <div className="mt-6">
+                {/* Single-column post stream with ad-posts at region-frequency
                   positions from the server ad plan (§8.6). */}
-              <FeedList items={items} adPlan={adPlan} headingAs="h2" />
+                <FeedList items={items} adPlan={adPlan} headingAs="h2" />
+              </div>
+              {isFirstPage ? (
+                <>
+                  <FeedStream
+                    startPage={2}
+                    params={{ category: category.slug }}
+                    initialHasMore={hasNextPage}
+                    adOrdinalStart={adOrdinalStart}
+                    headingAs="h2"
+                    withAds
+                  />
+                  {/* Belt and braces (§8.11): classic pagination for noscript. */}
+                  {hasNextPage && (
+                    <noscript>
+                      <Pagination page={1} hasNextPage hrefFor={hrefFor} />
+                    </noscript>
+                  )}
+                </>
+              ) : (
+                <Pagination page={page} hasNextPage={hasNextPage} hrefFor={hrefFor} />
+              )}
+            </>
+          ) : (
+            <div className="mx-4 mt-10 rounded-[16px] border border-border bg-surface px-6 py-12 text-center sm:mx-0">
+              <p className="font-serif text-xl font-bold leading-7 text-ink">
+                Încă nu avem articole în această categorie.
+              </p>
+              <p className="mt-2 font-sans text-[15px] leading-[22px] text-ink-secondary">
+                Publicăm știri noi în fiecare zi — revino în curând sau explorează celelalte
+                categorii.
+              </p>
+              <p className="mt-4">
+                <Link
+                  href="/"
+                  className="inline-block py-3 font-sans text-[15px] font-semibold leading-5 text-link transition-colors hover:text-link-hover"
+                >
+                  ← Înapoi la prima pagină
+                </Link>
+              </p>
             </div>
-            {isFirstPage ? (
-              <>
-                <FeedStream
-                  startPage={2}
-                  params={{ category: category.slug }}
-                  initialHasMore={hasNextPage}
-                  adOrdinalStart={adOrdinalStart}
-                  headingAs="h2"
-                  withAds
-                />
-                {/* Belt and braces (§8.11): classic pagination for noscript. */}
-                {hasNextPage && (
-                  <noscript>
-                    <Pagination page={1} hasNextPage hrefFor={hrefFor} />
-                  </noscript>
-                )}
-              </>
-            ) : (
-              <Pagination page={page} hasNextPage={hasNextPage} hrefFor={hrefFor} />
-            )}
-          </>
-        ) : (
-          <div className="mx-4 mt-10 rounded-[16px] border border-border bg-surface px-6 py-12 text-center sm:mx-0">
-            <p className="font-serif text-xl font-bold leading-7 text-ink">
-              Încă nu avem articole în această categorie.
-            </p>
-            <p className="mt-2 font-sans text-[15px] leading-[22px] text-ink-secondary">
-              Publicăm știri noi în fiecare zi — revino în curând sau explorează celelalte
-              categorii.
-            </p>
-            <p className="mt-4">
-              <Link
-                href="/"
-                className="inline-block py-3 font-sans text-[15px] font-semibold leading-5 text-link transition-colors hover:text-link-hover"
-              >
-                ← Înapoi la prima pagină
-              </Link>
-            </p>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* v2.2 desktop rail — sticky 300px ad column, lg+ only; hidden ⇒
+            never pushed (visibility guard in both push paths). */}
+        <SideRailAd decision={decisionFor(adPlan, 'rail')} />
       </div>
     </div>
   )

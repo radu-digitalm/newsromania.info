@@ -22,7 +22,9 @@
 #   /api/health             200 + "ok":true
 #   /admin                  200 (after redirects)
 #   /api/users (anonim)     401/403
-#   geo ad spacing          GB gets MORE in-feed ads than RO (everyNth 3 vs 5)
+#   geo ad spacing          v2.2: every 3rd post for ALL regions — GB and RO
+#                           render the SAME slot count and /api/feed reports
+#                           everyNth=3 for both geos
 #   404                     branded Romanian page
 #
 # NOTE (cleanup): the two consent POSTs create rows in the consent-records
@@ -205,25 +207,29 @@ check "/api/users anonim este refuzat cu 401/403 (a fost: ${users_status})" \
   bash -c 'test "$1" = 401 || test "$1" = 403' _ "$users_status"
 
 # ---------------------------------------------------------------------------
-# 12. Geo -> frecvența reclamelor: GB (everyNth 3) > RO (everyNth 5) pe /
-#     Dev: header-ul x-geo-country este suficient. Producție îl ignoră
-#     deliberat, deci refacem testul prin X-Real-IP + GeoLite2 (IP-uri reale
-#     GB/RO); numărăm sloturile marcate aria-label="Publicitate".
+# 12. Geo -> frecvența reclamelor (v2.2): everyNth=3 pentru TOATE regiunile,
+#     deci GB și RO trebuie să randeze ACELAȘI număr de sloturi (>0) pe /,
+#     iar /api/feed trebuie să raporteze everyNth=3 pentru ambele geo-uri.
+#     Dev: header-ul x-geo-country; producția îl ignoră deliberat, deci
+#     folosim X-Real-IP + GeoLite2 (IP-uri reale GB/RO).
 # ---------------------------------------------------------------------------
 ad_count() { # ad_count <extra curl header args...>
   # Whole-page HTML is a single line — count occurrences, not lines.
   "${CURL[@]}" "$@" "$BASE/" 2>/dev/null | grep -o 'aria-label="Publicitate"' | wc -l
 }
-gb_ads="$(ad_count -H 'x-geo-country: GB')"
-ro_ads="$(ad_count -H 'x-geo-country: RO')"
-geo_method='header x-geo-country'
-if [ "$gb_ads" = "$ro_ads" ]; then
-  gb_ads="$(ad_count -H 'X-Real-IP: 81.2.69.142')" # bloc londonez (GeoLite2)
-  ro_ads="$(ad_count -H 'X-Real-IP: 5.2.128.1')"   # bloc RCS&RDS România
-  geo_method='header X-Real-IP + GeoLite2'
-fi
-check "geo schimbă spațierea reclamelor: GB=${gb_ads} > RO=${ro_ads} sloturi (${geo_method})" \
-  bash -c 'test "$1" -gt "$2"' _ "$gb_ads" "$ro_ads"
+gb_ads="$(ad_count -H 'x-geo-country: GB' -H 'X-Real-IP: 81.2.69.142')" # bloc londonez (GeoLite2)
+ro_ads="$(ad_count -H 'x-geo-country: RO' -H 'X-Real-IP: 5.2.128.1')"   # bloc RCS&RDS România
+check "geo v2.2: GB=${gb_ads} == RO=${ro_ads} sloturi Publicitate (>0)" \
+  bash -c 'test "$1" = "$2" && test "$1" -gt 0' _ "$gb_ads" "$ro_ads"
+
+feed_nth() { # feed_nth <extra curl header args...>
+  "${CURL[@]}" "$@" "$BASE/api/feed?page=2" 2>/dev/null |
+    grep -o '"everyNth":[0-9]*' | head -n 1 | cut -d: -f2
+}
+gb_nth="$(feed_nth -H 'x-geo-country: GB' -H 'X-Real-IP: 81.2.69.142')"
+ro_nth="$(feed_nth -H 'x-geo-country: RO' -H 'X-Real-IP: 5.2.128.1')"
+check "api/feed everyNth=3 pentru GB (a fost: ${gb_nth:-gol}) și RO (a fost: ${ro_nth:-gol})" \
+  bash -c 'test "$1" = 3 && test "$2" = 3' _ "${gb_nth:-0}" "${ro_nth:-0}"
 
 # ---------------------------------------------------------------------------
 # 13. 404 cu brand (copie română, nu pagina implicită)

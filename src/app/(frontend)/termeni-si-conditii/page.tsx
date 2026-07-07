@@ -33,9 +33,11 @@ export default function TermeniSiConditiiPage() {
 
       <LegalSection title="3. Conținutul agregat și atribuirea surselor">
         <p>
-          Materialele preluate aparțin publicațiilor-sursă și sunt citate în limitele dreptului de
-          citare. Această secțiune va detalia modul de atribuire, precum și procedura prin care o
-          publicație poate solicita corectarea sau eliminarea unui extras.
+          Materialele preluate aparțin publicațiilor-sursă și sunt citate doar ca extrase foarte
+          scurte sau scurte citate, cu atribuire și legătură către publicația-sursă, în condițiile
+          art. 35 alin. (1) lit. b) și art. 94¹ alin. (2) din Legea nr. 8/1996 și ale art. 15 din
+          Directiva (UE) 2019/790. Această secțiune va detalia modul de atribuire, precum și
+          procedura prin care o publicație poate solicita corectarea sau eliminarea unui extras.
         </p>
       </LegalSection>
 

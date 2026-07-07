@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   AD_PUSHED_ATTR,
+  isAdSlotVisible,
   NEW_AD_SLOT_SELECTOR,
   pushNewAdSlots,
   type AdSlotRoot,
@@ -76,6 +77,42 @@ describe('pushNewAdSlots', () => {
     // returned, the belt-and-braces attribute check skips it.
     pushNewAdSlots(root, w)
     expect(w.adsbygoogle).toHaveLength(1)
+  })
+
+  it('skips HIDDEN slots without marking them (v2.2 visibility guard — lg-only rail)', () => {
+    // display:none (Tailwind `hidden`): offsetParent null AND offsetWidth 0.
+    const hidden = Object.assign(fakeIns(), {
+      offsetParent: null as unknown,
+      offsetWidth: 0,
+    })
+    const visible = Object.assign(fakeIns(), { offsetParent: {}, offsetWidth: 300 })
+    const w: { adsbygoogle?: Array<Record<string, never>> } = {}
+
+    expect(pushNewAdSlots(fakeRoot([hidden, visible]).root, w)).toBe(1)
+    expect(w.adsbygoogle).toHaveLength(1)
+    // Unmarked, so a later pass can still fill it once it becomes visible.
+    expect(hidden.attrs[AD_PUSHED_ATTR]).toBeUndefined()
+    expect(visible.attrs[AD_PUSHED_ATTR]).toBe('1')
+
+    // Once visible, the same slot gets its (single) fill.
+    hidden.offsetParent = {}
+    hidden.offsetWidth = 300
+    expect(pushNewAdSlots(fakeRoot([hidden]).root, w)).toBe(1)
+    expect(hidden.attrs[AD_PUSHED_ATTR]).toBe('1')
+  })
+
+  it('isAdSlotVisible: offsetParent OR width>0 ⇒ visible; layout-less fakes count visible', () => {
+    expect(isAdSlotVisible(fakeIns())).toBe(true) // node-env fake, no layout fields
+    expect(isAdSlotVisible(Object.assign(fakeIns(), { offsetParent: null, offsetWidth: 0 }))).toBe(
+      false,
+    )
+    expect(isAdSlotVisible(Object.assign(fakeIns(), { offsetParent: {}, offsetWidth: 0 }))).toBe(
+      true,
+    )
+    // position:fixed: offsetParent is null but the element has a layout box.
+    expect(
+      isAdSlotVisible(Object.assign(fakeIns(), { offsetParent: null, offsetWidth: 300 })),
+    ).toBe(true)
   })
 
   it('no-ops on a null root and swallows push() failures (marks stay set)', () => {

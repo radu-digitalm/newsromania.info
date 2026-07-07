@@ -79,12 +79,12 @@ describe('buildAdPlan — unit selection by placement', () => {
     expect(decisionFor(plan, 'leaderboard')?.adsense?.format).toBe('728x90')
   })
 
-  it('placement defaults follow the v2 §4.4 mapping (rail kept for compat only)', () => {
+  it('placement defaults follow the v2 §4.4 + v2.2 mapping (rail = 300×600 skyscraper)', () => {
     expect(DEFAULT_FORMAT).toEqual({
       feed: 'fluid',
       article: 'in-article',
       'article-end': 'rectangle',
-      rail: 'rectangle',
+      rail: '300x600',
       leaderboard: 'horizontal',
     })
   })
@@ -138,8 +138,9 @@ describe('adsenseAt — deterministic rotation by position index', () => {
     const end = decisionFor(empty, 'article-end')
     expect(adsenseAt(end, 2)).toEqual(end?.adsense)
     expect(adsenseAt(end, 2)?.unitId).toBeUndefined()
-    // 'rail' is never planned in v2 ⇒ no decision ⇒ undefined all the way.
-    expect(adsenseAt(decisionFor(empty, 'rail'), 0)).toBeUndefined()
+    // v2.2: 'rail' is planned again — unitless it degrades like the others.
+    expect(adsenseAt(decisionFor(empty, 'rail'), 0)?.unitId).toBeUndefined()
+    expect(adsenseAt(decisionFor(empty, 'rail'), 0)?.format).toBe(DEFAULT_FORMAT.rail)
     expect(adsenseAt(undefined, 0)).toBeUndefined()
   })
 
@@ -159,7 +160,7 @@ describe('npa propagation — engine decision → rotated unit → <ins> attribu
     'consent=%s ⇒ npa=true survives rotation and reaches data-npa="1"',
     (consent) => {
       const plan = buildAdPlan(input({ consent }), config({ adUnitIds: APPROVED_UNITS }))
-      for (const placement of ['feed', 'article', 'article-end', 'leaderboard'] as const) {
+      for (const placement of ['feed', 'article', 'article-end', 'rail', 'leaderboard'] as const) {
         for (const index of [0, 1, 2]) {
           const rotated = adsenseAt(decisionFor(plan, placement), index)
           expect(rotated?.npa).toBe(true)
@@ -281,5 +282,16 @@ describe('pushScriptFor — idempotent per-slot fill request', () => {
     )
     // Failures are swallowed — a blocked script must never break the page.
     expect(script).toContain('catch(e){}')
+  })
+
+  it('visibility-guards BEFORE marking (v2.2: hidden slots are never pushed)', () => {
+    // A display:none <ins> (e.g. the lg-only rail below lg) must return early
+    // WITHOUT setting the mark, so a later visible pass can still fill it.
+    const script = pushScriptFor('nr-ad-:r2:')
+    const guard = 'if(el.offsetParent==null&&!(el.offsetWidth>0))return;'
+    expect(script).toContain(guard)
+    expect(script.indexOf(guard)).toBeLessThan(
+      script.indexOf("setAttribute('data-nr-ad-pushed','1')"),
+    )
   })
 })

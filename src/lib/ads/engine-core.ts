@@ -26,18 +26,19 @@ import { blendKeywords, contextualKeywords } from './keywords'
 export type AdPlacement = 'feed' | 'article' | 'article-end' | 'rail' | 'leaderboard'
 
 /**
- * Placements the engine actually PLANS (design direction v2 §4.4): the
- * sidebar is gone, so 'rail' remains in the AdPlacement union ONLY for
- * compatibility (fixed architecture.md §4 signature + historical site-config
- * rows) — it is never emitted in an AdPlan and the UI never renders it.
- * 'article-end' is the end-of-article slot on both article types (v2 §3.5),
- * planned separately from the in-article 'article' slot so each can carry its
- * own configured unit.
+ * Placements the engine actually PLANS (design direction v2 §4.4 + v2.2):
+ * 'rail' is planned again since v2.2 — the desktop-only (lg+) sticky rail
+ * column beside the centered feed on home + category pages (SideRailAd).
+ * Pages that have no rail (article pages, /cautare which never gets a plan)
+ * simply do not render the decision. 'article-end' is the end-of-article
+ * slot on both article types (v2 §3.5), planned separately from the
+ * in-article 'article' slot so each can carry its own configured unit.
  */
 export const AD_PLACEMENTS: readonly AdPlacement[] = [
   'feed',
   'article',
   'article-end',
+  'rail',
   'leaderboard',
 ]
 
@@ -80,7 +81,7 @@ export interface AdDecision {
 }
 
 export interface AdPlan {
-  /** In-feed ad frequency for the visitor's region (UK:3, RO:5, default:4 seeded). */
+  /** In-feed ad frequency for the visitor's region (v2.2: every 3rd post for ALL regions, owner-tunable). */
   everyNth: number
   slots: AdDecision[]
 }
@@ -116,8 +117,11 @@ export interface AdEngineConfig {
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Fallback when no adFrequency row matches and no 'default' row exists. */
-export const DEFAULT_EVERY_NTH = 4
+/**
+ * Fallback when no adFrequency row matches and no 'default' row exists —
+ * aligned with the v2.2 owner decision: an ad block between max 3 news.
+ */
+export const DEFAULT_EVERY_NTH = 3
 
 /**
  * Per-placement default formats when a site-config unit row leaves `format`
@@ -125,22 +129,23 @@ export const DEFAULT_EVERY_NTH = 4
  * the concrete <ins> attributes (PROJECT_BRIEF §6.4, design direction v2
  * §4.4): feed → 'fluid' (in-feed), article → 'in-article',
  * article-end → 'rectangle' (300×250 fixed), leaderboard → 'horizontal'
- * (responsive banner: 320×100 <768px / 728×90 ≥768px, CSS-sized by AdSlot).
- * 'rail' keeps its v1 default only because the Record is total over the
- * union — the placement is never planned.
+ * (responsive banner: 320×100 <768px / 728×90 ≥768px, CSS-sized by AdSlot),
+ * rail → '300x600' (v2.2 desktop skyscraper; a site-config row may override
+ * it to 'rectangle'/'300x250' — SideRailAd reserves height per format).
  */
 export const DEFAULT_FORMAT: Record<AdPlacement, string> = {
   feed: 'fluid',
   article: 'in-article',
   'article-end': 'rectangle',
-  rail: 'rectangle',
+  rail: '300x600',
   leaderboard: 'horizontal',
 }
 
 /**
  * Amazon placements (§6.2): product ads sit beside content, never in-feed and
- * never in the top banner. v2: the sidebar rail is gone — its Amazon
- * inventory moved to the end-of-article slot.
+ * never in the top banner. v2 moved the old sidebar's Amazon inventory to the
+ * end-of-article slot; the v2.2 desktop rail is AdSense-only and stays OUT of
+ * this set.
  */
 const AMAZON_PLACEMENTS: ReadonlySet<AdPlacement> = new Set(['article', 'article-end'])
 
