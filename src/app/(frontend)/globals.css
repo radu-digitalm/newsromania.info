@@ -52,6 +52,13 @@
   --color-ink-inverse: #ffffff; /* titles/text on scrim and dark surfaces */
   --color-overlay-meta: #d7dee9; /* meta text on scrim */
   --color-accent-bg-strong: #dbe3f2; /* placeholder gradient end */
+
+  /* --- New in v2.1 „Flux Social” (additive — design direction §8.1) --- */
+  /* Dimmed canvas behind the feed stream on feed routes ONLY (/, /categorie,
+     /cautare); body/article pages keep --color-page. AA recomputed on #E7EBF1:
+     ink 15.18 · ink-secondary 7.98 · ink-muted 5.27 · link 5.50 · red-text
+     5.24 (text ≥4.5); border-functional 3.08 · brand-red bar 3.63 (UI ≥3). */
+  --color-canvas-dim: #e7ebf1;
 }
 
 /* Fonts: the next/font variables (src/lib/fonts.ts) use DISTINCT names

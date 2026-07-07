@@ -1,7 +1,6 @@
-import { adsenseAt, type AdDecision, type AdSenseDecision } from '@/lib/ads/engine'
+import { adsenseAt, type AdDecision, type AdSenseDecision } from '@/lib/ads/engine-core'
 
 import { AdSenseUnit } from './AdSenseUnit'
-import { AmazonProductAd } from './AmazonProductAd'
 
 /**
  * AdSlot — labelled, reserved, honest (design direction v2 §4.4), rendering a
@@ -12,10 +11,14 @@ import { AmazonProductAd } from './AmazonProductAd'
  * „Publicitate" label row, ALWAYS rendered. Heights are reserved per
  * breakpoint via classes BEFORE any ad script runs (zero CLS):
  *
- * - `feed`        → in-feed grid-cell card: fills its cell (`h-full`),
- *                   min 298px (24 label + 250 unit + 24 padding), 300×250
- *                   unit centered vertically. No own margins — the grid gap
- *                   spaces it.
+ * - `feed`        → v2.1 ad-POST in the single-column stream (§8.6): full
+ *                   column width, min 298px (24 label + 250 unit + 24
+ *                   padding), 300×250 unit centered. Matches the PostCard
+ *                   silhouette geometry EXACTLY (§8.2): <640px edge-to-edge —
+ *                   radius 0, border top/bottom only; ≥640px radius 16px,
+ *                   border all around. No own margins — the stream gap spaces
+ *                   it. Never mimics post anatomy: no avatar, no header row,
+ *                   no photo, no title styles.
  * - `article`     → in-article + end-of-article: 298px wrapper, 300×250
  *                   centered, 28px block margins.
  * - `leaderboard` → responsive top banner (home below hero + top of both
@@ -31,8 +34,12 @@ import { AmazonProductAd } from './AmazonProductAd'
  * content, no skeletons, no shimmer, no „în curând".
  *
  * Decision dispatch:
- * - network 'amazon' → <AmazonProductAd> (article placements only — the
- *   engine never marks feed/leaderboard as amazon).
+ * - network 'amazon' → handled by ArticleAdSlot (server-only wrapper), which
+ *   renders <AmazonProductAd> for article placements; the engine never marks
+ *   feed/leaderboard as amazon, so this component — client-bundle-safe since
+ *   v2.1 §8.9 (PostBatch renders it inside FeedStream) — never sees one. If
+ *   a call site passes an amazon decision anyway, the AdSense fallback the
+ *   engine always attaches renders instead.
  * - network 'adsense' (or no decision passed — legacy call sites) →
  *   <AdSenseUnit>: data-ad-slot only when the engine resolved a unitId;
  *   when several units are configured for the placement, the `index` prop
@@ -55,20 +62,23 @@ type AdSlotVariant = 'feed' | 'article' | 'rail' | 'leaderboard'
 // CSS-sized responsive method (media-query dimensions, no inline size).
 const SLOT: Record<AdSlotVariant, { wrapper: string; ins: string }> = {
   feed: {
-    wrapper: 'h-full min-h-[298px] rounded-[14px]',
+    // v2.1 ad-post: border/radius follow the stream's PostCard geometry
+    // (§8.2) — the border classes live here (not on the shared shell) so the
+    // mobile edge-to-edge rule applies to this variant only.
+    wrapper: 'min-h-[298px] border-y sm:rounded-[16px] sm:border',
     ins: 'h-[250px] max-w-[300px]',
   },
   article: {
-    wrapper: 'my-7 h-[298px] rounded-[14px]',
+    wrapper: 'my-7 h-[298px] rounded-[14px] border',
     ins: 'h-[250px] max-w-[300px]',
   },
   rail: {
     // Never rendered in v2 — kept so the variant union stays contract-exact.
-    wrapper: 'my-7 h-[298px] rounded-[14px]',
+    wrapper: 'my-7 h-[298px] rounded-[14px] border',
     ins: 'h-[250px] max-w-[300px]',
   },
   leaderboard: {
-    wrapper: 'my-6 h-[148px] rounded-[12px] md:h-[138px]',
+    wrapper: 'my-6 h-[148px] rounded-[12px] border md:h-[138px]',
     ins: 'h-[100px] max-w-[320px] md:h-[90px] md:max-w-[728px]',
   },
 }
@@ -91,16 +101,11 @@ export function AdSlot({
    */
   index?: number
 }) {
-  // Amazon placements keep their own reserved treatment (same footprint).
-  if (decision?.network === 'amazon' && decision.amazon) {
-    return <AmazonProductAd decision={decision.amazon} />
-  }
-
   const slot = SLOT[variant]
   return (
     <aside
       aria-label="Publicitate"
-      className={`flex flex-col overflow-hidden border border-border bg-surface-2 ${slot.wrapper}`}
+      className={`flex flex-col overflow-hidden border-border bg-surface-2 ${slot.wrapper}`}
     >
       <p className="flex h-6 shrink-0 items-center justify-center font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
         Publicitate

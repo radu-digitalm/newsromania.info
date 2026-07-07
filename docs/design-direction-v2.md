@@ -489,3 +489,376 @@ Behaviors:
 - Romanian copy with comma-below diacritics (ș/ț U+0219/U+021B) throughout; Prettier on all
   touched files; excerpts remain fair-use only; „Sursa: {X}” visible on every aggregated surface
   (card pill, article pill, CTA label, disclaimer line, photo credit).
+
+
+---
+
+## v2.1 — Flux Social (addendum)
+
+**Status: final, zero open decisions. LAYOUT addendum to v2 „Prim-Plan Tricolor” — v2 tokens,
+type scale, header/nav/footer, article pages, consent/CDP/SEO behavior all stay. This section
+only replaces the FEED presentation (home + category + search) and the pagination UX.**
+
+Owner request (verbatim intent): infinite scroll instead of „Pagina următoare”, social-media
+stream feel, ads re-inserted in every dynamically loaded batch, Facebook-LIKE layout on desktop
+and mobile. Agreed interpretation: Facebook-STYLE in OUR brand skin — NOT a FB clone, NO fake
+social chrome (no sidebars, no reactions, no comment counts), cards read as „posts”, every card
+still links INTERNALLY to `/stiri/<slug>`.
+
+Every contrast ratio below was independently recomputed with the WCAG 2.1 relative-luminance
+formula (same script discipline as §1.3). All pairs pass AA.
+
+### 8. Feed layout — „Flux Social”
+
+#### 8.1 One new token (additive — no existing token value changes)
+
+| Token | Value | Role |
+| --- | --- | --- |
+| `--color-canvas-dim` **(new)** | `#E7EBF1` | Dimmed page canvas behind the feed stream (feed routes only: `/`, `/categorie/[slug]`, `/cautare`). Article pages, legal pages, header, footer keep `--color-page #F2F4F8`. |
+
+Appended to `globals.css @theme` next to the four v2 extended tokens. Applied as the background
+of the full-width feed wrapper `<div>` each feed route renders directly inside the layout (the
+`<body>` keeps `page` — no layout change, no flash on article navigation).
+
+**AA re-check on `#E7EBF1` (recomputed):** ink `#10161F` **15.18:1** · ink-secondary `#3C4655`
+**7.98:1** · ink-muted `#556170` **5.27:1** · link `#2E5AAE` **5.50:1** · link-hover `#234684`
+**7.70:1** · red-text `#C0121F` **5.24:1** — all ≥4.5 (text). UI (≥3): border-functional
+`#7C8695` **3.08:1** · brand-red accent bar `#ED2024` **3.63:1** (non-text) · focus ring
+`#2E5AAE` **5.50:1**. The rejected candidate `#E4E8EF` put border-functional at exactly 3.00:1 —
+no margin; `#E7EBF1` is the value.
+
+#### 8.2 Stream geometry
+
+- **Feed column:** centered, `max-width: 672px` (Tailwind `max-w-2xl` — inside the 600–680px
+  target band). Wrapper: `mx-auto w-full max-w-2xl px-0 sm:px-4 md:px-6`, top padding 16px
+  mobile / 24px ≥768px, bottom padding 64px. Nothing beside the column at any width — the calm
+  `canvas-dim` fills the sides on desktop. NO sidebar, NO rail (v2 rule stands; `'rail'` union
+  members remain never-rendered).
+- **Mobile <640px (FB-mobile pattern):** posts are **edge-to-edge** — card side margins **0**,
+  border-radius **0**, `border-inline: none` (keep 1px `border` top/bottom); **inter-card gap
+  8px** of visible `canvas-dim` — the gap IS the divider, no extra divider element.
+- **≥640px:** post radius **16px**, border 1px `border` on all sides, v2 standard-card shadow
+  (`0 1px 2px rgba(16,22,31,0.06), 0 1px 3px rgba(16,22,31,0.04)`); **inter-card gap 16px**.
+- Hover (≥640px, `@media (hover:hover) and (pointer:fine)` — v2 §6 recipe B unchanged):
+  `translateY(-2px)`, shadow `0 8px 24px rgba(16,22,31,0.12)`, photo `scale(1.03)`, title →
+  `link`. Reduced-motion global kill block applies as-is.
+- **Header/nav/footer: UNCHANGED** (tricolor bar, masthead, sticky chip nav §3.2, footer §3.6).
+  They keep their own full-width backgrounds; only the feed wrapper dims.
+
+#### 8.3 Home structure (top → bottom, page 1)
+
+1. **Featured post** — first card in the stream, the „hero” of the single-column world (§8.5c).
+   Slot logic unchanged from v2: prefers the newest PUBLISHED original (`getFeaturedArticle()`),
+   falls back to the newest feed item; deduped from the rest of the stream by id.
+2. **Leaderboard AdSlot** — directly after the featured post, full column width, same reserved
+   heights (148px <768px / 138px ≥768px, §4.4). The CSS-sized responsive method already fills
+   whatever width the column gives it (~640px inner ≥640px) — no format change.
+3. **Section head „Ultimele știri”** (§3.3.3 recipe, red bar + h2) — 8px inline padding <640px
+   so it doesn't touch the screen edge between full-bleed cards.
+4. **Post stream** — page-1 FeedItems as PostCards with SSR in-feed ad-posts at engine positions
+   (§8.6).
+5. **„Cele mai citite” strip-post** — KEPT (decision), as a compact horizontal strip CARD inside
+   the stream **after post 6** (content posts counted, ad-posts excluded), home page 1 only,
+   never repeated in client batches, never on `?page≥2`. Anatomy: a `surface` post-shaped card
+   (same radius/border rules as §8.2), padding 16px / 20px ≥640px, §3.3.3 section head (h2),
+   then the v2 §4.1d list-tier items as a horizontal scroll-snap row — 5 items,
+   `min-width: 240px`, hidden scrollbars, 24px right fade mask (same recipe as the chip nav).
+   Item pick unchanged (deterministic non-hero slice 6–10).
+6. **FeedStream** (client, pages ≥2 — §8.7/§8.9) ending in the sentinel/fallback link.
+7. `<h1>` stays sr-only; heading levels: featured post h2, stream posts h3 (home) / h2
+   (category, search results), strip-post items h3.
+
+**Category page:** header block (§3.4) unchanged above the stream; stream = PostCards + ad-posts
+(category slug drives contextual keywords exactly as today); no leaderboard (unchanged); no
+„Cele mai citite”. **Search (`/cautare`):** form unchanged; results become the SAME PostCard
+stream (replacing the list-tier rows — deliberate, §8.11), paged by 10 via `searchPage()`
+(§8.8), **NO ads at any depth** (parity with today's ad-free search, and page-1 SSR parity —
+batches must never carry ads the SSR page wouldn't), `robots noindex` unchanged.
+
+**`?page=N` (N≥2) on all three routes:** renders the CLASSIC server-side page exactly as today —
+same grid replaced by the same single-column stream, `Pagination` pills (§4.5) at the bottom, NO
+FeedStream mounted. This is the crawler / no-JS / deep-link surface (§8.11).
+
+#### 8.4 Post-card anatomy v2.1 (standard post)
+
+Order (per agreed interpretation): **header row → full-bleed photo → title → excerpt → footer
+row.** One tab stop per card via the v2 stretched-title-link pattern (unchanged); the footer
+CategoryChip is the second tab stop (`relative z-10`).
+
+- **① Header row** — padding **12px 16px**; flex, gap 10px, items-center.
+  - **Avatar 40px** (`SourceAvatar`, §8.5a/b) — never an external favicon fetch.
+  - **Identity block** (min-w-0):
+    - Line 1 — source identity, Inter **700 15/20** `ink`, truncate:
+      aggregated → source name („Digi24”); original → „NewsRomania”.
+    - Line 2 — Inter **500 13/18** `ink-muted` (`meta` token):
+      aggregated → relative `<time>` only („acum 3 ore” / „6 iul. 2026” — `formatFeedDate`,
+      grammar unchanged); original → „de {Autor} · ” + `<time>`.
+  - Aggregated posts additionally carry the sr-only prefix „Sursa: ” before the source name
+    (attribution stays explicit for AT users; the visible „Sursa: {X}” pill lives on in the
+    article page — §4.3 unchanged there). No kebab, no follow button, no fake chrome.
+- **② Media** — full-bleed within the card (edge-to-edge, the card clips), `aspect-ratio: 16/9`,
+  radius **0** (card owns the radius), `ArticleImage` unchanged (hotlink/placeholder/broken
+  rules §5.1–5.3), `sizes="(min-width: 640px) 640px, 100vw"`, lazy (featured post: eager +
+  `fetchpriority="high"`). Posts with no image at all still render the branded placeholder —
+  the box is never dropped (zero CLS).
+- **③ Title** — padding-top 12px, inline padding 16px; Archivo **700**, **19/25** mobile /
+  **21/27** ≥768px, tracking −0.01em, `ink`, **3-line clamp**; the stretched internal link to
+  `/stiri/<slug>` (both types — v2 §7.1 rule unchanged).
+- **④ Excerpt** — 6px below title, inline padding 16px; Inter **400**, **14/21** mobile /
+  **15/22** ≥768px, `ink-secondary`, **2-line clamp**, **visible at ALL widths** (deliberate
+  change from v2 §4.1a „hidden <640px” — a social post needs its text; §8.11).
+- **⑤ Footer row** — margin-top 12px, padding **10px 16px**, 1px `border` top hairline; flex
+  `justify-between items-center`:
+  - left: **CategoryChip small variant** (§4.2 small: 28px, kicker token `red-text` on white,
+    1px `border`) linking to `/categorie/<slug>` — z-10 above the stretch;
+  - right: read affordance „**Citește articolul**” + „ →”, Inter **600 14/20** `link`,
+    `aria-hidden="true"` (purely visual — the stretched title link already carries the
+    accessible action; no duplicate announcement, no extra tab stop).
+
+**Type-signal rule preserved:** original = symbol avatar + „NewsRomania” + byline; aggregated =
+monogram avatar + bold source name (+ sr-only „Sursa:”). Originals never show a pill/source;
+aggregated never show a person byline.
+
+#### 8.5 Avatars & featured post
+
+**a) Aggregated — monogram disc (`SourceAvatar`):** 40px circle, white initial(s) on a
+**deterministic 4-color background reusing existing tokens only**: palette
+`[#2E5AAE (link), #234684 (link-hover), #C0121F (red-text), #10161F (ink)]`, index =
+`(sum of UTF-16 char codes of the source name) mod 4`. White-on-bg ratios (recomputed):
+**6.58 / 9.21 / 6.27 / 18.16** — all ≥4.5. Initials: first letters of the first two words of
+the source name (one word → first letter), uppercase, Inter **700 15/20** `#FFFFFF`,
+`aria-hidden="true"` (the name is adjacent text). No external favicon fetching, ever.
+
+**b) Original — brand mark:** 40px circle, `surface` bg, 1px `border-pill` ring,
+`assets/logo-symbol.png` (already shipped in `public/` via the existing favicon pipeline —
+rendered via `next/image`, 28px inside the disc, `alt=""` aria-hidden; „NewsRomania” is the
+adjacent text).
+
+**c) Featured post (first card, home page 1)** — same post anatomy as §8.4 (header → photo →
+title → excerpt → footer), differences ONLY:
+
+- image eager + `fetchpriority="high"`, `sizes="(min-width: 640px) 640px, 100vw"`, 16:9 at all
+  widths (the v2 4:3 mobile hero exception does NOT apply in the stream — one ratio, zero CLS);
+- title Archivo **800**, **24/29** mobile / **32/38** ≥768px, tracking −0.02em, clamp 3;
+- excerpt Inter **400**, **16/24** mobile / **17/26** ≥768px, `ink-secondary`, clamp 3;
+- heading level h2. No overlay/scrim — the v2 overlay tier is retired from the feed routes
+  (`variant='featured'|'secondary'` stay type-valid on ArticleCard, no feed route renders
+  them). Article pages are OUT of scope for v2.1: „Mai multe știri” keeps its v2 standard
+  cards — this addendum touches feed routes only.
+
+#### 8.6 Ad-post card (in-feed ads in the stream)
+
+Reads as a post in silhouette, is unmistakably labelled as an ad (§4.4 ethics unchanged):
+
+- AdSlot `feed` variant, restyled to the stream: full column width, radius **16px** ≥640px /
+  **0** <640px (matching §8.2 exactly — same border/gap rules as content posts), bg `surface-2`,
+  1px `border`, fixed **24px** „Publicitate” label row (kicker token, `ink-muted`, **5.57:1** on
+  surface-2 — unchanged), then the unit area.
+- **Reserved heights per format (zero CLS, reserved BEFORE any script):** feed unit = 300×250 →
+  wrapper `min-height: 298px` (24 label + 250 + 24 padding) — unchanged numbers, now full-width.
+  Unitless (AdSense review pending) → the same reserved box stays a flat empty field: no fake
+  content, no shimmer, no „în curând” (v2 rule verbatim).
+- Never mimics post anatomy: no avatar, no header row, no photo, no title styles.
+- **Frequency = SERVER-decided, per REQUEST, identical mechanics to v2:** `everyNth` from
+  site-config `adFrequency` (**UK 3 / RO 5 / default 4**), positions per batch from
+  `feedAdPositions(everyNth, batch.length)` — after items n, 2n, 3n within EACH batch of 10,
+  cap `MAX_FEED_ADS_PER_PAGE = 3`, never after the batch's final item. With PAGE_SIZE 10 that
+  yields per batch: UK → 3 ads (after 3, 6, 9), default → 2 (after 4, 8), RO → 1 (after 5).
+  Page 1 (SSR) and every client batch use the SAME function — byte-identical placement math.
+- **Unit rotation continuity:** the deterministic `adsenseAt(decision, ordinal)` rotation keys
+  on the ad's 0-based ordinal across the WHOLE stream, not per batch. Page 1 renders ordinals
+  `0…k−1`; the page passes `adOrdinalStart = k` to FeedStream, which increments it across
+  batches. Same request, same position ⇒ same unit, SSR and client alike.
+
+#### 8.7 Infinite-scroll UX
+
+- **Sentinel:** a real anchor `<a id="feed-next" rel="next" href="{route}?page=2">` rendered by
+  FeedStream's SERVER-streamed initial HTML (client components SSR their first paint), styled as
+  the v2 §4.5 pill („**Pagina următoare →**”), centered, 40px block margin. It is BOTH the no-JS
+  fallback and the IntersectionObserver target. After hydration FeedStream intercepts it:
+  `IntersectionObserver` (`rootMargin: '600px 0px 600px 0px'`, `threshold: 0`) — **the only
+  scroll mechanism; NO scroll/resize listeners anywhere.** On intersect (or click,
+  `preventDefault`): fetch the next batch.
+- **Loading state:** the sentinel row is replaced by **2 skeleton post cards** (static — v2 §6
+  bans shimmer): card shell per §8.2; header row with a 40px `accent-bg` disc + two bars
+  (120×14, 80×12); an `aspect-video` media block painted with the §5.3 gradient
+  (`accent-bg → accent-bg-strong`); three text bars (100%/92%/56% × 16px, radius 4px,
+  `accent-bg-strong`). Every block's height comes from the same paddings/aspect-ratio as a real
+  post — appended strictly BELOW existing content, so nothing in-viewport ever shifts
+  (**CLS 0**). `aria-hidden="true"` on skeletons.
+- **Auto-load cap:** pages 2–5 auto-load (**4 consecutive batches**). From page 6 onward every
+  batch requires a click on „**Încarcă mai multe știri**” — v2 §4.5 pill recipe verbatim
+  (44px, radius 999px, `surface` bg, 1px `border-functional` [3.08:1 on canvas-dim], `button`
+  token `ink`, hover border+text `link`), centered, min-width 220px, 40px block margin —
+  keyboard/footer reachability preserved (WCAG 2.4). While fetching, the button gets
+  `disabled` + `aria-disabled="true"` and label „Se încarcă…”.
+- **aria-live:** one persistent `<p role="status" aria-live="polite" class="sr-only">` owned by
+  FeedStream. After each successful append: „**S-au încărcat {N} știri noi.**” (N=1: „S-a
+  încărcat o știre nouă.”). On error: „Nu am putut încărca mai multe știri.” On end: „Ai ajuns
+  la finalul fluxului.” Focus is NOT moved on append (no focus theft); after a manual-button
+  batch the button keeps focus.
+- **End of feed** (`hasMore=false`): centered block on the canvas, 48px block padding —
+  „**Ai ajuns la finalul fluxului.**” Inter 500 15/22 `ink-secondary` (7.98:1 on canvas-dim) +
+  below it a „**Înapoi sus ↑**” pill (same §4.5 recipe) that scrolls to top
+  (`behavior: 'smooth'`, instant under `prefers-reduced-motion`) and moves focus to the main
+  content landmark (the existing skip-link target `#continut`).
+- **Error/retry:** on fetch failure (network / non-200 / invalid JSON) — skeletons removed,
+  centered block: „**Nu am putut încărca mai multe știri.**” (`ink-secondary`) + pill
+  „**Încearcă din nou**” (§4.5 recipe). The observer is paused until retry succeeds; retry
+  re-requests the SAME page number (idempotent — Redis-cached server-side). Single in-flight
+  guard (ref) — a fetch can never double-fire; `AbortController` aborts on unmount.
+- **No URL mutation:** the address bar is never rewritten while scrolling (no
+  `history.replaceState`) — canonical stays unambiguous, refresh restores page 1, bfcache stays
+  eligible (no `unload`/`beforeunload` handlers). Batch loads are NOT pageviews: **no CDP
+  events, no consent reads, no new cookies on the client** — CDP/consent behavior byte-identical
+  to v2.
+
+#### 8.8 API contract — `GET /api/feed`
+
+New route `src/app/api/feed/route.ts` (Node runtime, `force-dynamic`):
+
+```
+GET /api/feed?page=N                    → home stream batch
+GET /api/feed?page=N&category=<slug>    → category batch
+GET /api/feed?page=N&q=<term>           → search batch (category and q together → 400)
+
+200 → {
+  items:    FeedItem[]                  // serialized as-is (JSON-safe contract, unchanged type)
+  ads:      { everyNth: number, decisions: AdDecision[] } | null
+                                        // null for q= batches (search is ad-free);
+                                        // decisions = [decisionFor(plan,'feed')] — the feed
+                                        // placement only, incl. adsenseUnits for rotation
+  hasMore:  boolean
+  nextPage: number | null               // page+1 or null
+}
+400 → { error: 'invalid_params' }       // page NaN / <1 / >100 (MAX_PAGE), unknown category
+                                        // slug (validated against siteConfig.categories),
+                                        // q longer than 100 chars, or category+q together
+429 → { error: 'rate_limited' }         // + Retry-After: 60
+```
+
+- **Server computes geo/consent/profile per request EXACTLY like the pages do:** the route calls
+  `getRequestAdPlan(categorySlug)` (`src/lib/ads/plan-for-request.ts`, untouched) — same
+  `resolveGeo(headers)` → `readConsent(cookies)` → profile-only-if-accepted chain, same NPA and
+  keyword rules. It READS existing cookies (`nr_consent`, `nr_vid`) and **sets none** (no
+  `Set-Cookie` ever). Response header: `Cache-Control: private, no-store` (the ad plan is
+  per-visitor; the ITEMS are already shared-cached in Redis).
+- **Items reuse the existing Redis feed cache untouched:** home/category → `getFeed({ page,
+  categorySlug })` (60s `newsromania:feed:<cat|all>:<page>`, purge hook unchanged). Search → new
+  thin wrapper in `content.ts`: `searchPage(q, page): Promise<FeedPage>` = `search(q)` (existing
+  function, unchanged) sliced to windows of `PAGE_SIZE` 10 with
+  `hasNextPage = results.length > page*10`; not Redis-cached (parity with today's uncached
+  search).
+- **Amazon in batches:** the engine's `AMAZON_PLACEMENTS` set is `{'article','article-end'}`
+  (verified in `src/lib/ads/engine.ts`) — the `feed` decision is ALWAYS `adsense` or `house`,
+  never `amazon`. The route returns the plan's feed decision as-is; current engine behavior is
+  kept exactly (no new Amazon surface; Amazon remains article-placement-only).
+- **Rate limit — 120/min/IP** via the existing redis helpers: new
+  `rateLimit(key: string, limit: number, windowSec: number): Promise<boolean>` in
+  `src/lib/redis.ts` — `INCR` + `EXPIRE` on first hit (set TTL only when the counter is 1), key
+  `rkey('rl','feed', ip)` with ip from geo.ts's existing client-IP extraction; **fail-open** on
+  any Redis error (a limiter must never take the feed down). 60s window, limit 120.
+- **Param validation is a pure exported helper** `parseFeedParams(searchParams)` (unit-testable
+  without a request): page = int 1–100; category must exist in `siteConfig.categories`; q
+  trimmed, 1–100 chars; `category` and `q` mutually exclusive.
+
+#### 8.9 Component split (single source of truth for post markup)
+
+| Module | Directive | Role |
+| --- | --- | --- |
+| `src/components/articles/PostCard.tsx` **(new)** | none (shared) | THE post markup (§8.4/§8.5, `variant: 'post' \| 'featured'`) — imported by BOTH the SSR page-1 tree (stays a server-rendered RSC there: zero hydration cost) and FeedStream (compiled into the client bundle there). Client-renderable by construction: it imports only `ArticleImage` (already `'use client'`), `CategoryChip`/`next/link` (fine), `formatFeedDate` (pure) and `SourceAvatar`. No server-only imports, no async, no `headers()/cookies()`. |
+| `src/components/articles/SourceAvatar.tsx` **(new)** | none (shared) | §8.5a/b disc; pure. |
+| `src/components/articles/FeedList.tsx` **(kept path/exports)** | none (shared) | `FeedList({ items, adPlan, headingAs })` keeps its signature for page-1 SSR but now renders the single-column stream; internally delegates to a new shared export `PostBatch({ items, everyNth, feedDecision, adOrdinalStart, headingAs, featuredFirstId? })` which interleaves PostCards and ad-posts via `feedAdPositions` — the ONE list renderer used by SSR page 1 (server) AND client batches. Imports only pure engine helpers + AdSlot (client-safe). |
+| `src/components/articles/FeedStream.tsx` **(new)** | `'use client'` | Owns pages ≥2: sentinel/observer, fetch `/api/feed`, batches state (renders each batch through `PostBatch`), skeletons, cap-4 → manual button, aria-live, error/retry, end state. Props: `{ startPage: 2, params: { category?: string; q?: string }, initialHasMore: boolean, adOrdinalStart: number, headingAs: 'h2' \| 'h3', withAds: boolean }`. |
+| `src/components/articles/FeedSkeleton.tsx` **(new)** | none (client-safe) | §8.7 skeleton pair. |
+| `src/components/ads/push-ads.ts` **(new)** | client helper | `pushNewAdSlots(root)` — §8.10. |
+| `src/components/articles/NextPageLink.tsx` **(kept)** | none | `Pagination` survives for `?page≥2` classic pages; `NextPageLink` legacy wrapper untouched. |
+
+**What stays server:** the page shell (route files), hero/featured selection, page-1
+`getFeed` + `getRequestAdPlan`, page-1 `FeedList`, „Cele mai citite” strip, metadata/JSON-LD.
+**What is client:** FeedStream and everything it mounts for pages ≥2. Relative timestamps in
+client batches are computed at fetch-render time on the client — no hydration mismatch is
+possible because batches never server-render (page-1 timestamps stay server-computed,
+force-dynamic, exactly as today).
+
+`ArticleCard.tsx` is NOT deleted: `?page≥2` classic pages render through the same `PostBatch`
+stream (one list renderer everywhere); ArticleCard's **list tier** remains in use by the „Cele
+mai citite” strip and the article pages' „Mai multe știri”; its feed/overlay tiers become unused
+by feed routes but stay exported and type-valid — architecture.md module paths stay fixed.
+
+#### 8.10 AdSense in dynamically loaded batches (documented infinite-feed pattern)
+
+- Each batch's ad-posts render the SAME `AdSlot → AdSenseUnit` components. `AdSenseUnit`'s
+  per-slot inline `next/script` executes for late-mounted client instances too, but the spec
+  does not rely on that alone: **after each batch commit, FeedStream runs
+  `pushNewAdSlots(containerRef.current)` in the append effect** —
+  `root.querySelectorAll('ins.adsbygoogle[data-ad-slot]:not([data-nr-ad-pushed="1"])')`, and for
+  each: set `data-nr-ad-pushed="1"` FIRST, then
+  `(window.adsbygoogle = window.adsbygoogle || []).push({})` in a try/catch.
+- **Idempotency guard:** the EXISTING `data-nr-ad-pushed` marker is the single lock shared by
+  both mechanisms (the inline script checks-and-sets it, `pushNewAdSlots` checks-and-sets it) —
+  whichever runs first wins; an `<ins>` can never request two fills, re-renders and retries
+  included. One `push({})` per inserted `<ins>` — Google's documented rule for
+  infinite-scroll/lazy-loaded units.
+- **Unitless slots** (site review pending — current prod state): `data-ad-slot` absent ⇒ the
+  selector skips them and the inline script never renders ⇒ zero `push()` calls; the reserved
+  „Publicitate” box stays a flat empty field at full reserved height, in batches exactly as on
+  page 1.
+- **NPA:** reused GLOBALLY — `ConsentModeScript` already sets
+  `requestNonPersonalizedAds = 1` before the AdSense site tag whenever consent ≠ accepted; that
+  flag governs every subsequent `push()`, including batch pushes. Nothing per-slot changes;
+  batch decisions still carry `npa` into the audit attribute `data-npa`. Edge (documented, safe
+  direction): a visitor accepting consent AFTER page load keeps the page-scoped NPA flag until
+  the next navigation — batches on the current page stay non-personalized. Privacy-safe by
+  construction; no fix needed.
+- **Amazon:** never in feed batches (§8.8) — engine unchanged.
+
+#### 8.11 SEO / no-JS / deliberate behavior changes
+
+- **Page 1 stays fully SSR with identical data** — same `getFeed(page 1)` + server AdPlan, same
+  markup with or without JS. Crawlers and no-JS visitors see the complete first page.
+- **Fallback chain:** FeedStream's server-streamed HTML contains the REAL
+  `<a rel="next" href="?page=2">` (§8.7) — it works with zero JS and advertises the next page to
+  crawlers. On `?page=N` (N≥2) the routes render classic SSR pages with the v2 §4.5 `Pagination`
+  pills — the full classic pagination experience for noscript users and crawler traversal.
+  Additionally the page-1 shell wraps a `<noscript>` around a classic `Pagination` block
+  (page 1, next-only) directly after FeedStream — belt and braces; with JS enabled neither
+  renders (FeedStream hides its anchor post-hydration; noscript is inert).
+- **Canonical/JSON-LD/metadata UNCHANGED:** home/category canonicals keep pointing at the
+  un-paged URL; `?page=N` pages render server-side for crawlers exactly as today; aggregated
+  article canonical → publisher; search stays `noindex`. No `rel=prev/next` meta beyond the
+  in-body `rel="next"` anchor.
+- **Deliberate changes requiring test updates (vitest must stay green)** — verified: NO existing
+  vitest file encodes the pagination UX or the card grid (grep across `tests/`: zero hits for
+  Pagination/„Pagina următoare”), so this is additive:
+  1. new `tests/feed-api.test.ts` — `parseFeedParams` (valid/NaN/0/101/unknown category/q>100/
+     category+q), response-shape builder incl. `ads: null` for `q=`, feed decision passthrough
+     (`network` never `'amazon'`);
+  2. new `tests/redis-ratelimit.test.ts` — `rateLimit` window math via an injected fake client
+     (INCR/EXPIRE call order, fail-open on throw);
+  3. new `tests/push-ads.test.ts` — `pushNewAdSlots` against a minimal fake root
+     (`querySelectorAll`/attributes): pushes once, marks first, skips marked, skips unitless;
+  4. `tests/content.test.ts` — add `searchPage` slicing/hasNextPage cases;
+  5. UI changes carried by this spec that alter documented v2 behavior: excerpt now visible
+     <640px (§8.4④), search results become PostCards (§8.3), grid → single column, overlay hero
+     tiers retired from feed routes — none are test-encoded today; the addendum text is their
+     record.
+- Romanian copy throughout with comma-below diacritics (ș/ț U+0219/U+021B): „Pagina următoare”,
+  „Încarcă mai multe știri”, „Se încarcă…”, „S-au încărcat {N} știri noi.”, „S-a încărcat o
+  știre nouă.”, „Ai ajuns la finalul fluxului.”, „Înapoi sus”, „Nu am putut încărca mai multe
+  știri.”, „Încearcă din nou”, „Publicitate”, „Citește articolul”, „Cele mai citite”, „Ultimele
+  știri”. Prettier on every touched file.
+
+#### 8.12 Engineering guardrails (restated, non-negotiable)
+
+- IntersectionObserver ONLY — no scroll listeners; auto-load hard-capped at 4 batches; manual
+  button thereafter (footer reachability).
+- Zero CLS: reserved ad heights before scripts (§8.6), aspect-ratio image boxes, skeletons with
+  reserved geometry appended below the fold, no layout-shifting hydration.
+- FeedItem type, `getFeed` signature, ads engine/`planForRequest`, consent, CDP, ArticleImage
+  contracts: UNCHANGED. Additive only: `--color-canvas-dim`, `searchPage()`, `rateLimit()`,
+  `/api/feed`, the new components in §8.9.
+- No new cookies, no client-side targeting, no consent reads on batch fetches beyond what the
+  server does per request; secrets never printed; ports/prod stack untouched by this spec.
+- WCAG AA everywhere: every new text/UI pair recomputed in §8.1/§8.5a; focus-visible recipes,
+  reduced-motion kill block, 44px targets and skip-link behavior inherited from v2 §6 verbatim.

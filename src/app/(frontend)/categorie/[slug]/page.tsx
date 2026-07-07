@@ -3,17 +3,22 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { FeedList } from '@/components/articles/FeedList'
+import { FeedStream } from '@/components/articles/FeedStream'
 import { Pagination } from '@/components/articles/NextPageLink'
 import { siteConfig } from '@/config/site'
+import { feedAdPositions } from '@/lib/ads/engine'
 import { getRequestAdPlan } from '@/lib/ads/plan-for-request'
 import { getFeed } from '@/lib/content'
 import { absoluteUrl } from '@/lib/seo'
 
 /**
- * Category page (design direction v2 §3.4): header block (h1 + meta line),
- * then the same full-width card grid as the homepage with per-request,
- * region-frequency in-feed ad positions (ad engine, architecture.md §4 — the
- * category slug feeds contextual keywords) and server-side pagination.
+ * Category page — v2.1 „Flux Social” (design direction §8.3): the v2 §3.4
+ * header block unchanged ABOVE the stream, then the centered single-column
+ * PostCard stream (max-w-2xl on the dimmed canvas) with in-feed ad-posts at
+ * per-request, region-frequency engine positions — the category slug drives
+ * contextual keywords exactly as before. No leaderboard, no „Cele mai
+ * citite” (unchanged). Page 1 mounts FeedStream (+ noscript pagination);
+ * ?page≥2 renders the classic SSR page with §4.5 Pagination pills (§8.11).
  * No duplicate chips row — the sticky chip nav already marks the active
  * category.
  */
@@ -45,6 +50,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   const { page: pageParam } = await searchParams
   const parsed = Number.parseInt(pageParam ?? '1', 10)
   const page = Number.isNaN(parsed) || parsed < 1 ? 1 : parsed
+  const isFirstPage = page === 1
 
   const category = siteConfig.categories.find((c) => c.slug === slug)
   if (!category) notFound()
@@ -55,49 +61,74 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
     getRequestAdPlan(category.slug),
   ])
 
-  return (
-    <div className="mx-auto w-full max-w-[1280px] px-4 pb-16 pt-8 md:px-6 xl:px-8">
-      <header>
-        <span aria-hidden="true" className="inline-block h-5 w-1 rounded-[2px] bg-brand-red" />
-        <h1 className="mt-3 font-serif text-[28px] font-extrabold leading-[34px] tracking-[-0.015em] text-ink md:text-[38px] md:leading-[44px]">
-          {category.name}
-        </h1>
-        <p className="mt-2 font-sans text-[13px] font-medium leading-[18px] text-ink-muted">
-          Cele mai noi știri din categoria {category.name}
-          {page > 1 ? ` · pagina ${page}` : ''}
-        </p>
-      </header>
+  // Unit-rotation ordinal handoff to the client batches (§8.6).
+  const adOrdinalStart = feedAdPositions(adPlan.everyNth, items.length).size
+  const hrefFor = (n: number) => `/categorie/${category.slug}?page=${n}`
 
-      {items.length > 0 ? (
-        <>
-          <div className="mt-6">
-            {/* In-feed ad cards at region-frequency positions from the ad plan (§6.2/§4.4). */}
-            <FeedList items={items} adPlan={adPlan} headingAs="h2" />
+  return (
+    <div className="min-h-full bg-canvas-dim">
+      <div className="mx-auto w-full max-w-2xl px-0 pb-16 pt-4 sm:px-4 md:px-6 md:pt-6">
+        {/* Header block (§3.4) unchanged above the stream; 16px inline padding
+            <640px because the column is edge-to-edge there (§8.2). */}
+        <header className="px-4 sm:px-0">
+          <span aria-hidden="true" className="inline-block h-5 w-1 rounded-[2px] bg-brand-red" />
+          <h1 className="mt-3 font-serif text-[28px] font-extrabold leading-[34px] tracking-[-0.015em] text-ink md:text-[38px] md:leading-[44px]">
+            {category.name}
+          </h1>
+          <p className="mt-2 font-sans text-[13px] font-medium leading-[18px] text-ink-muted">
+            Cele mai noi știri din categoria {category.name}
+            {page > 1 ? ` · pagina ${page}` : ''}
+          </p>
+        </header>
+
+        {items.length > 0 ? (
+          <>
+            <div className="mt-6">
+              {/* Single-column post stream with ad-posts at region-frequency
+                  positions from the server ad plan (§8.6). */}
+              <FeedList items={items} adPlan={adPlan} headingAs="h2" />
+            </div>
+            {isFirstPage ? (
+              <>
+                <FeedStream
+                  startPage={2}
+                  params={{ category: category.slug }}
+                  initialHasMore={hasNextPage}
+                  adOrdinalStart={adOrdinalStart}
+                  headingAs="h2"
+                  withAds
+                />
+                {/* Belt and braces (§8.11): classic pagination for noscript. */}
+                {hasNextPage && (
+                  <noscript>
+                    <Pagination page={1} hasNextPage hrefFor={hrefFor} />
+                  </noscript>
+                )}
+              </>
+            ) : (
+              <Pagination page={page} hasNextPage={hasNextPage} hrefFor={hrefFor} />
+            )}
+          </>
+        ) : (
+          <div className="mx-4 mt-10 rounded-[16px] border border-border bg-surface px-6 py-12 text-center sm:mx-0">
+            <p className="font-serif text-xl font-bold leading-7 text-ink">
+              Încă nu avem articole în această categorie.
+            </p>
+            <p className="mt-2 font-sans text-[15px] leading-[22px] text-ink-secondary">
+              Publicăm știri noi în fiecare zi — revino în curând sau explorează celelalte
+              categorii.
+            </p>
+            <p className="mt-4">
+              <Link
+                href="/"
+                className="inline-block py-3 font-sans text-[15px] font-semibold leading-5 text-link transition-colors hover:text-link-hover"
+              >
+                ← Înapoi la prima pagină
+              </Link>
+            </p>
           </div>
-          <Pagination
-            page={page}
-            hasNextPage={hasNextPage}
-            hrefFor={(n) => `/categorie/${category.slug}?page=${n}`}
-          />
-        </>
-      ) : (
-        <div className="mt-10 rounded-[16px] border border-border bg-surface px-6 py-12 text-center">
-          <p className="font-serif text-xl font-bold leading-7 text-ink">
-            Încă nu avem articole în această categorie.
-          </p>
-          <p className="mt-2 font-sans text-[15px] leading-[22px] text-ink-secondary">
-            Publicăm știri noi în fiecare zi — revino în curând sau explorează celelalte categorii.
-          </p>
-          <p className="mt-4">
-            <Link
-              href="/"
-              className="inline-block py-3 font-sans text-[15px] font-semibold leading-5 text-link transition-colors hover:text-link-hover"
-            >
-              ← Înapoi la prima pagină
-            </Link>
-          </p>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

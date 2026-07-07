@@ -8,14 +8,25 @@ import { formatFeedDate } from './format-date'
 /**
  * ArticleCard — image-led magazine card (design direction v2 §4.1).
  *
+ * v2.1 „Flux Social” status (§8.9): the feed routes (home/category/search)
+ * now render PostCard streams — this component's 'feed' and overlay tiers are
+ * no longer rendered by any feed route but stay exported and type-valid
+ * (architecture.md module paths are fixed). The 'list' tier REMAINS in active
+ * use: the home „Cele mai citite” strip-post and the article pages' „Mai
+ * multe știri”.
+ *
  * Tiers:
  * - 'feed'      → standard grid card: photo 16:9 with an overlaid category
- *                 chip, title, excerpt, meta (§4.1a).
+ *                 chip, title, excerpt, meta (§4.1a). Unused by feed routes
+ *                 since v2.1.
  * - 'featured'  → hero overlay card: photo fills the box, gradient scrim,
- *                 yellow kicker chip + display title + meta on the scrim (§4.1c).
- * - 'secondary' → the two smaller hero-band overlay cards (§4.1c).
- * - 'list'      → compact thumb+title row („Cele mai citite”, search — §4.1d),
- *                 optional rank numeral.
+ *                 yellow kicker chip + display title + meta on the scrim
+ *                 (§4.1c). Retired from feed routes in v2.1 (no scrim hero in
+ *                 the stream); type-valid, never rendered there.
+ * - 'secondary' → the two smaller hero-band overlay cards (§4.1c) — same
+ *                 v2.1 status as 'featured'.
+ * - 'list'      → compact thumb+title row („Cele mai citite”, „Mai multe
+ *                 știri” — §4.1d), optional rank numeral.
  *
  * Owner requirement 2 (v2 §7.1 — deliberate change from v1): EVERY card links
  * INTERNALLY to /stiri/<slug> for BOTH content types. No external link, no
@@ -28,11 +39,14 @@ import { formatFeedDate } from './format-date'
  * sits above the stretch with z-10 as the card's second tab stop.
  */
 
-type HeadingTag = 'h2' | 'h3'
+type HeadingTag = 'h2' | 'h3' | 'h4'
 
 interface ArticleCardProps {
   item: FeedItem
-  /** Heading level, so the card fits the page outline (h2 under a page h1, h3 on the home feed). */
+  /**
+   * Heading level, so the card fits the page outline (h2 under a page h1;
+   * h4 inside the home „Cele mai citite” strip-post, whose own head is h3).
+   */
   as?: HeadingTag
   variant?: 'feed' | 'featured' | 'secondary' | 'list'
   /** List tier only: 1-based rank numeral („Cele mai citite”). */

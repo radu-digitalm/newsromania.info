@@ -1,4 +1,4 @@
-import type { AmazonDecision } from '@/lib/ads/engine'
+import type { AmazonDecision } from '@/lib/ads/engine-core'
 import { searchProductsWithTimeout, type AmazonProduct } from '@/lib/ads/amazon'
 
 /**

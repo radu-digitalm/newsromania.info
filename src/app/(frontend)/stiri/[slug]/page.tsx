@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { Fragment } from 'react'
 
 import { AdSlot } from '@/components/ads/AdSlot'
+import { ArticleAdSlot } from '@/components/ads/ArticleAdSlot'
 import { ArticleCard, ExternalLinkIcon, SourcePill } from '@/components/articles/ArticleCard'
 import { ArticleImage } from '@/components/articles/ArticleImage'
 import { CategoryChip } from '@/components/articles/CategoryChip'
@@ -254,8 +255,8 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
         {/* CTA directly after the excerpt; the ad comes only BELOW the CTA
             block — never between excerpt and CTA (misclick protection). */}
         <ReadFullArticleCta article={article} />
-        <AdSlot variant="article" decision={articleAd} />
-        <AdSlot variant="article" decision={articleEndAd} />
+        <ArticleAdSlot decision={articleAd} />
+        <ArticleAdSlot decision={articleEndAd} />
       </ArticleShell>
     )
   }
@@ -281,9 +282,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             <p className="mt-5">{paragraph}</p>
             {/* One in-article slot after the 3rd paragraph — never between
                 title and byline (§4.4 placement ethics). */}
-            {index === 2 && article.body.length > 3 && (
-              <AdSlot variant="article" decision={articleAd} />
-            )}
+            {index === 2 && article.body.length > 3 && <ArticleAdSlot decision={articleAd} />}
           </Fragment>
         ))}
       </div>
@@ -291,7 +290,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       {/* End-of-article slot (§3.5 ⑦) — the SAME dedicated 'article-end'
           placement as on aggregated pages, so both content types draw from
           one unit pool and Amazon eligibility for this slot. */}
-      <AdSlot variant="article" decision={articleEndAd} />
+      <ArticleAdSlot decision={articleEndAd} />
     </ArticleShell>
   )
 }

@@ -54,3 +54,12 @@ export interface AggregatedItem extends ArticleBase {
 }
 
 export type FeedItem = OriginalArticle | AggregatedItem
+
+/**
+ * Card-level view of a FeedItem — every field the feed cards render; the
+ * original full `body` is EXCLUDED (only the article page renders it).
+ * FeedItem is assignable to FeedCardItem, so SSR call sites keep passing
+ * FeedItem unchanged; /api/feed batches serialize exactly this shape (the
+ * body would be dead weight on the wire and a bulk-scraping surface).
+ */
+export type FeedCardItem = Omit<OriginalArticle, 'body'> | AggregatedItem

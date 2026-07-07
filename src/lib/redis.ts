@@ -61,6 +61,37 @@ export async function cacheJson<T>(key: string, ttlSec: number, fn: () => Promis
   return fresh
 }
 
+/** Structural subset of ioredis needed by rateLimit() — injectable in tests. */
+export interface RateLimitClient {
+  incr(key: string): Promise<number>
+  expire(key: string, seconds: number): Promise<number>
+}
+
+/**
+ * Fixed-window rate limiter (design direction v2.1 §8.8): INCR the key and
+ * set its TTL only on the first hit of the window. Returns true while the
+ * counter is within `limit`. FAIL-OPEN on any Redis error — a limiter must
+ * never take the feed down. `client` is injectable for unit tests; production
+ * callers omit it and get the lazy singleton.
+ */
+export async function rateLimit(
+  key: string,
+  limit: number,
+  windowSec: number,
+  client?: RateLimitClient,
+): Promise<boolean> {
+  try {
+    const redis = client ?? getRedis()
+    const count = await redis.incr(key)
+    if (count === 1) {
+      await redis.expire(key, windowSec)
+    }
+    return count <= limit
+  } catch {
+    return true
+  }
+}
+
 /**
  * Purge every feed cache entry (`newsromania:feed:*`) via cursor SCAN + DEL.
  * NEVER uses FLUSHALL/FLUSHDB (shared-instance rule). Returns the number of

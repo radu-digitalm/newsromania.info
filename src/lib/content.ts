@@ -342,3 +342,19 @@ export async function search(q: string): Promise<FeedItem[]> {
     .filter((item) => normalizeForSearch(`${item.title} ${item.excerpt}`).includes(needle))
     .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
 }
+
+/**
+ * Paged search window (design direction v2.1 §8.8) — thin wrapper over
+ * search(): the same result list sliced to pages of PAGE_SIZE (10), with
+ * hasNextPage true while more results remain past the requested window.
+ * Deliberately NOT Redis-cached (parity with today's uncached search).
+ */
+export async function searchPage(q: string, page: number): Promise<FeedPage> {
+  const safePage = Number.isFinite(page) && page >= 1 ? Math.min(Math.floor(page), MAX_PAGE) : 1
+  const results = await search(q)
+  const start = (safePage - 1) * PAGE_SIZE
+  return {
+    items: results.slice(start, start + PAGE_SIZE),
+    hasNextPage: results.length > safePage * PAGE_SIZE,
+  }
+}

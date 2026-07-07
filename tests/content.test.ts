@@ -24,6 +24,7 @@ import {
   getFeaturedArticle,
   getFeed,
   search,
+  searchPage,
   toFeedItem,
 } from '../src/lib/content'
 import type {
@@ -419,5 +420,53 @@ describe('search', () => {
       aggregated: [aggregatedDoc({ title: 'Nici aici' })],
     })
     await expect(search('criptomonede')).resolves.toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// searchPage — paged windows over search() (design direction v2.1 §8.8)
+// ---------------------------------------------------------------------------
+
+describe('searchPage', () => {
+  /** 12 matching originals, newest first by createdAt hour (12 → 1). */
+  const twelveMatches = () =>
+    serveDocs({
+      articles: Array.from({ length: 12 }, (_, i) =>
+        articleDoc({ id: i + 1, title: `Economie locală ${i + 1}`, createdAt: iso(1, i + 1) }),
+      ),
+      aggregated: [],
+    })
+
+  it('slices results into 10-item windows, newest first, hasNextPage while more remain', async () => {
+    twelveMatches()
+    const page1 = await searchPage('economie', 1)
+    expect(page1.items).toHaveLength(10)
+    expect(page1.items[0]?.id).toBe('original-12')
+    expect(page1.items[9]?.id).toBe('original-3')
+    expect(page1.hasNextPage).toBe(true)
+  })
+
+  it('the final window carries the remainder with hasNextPage false', async () => {
+    twelveMatches()
+    const page2 = await searchPage('economie', 2)
+    expect(page2.items.map((r) => r.id)).toEqual(['original-2', 'original-1'])
+    expect(page2.hasNextPage).toBe(false)
+  })
+
+  it('a page past the results is empty, not an error', async () => {
+    twelveMatches()
+    await expect(searchPage('economie', 3)).resolves.toEqual({ items: [], hasNextPage: false })
+  })
+
+  it('invalid page numbers clamp to 1 (same guard as getFeed)', async () => {
+    twelveMatches()
+    const page = await searchPage('economie', Number.NaN)
+    expect(page.items[0]?.id).toBe('original-12')
+    expect(page.hasNextPage).toBe(true)
+  })
+
+  it('empty query short-circuits without touching Payload', async () => {
+    await expect(searchPage('   ', 1)).resolves.toEqual({ items: [], hasNextPage: false })
+    expect(findMock).not.toHaveBeenCalled()
   })
 })

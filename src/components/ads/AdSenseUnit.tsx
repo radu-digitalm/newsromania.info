@@ -4,7 +4,7 @@ import Script from 'next/script'
 import { useId, type CSSProperties } from 'react'
 
 import { siteConfig } from '@/config/site'
-import type { AdSenseDecision } from '@/lib/ads/engine'
+import type { AdSenseDecision } from '@/lib/ads/engine-core'
 
 /**
  * The AdSense <ins> for one slot, rendered from a server-decided
