@@ -206,6 +206,10 @@ export const SiteConfigGlobal: GlobalConfig = {
           label: 'Retenție date (zile)',
           type: 'number',
           defaultValue: 365,
+          admin: {
+            description:
+              'Se aplică evenimentelor CDP și profilurilor de interese: profilurile nevăzute mai mult de atât sunt șterse de workerul de profile.',
+          },
         },
       ],
     },

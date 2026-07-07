@@ -17,7 +17,7 @@ import {
 } from '../src/lib/seo-analyzer/romanian'
 
 // ---------------------------------------------------------------------------
-// Fixture „articol bun” — 7 paragrafe × 47 de cuvinte, cuvânt cheie
+// Fixture „articol bun” — 7 paragrafe × 47 de cuvinte, cuvânt-cheie
 // „energie verde” cu densitate ~2%, tranziții în 60% dintre propoziții,
 // zero pasive, meta în intervalele recomandate.
 // ---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ const GOOD_INPUT: SeoAnalyzerInput = {
   minWordCount: 300,
 }
 
-/** Descriere de 159 de caractere FĂRĂ cuvântul cheie (pentru teste de warn). */
+/** Descriere de 159 de caractere FĂRĂ cuvântul-cheie (pentru teste de warn). */
 const DESCRIPTION_WITHOUT_KEYWORD =
   'Analizăm cum avansează proiectele importante din România, ce beneficii aduc pentru consumatori și ce planuri au autoritățile pentru rețelele electrice moderne.'
 
@@ -83,7 +83,7 @@ describe('potrivire insensibilă la diacritice și majuscule', () => {
     expect(countOccurrences('ştiri false pe internet', 'știri')).toBe(1)
   })
 
-  it('cuvântul cheie fără diacritice găsește textul cu diacritice', () => {
+  it('cuvântul-cheie fără diacritice găsește textul cu diacritice', () => {
     expect(countOccurrences('Vorbim despre sănătate publică azi.', 'sanatate publica')).toBe(1)
   })
 
@@ -163,11 +163,11 @@ describe('segmentarea în propoziții', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Verificări de cuvânt cheie
+// Verificări de cuvânt-cheie
 // ---------------------------------------------------------------------------
 
-describe('verificări cuvânt cheie', () => {
-  it('articolul bun trece toate verificările de cuvânt cheie', () => {
+describe('verificări cuvânt-cheie', () => {
+  it('articolul bun trece toate verificările de cuvânt-cheie', () => {
     const report = analyze(GOOD_INPUT)
     for (const id of [
       'keyword-presence',
@@ -183,13 +183,13 @@ describe('verificări cuvânt cheie', () => {
     }
   })
 
-  it('fără cuvânt cheie setat → keyword-presence eșuează critic (roșu)', () => {
+  it('fără cuvânt-cheie setat → keyword-presence eșuează critic (roșu)', () => {
     const report = analyzeWith({ focusKeyword: '' })
     expect(getCheck(report, 'keyword-presence').status).toBe('fail')
     expect(report.score).toBe('red')
   })
 
-  it('cuvânt cheie absent de peste tot → roșu', () => {
+  it('cuvânt-cheie absent de peste tot → roșu', () => {
     const report = analyzeWith({ focusKeyword: 'criptomonede exotice' })
     expect(getCheck(report, 'keyword-presence').status).toBe('fail')
     expect(report.score).toBe('red')

@@ -165,4 +165,18 @@ describe('validateExcerpt', () => {
   it('skips the verbatim check when source text is empty (nothing to copy from)', () => {
     expect(validateExcerpt('Un rezumat oarecare despre eveniment.', '').ok).toBe(true)
   })
+
+  it('rejects „?” placeholders standing in for unknown figures (e.g. „0-?”)', () => {
+    const verdict = validateExcerpt('FCSB a pierdut primul amical al verii, 0-? cu Union.', source)
+    expect(verdict.ok).toBe(false)
+    expect(verdict.reasons).toContain('placeholder')
+    expect(validateExcerpt('Scorul final a fost ?-2 după prelungiri.', source).ok).toBe(false)
+    expect(validateExcerpt('Rezultatul rămâne incert?? potrivit sursei.', source).ok).toBe(false)
+  })
+
+  it('accepts a legitimate question mark in normal copy', () => {
+    expect(
+      validateExcerpt('Va fi majorat salariul minim? Guvernul decide vineri.', source).ok,
+    ).toBe(true)
+  })
 })

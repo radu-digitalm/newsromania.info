@@ -103,6 +103,10 @@ sudo bash deploy/sudo-block-2-nginx-certbot.sh
 - Step 5 (`certbot --nginx --redirect`) needs DNS. If it fails now, re-run
   after cutover:
   `sudo certbot --nginx -d newsromania.info -d www.newsromania.info --redirect`
+- **After HTTPS is verified working**, add HSTS to the certbot-generated 443
+  server block (certbot does not add it) — exact line in the comment at the
+  top of `deploy/nginx/newsromania.conf`:
+  `add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;`
 
 ## 5. DNS cutover — OWNER DECISION
 

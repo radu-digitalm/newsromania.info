@@ -28,8 +28,10 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URL,
     },
-    // Dev-only schema sync (Payload skips push outside dev). Production uses
-    // generated migrations run in the container entrypoint (arch §8).
+    // Dev-only schema sync (Payload skips push when NODE_ENV=production).
+    // Production uses the generated migrations in src/migrations/, applied
+    // HOST-SIDE against the loopback port per deploy/DEPLOY.md §1 — the
+    // container entrypoint runs only `node server.js`.
     push: true,
   }),
   editor: lexicalEditor(),

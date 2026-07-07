@@ -165,6 +165,10 @@ docker image prune -f            # immediately after every image build — the c
                                  # builder leaves stage images dangling (keep the
                                  # :prev rollback tag!); `docker builder prune -f`
                                  # only covers BuildKit cache and reclaims ~0 here
+docker ps -a --filter status=exited   # a FAILED build also leaves a stopped
+                                 # intermediate container behind (random name, can
+                                 # hold 100s of MB) — `docker rm <name>` any leftover
+                                 # that is not a newsromania-* container
 npm cache verify                 # npm cache in ~/.npm; `npm cache clean --force` if needed
 du -sh backups media .next node_modules   # the usual growth spots
 ```

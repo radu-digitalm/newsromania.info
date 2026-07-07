@@ -2,10 +2,20 @@ import type { ReactNode } from 'react'
 
 /**
  * Shared reading layout for the legal pages: white reading column (max 680px,
- * design §3.5), broadsheet section rule under the title and the visible
- * "work in progress" notice required until the legal texts are finalized.
+ * design §3.5), broadsheet section rule under the title and a visible notice.
+ * The default notice is the "work in progress" banner required while a page's
+ * legal text is still a skeleton; pages whose content is final can pass a
+ * tailored `notice` (or `null` to omit it entirely).
  */
-export function LegalPageShell({ title, children }: { title: string; children: ReactNode }) {
+export function LegalPageShell({
+  title,
+  children,
+  notice = 'Această pagină este în curs de finalizare și va fi completată înainte de lansare.',
+}: {
+  title: string
+  children: ReactNode
+  notice?: ReactNode | null
+}) {
   return (
     <div className="bg-surface">
       <div className="mx-auto w-full max-w-[1200px] px-4 md:px-6">
@@ -17,9 +27,11 @@ export function LegalPageShell({ title, children }: { title: string; children: R
           <div aria-hidden="true" className="relative mt-5 h-px bg-ink">
             <span className="absolute -top-px left-0 h-[3px] w-12 bg-brand-red" />
           </div>
-          <p className="mt-6 rounded-[2px] border border-border-pill bg-accent-bg px-5 py-4 font-sans text-[15px] leading-[22px] text-ink">
-            Această pagină este în curs de finalizare și va fi completată înainte de lansare.
-          </p>
+          {notice !== null && (
+            <p className="mt-6 rounded-[2px] border border-border-pill bg-accent-bg px-5 py-4 font-sans text-[15px] leading-[22px] text-ink">
+              {notice}
+            </p>
+          )}
           <div className="mt-10 space-y-10">{children}</div>
         </article>
       </div>

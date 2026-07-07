@@ -4,7 +4,7 @@
  * și în browser (panoul live din editor).
  *
  * Agregarea scorului (PROJECT_BRIEF §20.2 + pasul 4 din plan):
- * - eșec la o verificare CRITICĂ (cuvânt cheie absent peste tot,
+ * - eșec la o verificare CRITICĂ (cuvânt-cheie absent peste tot,
  *   număr de cuvinte sub 60% din minim) ⇒ roșu;
  * - orice alt eșec sau ≥ 3 avertismente ⇒ galben;
  * - altfel ⇒ verde.

@@ -209,9 +209,11 @@ frontPageMaxAgeHours: 72, maxSummariesPerRun: 40 }.
   vs third-party → aggregated-items (fresh AI excerpt, attribution,
   NO third-party full text); dedup by source URL/GUID; preserves dates;
   imports images ONLY into originals (owner's own uploads).
-- Migrations: dev uses adapter push; before deploy generate
-  `npx payload migrate:create` and run `payload migrate` in the container
-  entrypoint. Backup first (rule).
+- Migrations: dev uses adapter push; the committed baseline in
+  `src/migrations/` captures the push-created schema. On schema changes
+  generate `npx payload migrate:create` and run `npx payload migrate`
+  HOST-SIDE against the loopback port (deploy/DEPLOY.md §1) — the container
+  entrypoint runs only the server. Backup first (rule).
 
 ## 9. Deploy shape (step 14)
 

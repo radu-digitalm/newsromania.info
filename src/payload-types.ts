@@ -241,6 +241,10 @@ export interface Article {
   category: number | Category;
   tags?: (number | Tag)[] | null;
   author: number | User;
+  /**
+   * Setată automat la prima publicare (inclusiv programată). Baza pentru ordinea în flux, byline, JSON-LD și sitemap.
+   */
+  publishedAt?: string | null;
   excerpt?: string | null;
   body: {
     root: {
@@ -779,6 +783,7 @@ export interface ArticlesSelect<T extends boolean = true> {
   category?: T;
   tags?: T;
   author?: T;
+  publishedAt?: T;
   excerpt?: T;
   body?: T;
   featuredImage?: T;
@@ -1085,6 +1090,9 @@ export interface SiteConfig {
     cookieRetentionDays?: number | null;
   };
   cdp?: {
+    /**
+     * Se aplică evenimentelor CDP și profilurilor de interese: profilurile nevăzute mai mult de atât sunt șterse de workerul de profile.
+     */
     retentionDays?: number | null;
   };
   editorial?: {

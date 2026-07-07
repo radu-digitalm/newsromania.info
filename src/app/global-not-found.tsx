@@ -26,7 +26,9 @@ export default function GlobalNotFound() {
       <body className="flex min-h-dvh flex-col bg-page font-sans text-ink antialiased">
         <SkipLink />
         <Header />
-        <main id="continut" className="flex-1">
+        {/* scroll-mt: the pinned 48px category nav (+hairline) must not cover
+            the content top when the skip link jumps here. */}
+        <main id="continut" className="flex-1 scroll-mt-[52px]">
           <div className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-10 md:px-6">
             <div className="mx-auto max-w-[680px] rounded-[2px] bg-surface px-6 py-12 text-center">
               <p className="font-sans text-xs font-bold uppercase leading-4 tracking-[0.08em] text-red-text">

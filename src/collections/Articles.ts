@@ -78,6 +78,15 @@ export const Articles: CollectionConfig = {
         }
         return data
       },
+      // Stamp publishedAt on the FIRST draft→published transition (covers
+      // schedulePublish jobs too — they update with _status 'published').
+      // Never overwritten afterwards; editors may still adjust it manually.
+      ({ data, originalDoc }) => {
+        if (data?._status === 'published' && !data.publishedAt && !originalDoc?.publishedAt) {
+          data.publishedAt = new Date().toISOString()
+        }
+        return data
+      },
       // Adevărul SEO de pe server: scrie seo.seoScore/seoReport și aplică
       // poarta de publicare blockPublishOnRed (arch §4).
       seoAnalyzeBeforeChange,
@@ -152,6 +161,18 @@ export const Articles: CollectionConfig = {
       },
     },
     {
+      name: 'publishedAt',
+      label: 'Data publicării',
+      type: 'date',
+      index: true,
+      admin: {
+        position: 'sidebar',
+        date: { pickerAppearance: 'dayAndTime' },
+        description:
+          'Setată automat la prima publicare (inclusiv programată). Baza pentru ordinea în flux, byline, JSON-LD și sitemap.',
+      },
+    },
+    {
       name: 'excerpt',
       label: 'Rezumat',
       type: 'textarea',
@@ -197,7 +218,7 @@ export const Articles: CollectionConfig = {
         },
         {
           name: 'focusKeyword',
-          label: 'Cuvânt cheie principal',
+          label: 'Cuvânt-cheie principal',
           type: 'text',
         },
         {

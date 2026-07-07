@@ -109,12 +109,14 @@ async function loadCandidates(payload, sinceIso) {
       where: {
         and: [
           { _status: { equals: 'published' } },
-          // createdAt is the publish surrogate the whole frontend uses
-          // (src/lib/content.ts) — keep the same notion of „last 24h”.
-          { createdAt: { greater_than_equal: sinceIso } },
+          // publishedAt is stamped on the draft→published transition (Articles
+          // beforeChange hook) — the same publish notion the frontend feed
+          // uses (src/lib/content.ts), so scheduled publishes enter the 24h
+          // window when they actually go live, not when the draft was created.
+          { publishedAt: { greater_than_equal: sinceIso } },
         ],
       },
-      sort: '-createdAt',
+      sort: '-publishedAt',
       limit: CANDIDATE_FETCH_LIMIT,
       depth: 1,
       draft: false,

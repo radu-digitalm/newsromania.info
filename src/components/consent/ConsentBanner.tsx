@@ -12,8 +12,12 @@ import { useState } from 'react'
  *
  * - Binary honest choice: „Accept” / „Refuz” — identical size, style and
  *   click count. Refusing never blocks reading.
- * - Fixed bottom sheet, NO overlay: the page stays fully readable and
- *   scrollable behind it. It disappears only through an explicit choice.
+ * - Sticky bottom sheet, NO overlay: rendered as the LAST flex child of the
+ *   body, `position: sticky; bottom: 0` keeps it pinned while scrolling but —
+ *   unlike `fixed` — it occupies real layout height at the document end, so
+ *   the footer legal bar and its keyboard-focused links are never hidden
+ *   behind it (WCAG 2.2 SC 2.4.11 Focus Not Obscured). It disappears only
+ *   through an explicit choice.
  * - Zero cookies/localStorage/sessionStorage touched here — the choice is
  *   sent to POST /api/consent, which writes the consent cookie server-side;
  *   the page then reloads so the server re-renders the consent state.
@@ -61,7 +65,7 @@ export function ConsentBanner() {
       role="region"
       aria-label="Consimțământ pentru cookie-uri"
       aria-live="polite"
-      className="fixed inset-x-0 bottom-0 z-50 border-t-2 border-ink bg-surface shadow-[0_-4px_16px_rgba(20,24,29,0.12)]"
+      className="sticky bottom-0 z-50 w-full border-t-2 border-ink bg-surface shadow-[0_-4px_16px_rgba(20,24,29,0.12)]"
     >
       <div className="mx-auto w-full max-w-[1200px] px-4 py-4 md:px-6 md:py-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-8">

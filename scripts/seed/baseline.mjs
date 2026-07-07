@@ -12,7 +12,8 @@
  *   - the „Redacția NewsRomania” author user (random password, never printed)
  *   - site-config global defaults (arch §3)
  *   - 6 evergreen original articles (published, byline: Redacția)
- *   - the 2 freshest aggregated fixtures (fictional example.org publishers)
+ *   - the 2 freshest aggregated fixtures (fictional example.org publishers,
+ *     seeded archived:true so they never surface on the public feed)
  *   - 5 starter Romanian RSS feeds — all active:false + link-only until the
  *     owner confirms each publisher's T&Cs (legal gate, PROJECT_BRIEF 0.1)
  *
@@ -241,8 +242,9 @@ try {
         excerpt: article.excerpt,
         body: toLexical(article.body),
         _status: 'published',
-        // Articles have no publishedAt field (arch §3) — preserve the fixture
-        // date via createdAt so feed ordering (§6) stays correct.
+        // Preserve the fixture date both as the explicit publish date (feed
+        // ordering, byline, JSON-LD) and as createdAt (legacy fallback).
+        publishedAt: article.publishedAt,
         createdAt: article.publishedAt,
       },
       depth: 0,
@@ -273,7 +275,10 @@ try {
         imageUrl: '',
         imageAllowed: false,
         publishedAt: item.publishedAt,
-        archived: false,
+        // Fixture publishers are FICTIONAL (example.org) by design — seed them
+        // archived so demo rows never surface on a production feed. They still
+        // exercise the aggregated rendering path in /admin and previews.
+        archived: true,
       },
       depth: 0,
     })

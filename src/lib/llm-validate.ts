@@ -71,6 +71,13 @@ export function longestCommonRun(a: string, b: string): number {
   return best
 }
 
+/**
+ * Placeholder marks the model may emit instead of facts it could not verify
+ * (seen in the wild: the score „0-?”). A „?” glued to a digit or doubled is
+ * never legitimate Romanian news copy — reject and retry/fall back.
+ */
+const PLACEHOLDER_PATTERN = /\d\s*[-–:]\s*\?|\?\s*[-–:]\s*\d|\?{2}/u
+
 export interface ExcerptValidation {
   ok: boolean
   /**
@@ -78,7 +85,8 @@ export interface ExcerptValidation {
    * - `empty` — no words at all;
    * - `too-long:<n>` — n words, over MAX_EXCERPT_WORDS;
    * - `verbatim-run:<n>` — n consecutive words copied from the source,
-   *   over MAX_VERBATIM_RUN.
+   *   over MAX_VERBATIM_RUN;
+   * - `placeholder` — a „?” used in place of an unknown figure (e.g. „0-?”).
    */
   reasons: string[]
 }
@@ -102,6 +110,10 @@ export function validateExcerpt(excerpt: string, sourceText: string): ExcerptVal
     if (run > MAX_VERBATIM_RUN) {
       reasons.push(`verbatim-run:${run}`)
     }
+  }
+
+  if (PLACEHOLDER_PATTERN.test(excerpt)) {
+    reasons.push('placeholder')
   }
 
   return { ok: reasons.length === 0, reasons }

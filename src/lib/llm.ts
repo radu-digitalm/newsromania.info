@@ -314,19 +314,26 @@ export function parseJsonObject(text: string): Record<string, unknown> | null {
   return null
 }
 
+/** Twitter/X wraps every URL in t.co and counts it as EXACTLY 23 characters. */
+export const TCO_URL_LENGTH = 23
+
 /**
- * Compose a tweet: body + space + link, hard-capped at `max` chars. The link
- * is never truncated; the body is cut on a word boundary with an ellipsis.
+ * Compose a tweet: body + space + link, capped at `max` WEIGHTED chars. The
+ * link is never truncated and — per Twitter's counting rules — always weighs
+ * {@link TCO_URL_LENGTH} regardless of its raw length, so long article slugs
+ * never eat into the body budget. The body is cut on a word boundary (with
+ * dangling punctuation trimmed) and an ellipsis.
  */
 export function clampTweet(body: string, url: string, max = 240): string {
   const cleanBody = body.replace(new RegExp(escapeRegExp(url), 'g'), '').trim()
-  const room = max - url.length - 1
+  const room = max - TCO_URL_LENGTH - 1
   let text = cleanBody
   if (text.length > room) {
     text = text.slice(0, room - 1)
     const lastSpace = text.lastIndexOf(' ')
     if (lastSpace > room / 2) text = text.slice(0, lastSpace)
-    text = `${text.trimEnd()}…`
+    // No dangling comma/colon/dash right before the ellipsis.
+    text = `${text.replace(/[\s,;:–—-]+$/u, '')}…`
   }
   return text.length > 0 ? `${text} ${url}` : url
 }
@@ -370,6 +377,7 @@ Reguli obligatorii:
 - Maximum 50 de cuvinte, un singur paragraf, fără titlu, fără ghilimele decorative.
 - Reformulează COMPLET, cu propriile cuvinte: nu prelua niciodată mai mult de câteva cuvinte consecutive din textul-sursă și nu cita pasaje.
 - Strict faptic: fără opinii, fără superlative, fără informații care nu apar în sursă.
+- Nu folosi „?" sau alte semne de substituție în locul cifrelor ori faptelor pe care nu le găsești în sursă (de ex. scorul „0-?") — omite pur și simplu informația respectivă.
 - Atribuie natural sursa o singură dată (de ex. „potrivit {SURSA}" sau „relatează {SURSA}").
 - Nu adăuga linkuri, emoji sau hashtaguri.
 Răspunde DOAR cu textul rezumatului.`
@@ -492,7 +500,7 @@ export async function writeCaptions(
 Răspunde DOAR cu un obiect JSON: {"facebook": "...", "twitter": "...", "instagram": "..."}.
 - facebook: 2-3 propoziții informative, ton sobru, apoi linkul pe rând nou.
 - twitter: o singură propoziție percutantă + linkul; TOTAL sub 240 de caractere.
-- instagram: orientat vizual (prima frază scurtă, descriptivă), 2-4 rânduri, FĂRĂ link, cu cel mult 5 hashtaguri românești la final.
+- instagram: orientat vizual (prima frază scurtă, descriptivă), 2-4 rânduri, FĂRĂ link, cu cel mult 5 hashtaguri românești la final. Convenție hashtaguri: litere mici, fără diacritice, substantive nearticulate (ex. #stiri #romania #economie #mediu).
 Fără emoji excesive (maximum una), fără clickbait, fără majuscule integrale.`,
     user: `Titlu: ${input.title}\nRezumat: ${input.excerpt}\nLink: ${input.url}`,
     temperature: 0.5,

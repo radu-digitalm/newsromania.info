@@ -44,7 +44,8 @@ import configPromise from '../../src/payload.config.ts'
 import { summarizeExcerpt } from '../../src/lib/llm.ts'
 import { roSlugify } from '../../src/lib/slugify.ts'
 
-const SITE = 'https://newsromania.info'
+// Import source — overridable via SEED_SOURCE_URL (documented in .env.example).
+const SITE = (process.env.SEED_SOURCE_URL ?? 'https://newsromania.info').replace(/\/+$/, '')
 const OWN_HOSTS = new Set(['newsromania.info', 'www.newsromania.info'])
 const USER_AGENT = 'newsromania-import/1.0'
 const REQUEST_GAP_MS = 1000 // polite: 1 req/sec
@@ -247,7 +248,13 @@ function detectExternalSource(post) {
 function cleanAggregatedTitle(title, sourceHost) {
   const match = title.match(/^\s*([\w.\- ]{2,30}?)\s*[:|]\s*(.+)$/s)
   if (!match) return title.trim()
-  const prefixKey = match[1].toLowerCase().replace(/[^a-z0-9]/g, '')
+  // Normalize BOTH sides identically: drop a leading „www.”/„www” before
+  // stripping non-alphanumerics, otherwise „www.g4media |” („wwwg4media”)
+  // never matches host „www.g4media.ro” („g4mediaro”).
+  const prefixKey = match[1]
+    .toLowerCase()
+    .replace(/^www\.?/, '')
+    .replace(/[^a-z0-9]/g, '')
   const hostKey = sourceHost
     .toLowerCase()
     .replace(/^www\./, '')

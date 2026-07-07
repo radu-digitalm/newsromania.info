@@ -3,7 +3,7 @@
 /**
  * Panoul SEO live din editorul de articole (PROJECT_BRIEF §20, arch §4).
  * Câmp UI Payload montat în grupul „SEO”: citește live titlul, slug-ul,
- * meta câmpurile, cuvântul cheie și corpul Lexical din starea formularului
+ * meta câmpurile, cuvântul-cheie și corpul Lexical din starea formularului
  * (useFormFields), re-analizează cu debounce de 500 ms și afișează semaforul,
  * lista de verificări și previzualizarea snippetului Google.
  *

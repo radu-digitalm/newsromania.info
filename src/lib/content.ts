@@ -21,6 +21,15 @@ import type { Where } from 'payload'
 
 const PAGE_SIZE = 10
 
+/**
+ * Upper bound on ?page= — without it, an arbitrary page number would force
+ * both collections to be fetched in full (fetchLimit = page*10+1) and each
+ * distinct number would mint its own Redis cache key (cheap request →
+ * expensive query amplification). 100 pages × 10 items covers far more than
+ * the 14-day aggregated window ever holds.
+ */
+const MAX_PAGE = 100
+
 /** How many recent docs per collection the search scans (keep simple, §6). */
 const SEARCH_WINDOW = 100
 
@@ -115,9 +124,9 @@ export function articleToFeedItem(doc: PayloadArticle): OriginalArticle {
     excerpt: doc.excerpt ?? '',
     category,
     tags: mapTags(doc.tags),
-    // The articles collection carries no explicit publish date field —
-    // createdAt is stable across draft saves and is the closest honest value.
-    publishedAt: doc.createdAt,
+    // publishedAt is stamped on the draft→published transition (Articles
+    // beforeChange hook); createdAt covers legacy docs from before the field.
+    publishedAt: doc.publishedAt ?? doc.createdAt,
     image: mapFeaturedImage(doc.featuredImage, category),
     author: { name: authorName, slug: roSlugify(authorName) },
     body: lexicalToParagraphs(doc.body),
@@ -180,7 +189,7 @@ export async function getFeed({
   page: number
   categorySlug?: string
 }): Promise<FeedPage> {
-  const safePage = Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1
+  const safePage = Number.isFinite(page) && page >= 1 ? Math.min(Math.floor(page), MAX_PAGE) : 1
 
   return cacheJson(rkey('feed', categorySlug ?? 'all', safePage), FEED_CACHE_TTL_SEC, async () => {
     const payload = await getPayloadClient()
@@ -192,7 +201,7 @@ export async function getFeed({
       payload.find({
         collection: 'articles',
         where: publishedArticlesWhere(categorySlug),
-        sort: '-createdAt',
+        sort: '-publishedAt',
         limit: fetchLimit,
         depth: 1,
         draft: false,
@@ -267,7 +276,7 @@ export async function getFeaturedArticle(): Promise<OriginalArticle | null> {
     const res = await payload.find({
       collection: 'articles',
       where: publishedArticlesWhere(),
-      sort: '-createdAt',
+      sort: '-publishedAt',
       limit: 1,
       depth: 1,
       draft: false,
@@ -283,7 +292,7 @@ export async function getPublishedOriginals(limit = 500): Promise<OriginalArticl
   const res = await payload.find({
     collection: 'articles',
     where: publishedArticlesWhere(),
-    sort: '-createdAt',
+    sort: '-publishedAt',
     limit,
     depth: 1,
     draft: false,
@@ -306,7 +315,7 @@ export async function search(q: string): Promise<FeedItem[]> {
     payload.find({
       collection: 'articles',
       where: publishedArticlesWhere(),
-      sort: '-createdAt',
+      sort: '-publishedAt',
       limit: SEARCH_WINDOW,
       depth: 1,
       draft: false,

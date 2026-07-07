@@ -101,11 +101,28 @@ describe('clampTweet', () => {
     expect(tweet.length).toBeLessThanOrEqual(240)
   })
 
-  it('never exceeds 240 chars and never truncates the link', () => {
+  it('never exceeds 240 WEIGHTED chars (URL counts as t.co 23) and never truncates the link', () => {
     const tweet = clampTweet('cuvânt '.repeat(60), url)
-    expect(tweet.length).toBeLessThanOrEqual(240)
+    // Twitter counts any URL as exactly 23 chars, whatever its raw length.
+    const weighted = tweet.length - url.length + 23
+    expect(weighted).toBeLessThanOrEqual(240)
     expect(tweet.endsWith(url)).toBe(true)
     expect(tweet).toContain('…')
+  })
+
+  it('budgets the body against the t.co weight, not the raw URL length', () => {
+    // 180-char URL (long aggregated slug): the raw-length budget would leave
+    // only ~59 chars of body; the t.co budget keeps the full 216.
+    const longUrl = `https://newsromania.info/stiri/${'a'.repeat(149)}`
+    const body = 'x'.repeat(216)
+    const tweet = clampTweet(body, longUrl)
+    expect(tweet).toBe(`${body} ${longUrl}`)
+  })
+
+  it('trims dangling punctuation before the ellipsis', () => {
+    const body = `${'cuvânt '.repeat(29)}cuvânt,${' final'.repeat(20)}`
+    const tweet = clampTweet(body, url)
+    expect(tweet).not.toContain(',…')
   })
 
   it('does not duplicate a link the model already included', () => {

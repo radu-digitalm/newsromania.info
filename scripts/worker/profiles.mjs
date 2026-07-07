@@ -20,7 +20,11 @@
  *      Per-visitor double-count guard: events with ts ≤ profile.lastSeenAt
  *      are skipped even if the watermark was lost (Redis restart).
  *   2. RETENTION — delete cdp-events older than site-config
- *      cdp.retentionDays (default 365).
+ *      cdp.retentionDays (default 365), AND cdp-profiles whose lastSeenAt is
+ *      older than the same window (GDPR storage limitation, Art. 5(1)(e)):
+ *      a profile of a visitor not seen for the whole retention window is
+ *      either abandoned or orphaned (nr_consent expired → a later accept
+ *      mints a fresh visitorId), so it can never be matched again.
  *   3. GDPR ERASURE — visitors whose LATEST consent-record choice is
  *      'withdrawn'/'refused' get their profile AND events deleted.
  *   4. Every touched/purged visitor's Redis profile cache
@@ -73,11 +77,15 @@ async function invalidateProfileCache(visitorId) {
   }
 }
 
-/** All events with ts > since, oldest first, paginated + hard-capped. */
+/**
+ * All events with ts > since, oldest first, paginated + hard-capped.
+ * `complete` is false when the page cap or the time budget truncated the
+ * read — the caller must then NOT advance the watermark past what it saw.
+ */
 async function loadEventsSince(payload, sinceIso) {
   const events = []
-  let page = 1
-  for (; page <= MAX_EVENT_PAGES; page += 1) {
+  let complete = true
+  for (let page = 1; ; page += 1) {
     const res = await payload.find({
       collection: 'cdp-events',
       where: { ts: { greater_than: sinceIso } },
@@ -88,9 +96,13 @@ async function loadEventsSince(payload, sinceIso) {
       overrideAccess: true,
     })
     events.push(...res.docs)
-    if (!res.hasNextPage || timeUp()) break
+    if (!res.hasNextPage) break
+    if (page >= MAX_EVENT_PAGES || timeUp()) {
+      complete = false
+      break
+    }
   }
-  return events
+  return { events, complete }
 }
 
 /** Group events per visitor, keeping only ts > profile.lastSeenAt later. */
@@ -172,6 +184,31 @@ async function enforceRetention(payload, retentionDays) {
 }
 
 /**
+ * Step 2b — delete cdp-profiles not seen for cdp.retentionDays (storage
+ * limitation): abandoned or orphaned behavioural profiles must not live
+ * forever just because only their EVENTS were expiring. Mirrors
+ * enforceRetention; every deleted visitor's Redis cache entry is dropped.
+ */
+async function enforceProfileRetention(payload, retentionDays) {
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString()
+  const res = await payload.delete({
+    collection: 'cdp-profiles',
+    where: { lastSeenAt: { less_than: cutoff } },
+    depth: 0,
+    overrideAccess: true,
+  })
+  if (res.errors?.length) {
+    console.warn(`[profiles] retenție profile: ${res.errors.length} erori la ștergere`)
+  }
+  for (const doc of res.docs ?? []) {
+    if (typeof doc.visitorId === 'string' && doc.visitorId !== '') {
+      await invalidateProfileCache(doc.visitorId)
+    }
+  }
+  return res.docs?.length ?? 0
+}
+
+/**
  * Step 3 — GDPR erasure. consent-records written on withdraw/refuse carry the
  * visitorId being given up (see /api/consent); a visitor whose LATEST record
  * is not 'accepted' loses profile + events + cache entry.
@@ -239,13 +276,14 @@ async function main() {
   const watermark = await readWatermark()
   const since = watermark && watermark > windowFloor ? watermark : windowFloor
 
-  const events = await loadEventsSince(payload, since)
+  const { events, complete: loadComplete } = await loadEventsSince(payload, since)
   const byVisitor = groupByVisitor(events)
   console.log(
     `[profiles] ${events.length} evenimente noi de la ${since} (${byVisitor.size} vizitatori)`,
   )
 
-  const totals = { created: 0, updated: 0, skipped: 0, retention: 0, purged: 0 }
+  const totals = { created: 0, updated: 0, skipped: 0, retention: 0, profiles: 0, purged: 0 }
+  const processedVisitors = new Set()
   for (const [visitorId, visitorEvents] of byVisitor) {
     if (timeUp()) {
       console.warn('[profiles] limită de timp atinsă — vizitatorii rămași la rularea următoare')
@@ -253,11 +291,30 @@ async function main() {
     }
     try {
       totals[await upsertProfile(payload, visitorId, visitorEvents)] += 1
+      processedVisitors.add(visitorId)
     } catch (err) {
       console.warn(`[profiles] profil eșuat (${visitorId.slice(0, 8)}…): ${errMsg(err)}`)
     }
   }
-  await writeWatermark(runStartIso)
+
+  // Watermark: advance to run start ONLY when every loaded event was fed into
+  // a processed visitor AND the load itself was complete. Otherwise rewind to
+  // just before the oldest unprocessed event so the next run re-reads it —
+  // the per-profile lastSeenAt guard makes re-reads double-count-safe.
+  let nextWatermark = runStartIso
+  if (!loadComplete && events.length > 0) {
+    nextWatermark = events[events.length - 1].ts
+  }
+  const unprocessedTs = []
+  for (const [visitorId, visitorEvents] of byVisitor) {
+    if (processedVisitors.has(visitorId)) continue
+    for (const event of visitorEvents) unprocessedTs.push(Date.parse(event.ts))
+  }
+  if (unprocessedTs.length > 0) {
+    const rewind = new Date(Math.min(...unprocessedTs) - 1).toISOString()
+    if (rewind < nextWatermark) nextWatermark = rewind
+  }
+  await writeWatermark(nextWatermark)
 
   // --- 2. retention ----------------------------------------------------------
   if (!timeUp()) {
@@ -265,6 +322,13 @@ async function main() {
       totals.retention = await enforceRetention(payload, retentionDays)
     } catch (err) {
       console.warn(`[profiles] pasul de retenție a eșuat: ${errMsg(err)}`)
+    }
+  }
+  if (!timeUp()) {
+    try {
+      totals.profiles = await enforceProfileRetention(payload, retentionDays)
+    } catch (err) {
+      console.warn(`[profiles] pasul de retenție a profilurilor a eșuat: ${errMsg(err)}`)
     }
   }
 
@@ -281,7 +345,8 @@ async function main() {
   console.log(
     `[profiles] gata în ${seconds}s — profile create: ${totals.created}, ` +
       `actualizate: ${totals.updated}, fără noutăți: ${totals.skipped}, ` +
-      `evenimente expirate șterse: ${totals.retention}, vizitatori purjați (GDPR): ${totals.purged}`,
+      `evenimente expirate șterse: ${totals.retention}, profile expirate șterse: ${totals.profiles}, ` +
+      `vizitatori purjați (GDPR): ${totals.purged}`,
   )
 }
 
