@@ -26,10 +26,17 @@ import { getRedis, rkey } from '../../src/lib/redis.ts'
 const payload = await getPayload({ config: configPromise })
 const log = (msg) => console.log(`[set-amazon-tags] ${msg}`)
 
+// Authoritative per-country tags from the owner's OneLink „Tracking ID
+// preferences" (primary store newsr01-21). Each partnerTag matches its
+// marketplace, so PA-API calls attribute correctly per market; for static/
+// SiteStripe links the primary newsr01-21 + OneLink also redirects globally.
 const TAGS = [
   { marketplace: 'www.amazon.co.uk', tag: 'newsr01-21' },
-  { marketplace: 'www.amazon.de', tag: 'newsromania02-21' },
+  { marketplace: 'www.amazon.de', tag: 'newsromaniade-21' },
+  { marketplace: 'www.amazon.es', tag: 'newsromaniaes-21' },
   { marketplace: 'www.amazon.fr', tag: 'newsromaniafr-21' },
+  { marketplace: 'www.amazon.it', tag: 'newsromaniait-21' },
+  { marketplace: 'www.amazon.com', tag: 'newsromaniaus-20' },
 ]
 
 try {
