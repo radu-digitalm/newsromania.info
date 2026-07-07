@@ -3,13 +3,23 @@ import { AD_PREVIEW } from '@/lib/ads/preview'
 
 import { AdPreviewBox } from './AdPreviewBox'
 import { AdSenseUnit } from './AdSenseUnit'
+import { AmazonProductAd } from './AmazonProductAd'
 import { RailAdReveal } from './RailAdReveal'
 
 /**
  * SideRailAd — the v2.2 desktop-only sticky rail ad column (design direction
- * v2.2): a 300px AdSense column beside the centered max-w-2xl feed on home +
+ * v2.2): a 300px ad column beside the centered max-w-2xl feed on home +
  * category pages (Facebook right-rail pattern). Renders the engine's 'rail'
  * decision (engine-core AD_PLACEMENTS — planned again since v2.2).
+ *
+ * v2.3 (owner R1: mix AdSense + Amazon on every page): the rail is now the
+ * home/category page's AMAZON surface — the engine marks it network 'amazon'
+ * (a single product via AmazonProductAd), so a page with no article-below slot
+ * still shows both networks. SideRailAd is server-rendered (mounted only by the
+ * server home/category pages), so it can render the server-only AmazonProductAd
+ * directly — the same ArticleAdSlot dispatch pattern, kept OUT of the client
+ * feed bundle. When the engine has no Amazon decision (no partnerTag for the
+ * marketplace) the rail degrades to the AdSense treatment below.
  *
  * - **Desktop only:** the whole column is `hidden lg:block` — below lg the
  *   markup exists but is display:none and, critically, its <ins> is NEVER
@@ -38,6 +48,19 @@ import { RailAdReveal } from './RailAdReveal'
 const SHORT_FORMATS = new Set(['rectangle', '300x250'])
 
 export function SideRailAd({ decision }: { decision?: AdDecision }) {
+  // Amazon rail (R1): a single sticky product card, desktop-only. The
+  // AmazonProductAd renders its own labelled „Publicitate" card + Associate
+  // disclosure, so the column just provides the sticky 300px frame.
+  if (decision?.network === 'amazon' && decision.amazon) {
+    return (
+      <div className="hidden w-[300px] shrink-0 pt-6 lg:block" data-testid="side-rail">
+        <div className="sticky top-[72px]">
+          <AmazonProductAd decision={decision.amazon} />
+        </div>
+      </div>
+    )
+  }
+
   const adsense = adsenseAt(decision, 0)
   // No rail decision (legacy config / engine fallback) ⇒ nothing to reserve.
   if (!adsense) return null

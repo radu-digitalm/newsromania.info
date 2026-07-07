@@ -113,11 +113,11 @@ function EmptyFeed() {
 }
 
 interface HomePageProps {
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<{ page?: string; geo?: string }>
 }
 
 export default async function HomePage({ searchParams }: HomePageProps) {
-  const { page: pageParam } = await searchParams
+  const { page: pageParam, geo } = await searchParams
   const parsed = Number.parseInt(pageParam ?? '1', 10)
   const page = Number.isNaN(parsed) || parsed < 1 ? 1 : parsed
   const isFirstPage = page === 1
@@ -126,7 +126,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     getFeed({ page }),
     // Per-request ad decisions (architecture.md §4): geo + consent + profile.
     // No category on the homepage — keywords stay profile/consent-driven only.
-    getRequestAdPlan(),
+    // ?geo=<CC> is the owner's preview override (honored only under AD_PREVIEW).
+    getRequestAdPlan(undefined, { countryOverride: geo }),
     // Featured slot logic unchanged from v2 (§8.3.1): newest PUBLISHED
     // original, falling back to the newest feed item. Page 1 only.
     isFirstPage ? getFeaturedArticle() : Promise.resolve(null),

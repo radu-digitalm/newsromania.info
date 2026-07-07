@@ -9,6 +9,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const lookupMock = vi.hoisted(() => vi.fn())
 const findGlobalMock = vi.hoisted(() => vi.fn())
 const cacheCalls = vi.hoisted(() => [] as Array<{ key: string; ttlSec: number }>)
+// Mutable AD_PREVIEW flag (R6b): geo.ts reads AD_PREVIEW live at call time, so
+// a getter-backed mock lets each test drive the preview gate. Defaults OFF so
+// the production/spoofing tests keep their real-launch semantics.
+const previewFlag = vi.hoisted(() => ({ on: false }))
+
+vi.mock('@/lib/ads/preview', () => ({
+  get AD_PREVIEW() {
+    return previewFlag.on
+  },
+}))
 
 vi.mock('geoip-lite', () => ({ default: { lookup: lookupMock } }))
 
@@ -42,6 +52,7 @@ beforeEach(() => {
   findGlobalMock.mockReset()
   findGlobalMock.mockResolvedValue({ localeRules: LOCALE_RULES })
   cacheCalls.length = 0
+  previewFlag.on = false
 })
 
 afterEach(() => {
@@ -123,12 +134,64 @@ describe('resolveGeo: x-geo-country override', () => {
     expect(geo).toEqual({ country: 'RO', region: 'RO', adSet: 'ro' })
   })
 
-  it('is disabled in production (visitors cannot spoof their region)', async () => {
+  it('is disabled in production when preview is OFF (visitors cannot spoof their region)', async () => {
     vi.stubEnv('NODE_ENV', 'production')
     lookupMock.mockReturnValue({ country: 'US' })
     const geo = await resolveGeo(makeHeaders({ 'x-geo-country': 'GB', 'x-real-ip': '8.8.8.8' }))
     expect(geo.country).toBe('US')
     expect(geo.region).toBe('default')
+  })
+
+  it('R6b: is RE-ENABLED in production when AD_PREVIEW is on (owner tunnel preview)', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    previewFlag.on = true
+    lookupMock.mockReturnValue({ country: 'US' })
+    // Owner previews GB through the SSH tunnel: the header wins over geoip.
+    const geo = await resolveGeo(makeHeaders({ 'x-geo-country': 'GB', 'x-real-ip': '8.8.8.8' }))
+    expect(geo).toEqual({ country: 'GB', region: 'UK', adSet: 'uk' })
+    expect(lookupMock).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// resolveGeo — ?geo=<CC> preview override (R6b, preview-gated)
+// ---------------------------------------------------------------------------
+
+describe('resolveGeo: ?geo query-param override (R6b)', () => {
+  it('honors the countryOverride ONLY when AD_PREVIEW is on', async () => {
+    previewFlag.on = true
+    // Loopback IP (server sees the SSH tunnel as loopback) — no geoip lookup,
+    // yet ?geo=fr maps to the FR marketplace region for the preview.
+    const geo = await resolveGeo(makeHeaders({ 'x-real-ip': '127.0.0.1' }), 'fr')
+    // FR isn't in LOCALE_RULES → keeps country FR but default region; the
+    // marketplace mapping (marketplaceForCountry) then drives amazon.fr.
+    expect(geo.country).toBe('FR')
+    expect(lookupMock).not.toHaveBeenCalled()
+  })
+
+  it('ignores the countryOverride when AD_PREVIEW is off (real visitors)', async () => {
+    previewFlag.on = false
+    lookupMock.mockReturnValue({ country: 'RO' })
+    const geo = await resolveGeo(makeHeaders({ 'x-real-ip': '81.180.223.5' }), 'fr')
+    // ?geo=fr is ignored → falls through to the geoip chain (RO).
+    expect(geo).toEqual({ country: 'RO', region: 'RO', adSet: 'ro' })
+    expect(lookupMock).toHaveBeenCalledWith('81.180.223.5')
+  })
+
+  it('ignores a malformed override and falls through to the IP chain', async () => {
+    previewFlag.on = true
+    lookupMock.mockReturnValue({ country: 'GB' })
+    const geo = await resolveGeo(makeHeaders({ 'x-real-ip': '81.2.69.142' }), 'FRA')
+    expect(geo).toEqual({ country: 'GB', region: 'UK', adSet: 'uk' })
+  })
+
+  it('the ?geo override wins over the x-geo-country header (both preview-gated)', async () => {
+    previewFlag.on = true
+    const geo = await resolveGeo(
+      makeHeaders({ 'x-geo-country': 'gb', 'x-real-ip': '8.8.8.8' }),
+      'ro',
+    )
+    expect(geo).toEqual({ country: 'RO', region: 'RO', adSet: 'ro' })
   })
 })
 

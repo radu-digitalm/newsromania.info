@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { Fragment } from 'react'
 
 import { AdSlot } from '@/components/ads/AdSlot'
 import { ArticleAdSlot } from '@/components/ads/ArticleAdSlot'
@@ -27,19 +26,21 @@ import type { AggregatedItem, FeedItem } from '@/types/content'
  *   Canonical keeps pointing to the original publisher (PROJECT_BRIEF §16)
  *   and no structured data is emitted — we never claim authorship.
  *
- * Ads (owner requirement 3): BOTH types carry the responsive top banner
- * (above the <article> — never between title and attribution), one in-article
- * slot and one end-of-article slot, exactly like each other.
+ * Ads (owner requirement R3): BOTH types carry the responsive top banner
+ * (above the <article> — never between title and attribution) and exactly ONE
+ * ad box BELOW the article body/CTA — the dedicated 'article-end' placement,
+ * which the engine marks network 'amazon' (a single product, R1/R2). There is
+ * NO mid-article slot anymore (removed on both branches, R3).
  *
- * After the body/CTA, BOTH types mount the „Mai multe știri” section
- * (owner requirement 4, <MoreNews>): six cards — same category first, then
- * the latest from other categories — with exactly ONE card randomly replaced
- * per request by the plan's 'feed' ad block (the page is force-dynamic, so
- * the position varies per view).
+ * After that single box, BOTH types mount the „Mai multe știri” section
+ * (owner requirement 4, <MoreNews>): four cards + two staggered AdSense boxes
+ * (R5), so the article page shows both networks (Amazon below + AdSense in the
+ * related-news grid).
  */
 
 interface ArticlePageProps {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ geo?: string }>
 }
 
 // Fully dynamic: new articles must resolve without a rebuild, and ad
@@ -220,17 +221,19 @@ function ArticleShell({
   )
 }
 
-export default async function ArticlePage({ params }: ArticlePageProps) {
+export default async function ArticlePage({ params, searchParams }: ArticlePageProps) {
   const { slug } = await params
+  const { geo } = await searchParams
   const article = await getFeedItemBySlug(slug)
   if (!article) notFound()
 
   // Per-request ad decisions (architecture.md §4) — the article's category
   // drives contextual keywords; consent/profile handled inside the helper.
-  const adPlan = await getRequestAdPlan(article.category.slug)
-  const articleAd = decisionFor(adPlan, 'article')
-  // End-of-article slot has its OWN placement in the plan ('article-end',
-  // rectangle default, its own unit pool + Amazon eligibility — ads engine v2).
+  // ?geo=<CC> is the owner's preview override (honored only under AD_PREVIEW).
+  const adPlan = await getRequestAdPlan(article.category.slug, { countryOverride: geo })
+  // R3: the ONLY article ad box is the below-body slot — the dedicated
+  // 'article-end' placement (its own unit pool + Amazon eligibility). The
+  // engine marks it network 'amazon' → ArticleAdSlot renders a single product.
   const articleEndAd = decisionFor(adPlan, 'article-end')
 
   if (article.type === 'aggregated') {
@@ -242,7 +245,8 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
         {/* CTA directly after the excerpt; the ad comes only BELOW the CTA
             block — never between excerpt and CTA (misclick protection). */}
         <ReadFullArticleCta article={article} />
-        <ArticleAdSlot decision={articleAd} />
+        {/* R3: exactly one ad box, below the CTA — never between excerpt and
+            CTA (misclick protection). */}
         <ArticleAdSlot decision={articleEndAd} />
       </ArticleShell>
     )
@@ -262,21 +266,19 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       <ArticleHeader article={article} />
       <Standfirst text={article.excerpt} />
 
-      {/* Original body — 680px reading column (§3.5.1). */}
+      {/* Original body — 680px reading column (§3.5.1). R3: no mid-article
+          slot anymore — the single ad box comes below the whole body. */}
       <div className="max-w-[680px] font-sans text-[17px] leading-7 text-ink md:text-lg md:leading-[30px]">
         {article.body.map((paragraph, index) => (
-          <Fragment key={index}>
-            <p className="mt-5">{paragraph}</p>
-            {/* One in-article slot after the 3rd paragraph — never between
-                title and byline (§4.4 placement ethics). */}
-            {index === 2 && article.body.length > 3 && <ArticleAdSlot decision={articleAd} />}
-          </Fragment>
+          <p key={index} className="mt-5">
+            {paragraph}
+          </p>
         ))}
       </div>
 
-      {/* End-of-article slot (§3.5 ⑦) — the SAME dedicated 'article-end'
-          placement as on aggregated pages, so both content types draw from
-          one unit pool and Amazon eligibility for this slot. */}
+      {/* R3: the SINGLE below-article box (§3.5 ⑦) — the dedicated
+          'article-end' placement, network 'amazon' (a single product). Same
+          placement on both content types. */}
       <ArticleAdSlot decision={articleEndAd} />
     </ArticleShell>
   )

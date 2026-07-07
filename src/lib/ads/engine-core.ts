@@ -144,10 +144,24 @@ export const DEFAULT_FORMAT: Record<AdPlacement, string> = {
 /**
  * Amazon placements (§6.2): product ads sit beside content, never in-feed and
  * never in the top banner. v2 moved the old sidebar's Amazon inventory to the
- * end-of-article slot; the v2.2 desktop rail is AdSense-only and stays OUT of
- * this set.
+ * end-of-article slot; v2.3 (owner R1: mix AdSense + Amazon on every page) adds
+ * the desktop side rail — the home/category page's Amazon surface — so a page
+ * with no article-below slot still shows both networks. The end-of-article slot
+ * ('article-end') carries the single below-article Amazon box; the in-feed and
+ * leaderboard placements stay AdSense-only (OUT of this set).
  */
-const AMAZON_PLACEMENTS: ReadonlySet<AdPlacement> = new Set(['article', 'article-end'])
+const AMAZON_PLACEMENTS: ReadonlySet<AdPlacement> = new Set(['article', 'article-end', 'rail'])
+
+/**
+ * Generic shopping keywords for the desktop side rail (R1) when the page has
+ * no contextual/behavioural keywords of its own — the homepage has no category
+ * and refused/unknown visitors have no profile, yet the rail must still show
+ * Amazon inventory (the home page's network mix). Article placements keep the
+ * strict contextual gate (no keywords ⇒ AdSense keeps the slot) so an ad next
+ * to the body is always page-relevant; only the always-present rail leans on
+ * this fallback. amazon.de-appropriate generic terms (RO/unmatched buy there).
+ */
+const RAIL_FALLBACK_KEYWORDS: readonly string[] = ['recomandări Amazon', 'oferte']
 
 /**
  * Country → Amazon marketplace (PROJECT_BRIEF §6.4; no amazon.ro — RO and
@@ -200,14 +214,19 @@ function amazonDecisionFor(
   config: AdEngineConfig,
 ): AmazonDecision | undefined {
   if (!AMAZON_PLACEMENTS.has(placement)) return undefined
-  if (keywords.length === 0) return undefined
+  // The rail (R1) always carries Amazon on home/category; when the page has no
+  // keywords of its own it falls back to generic shopping terms. Article
+  // placements keep the strict gate — no keywords ⇒ AdSense keeps the slot.
+  const resolved =
+    keywords.length > 0 ? keywords : placement === 'rail' ? [...RAIL_FALLBACK_KEYWORDS] : []
+  if (resolved.length === 0) return undefined
   // The partnerTag MUST match the request marketplace (PROJECT_BRIEF §6.4) —
   // no tag for this marketplace ⇒ no Amazon ad, AdSense keeps the slot.
   const tag = config.amazonPartnerTags.find(
     (row) => row.marketplace.trim().toLowerCase() === marketplace.toLowerCase(),
   )
   if (!tag) return undefined
-  return { keywords, marketplace, partnerTag: tag.tag }
+  return { keywords: resolved, marketplace, partnerTag: tag.tag }
 }
 
 /**

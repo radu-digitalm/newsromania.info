@@ -153,7 +153,7 @@ describe('buildAdPlan — AdSense unit resolution', () => {
     }
   })
 
-  it("plans the 'rail' placement again (v2.2: desktop rail on home/category)", () => {
+  it("plans the 'rail' placement (v2.2 desktop rail; v2.3 R1: Amazon surface)", () => {
     const plan = buildAdPlan(input(), seededConfig())
     expect(plan.slots.map((slot) => slot.placement)).toEqual([
       'feed',
@@ -162,19 +162,43 @@ describe('buildAdPlan — AdSense unit resolution', () => {
       'rail',
       'leaderboard',
     ])
-    // Default format: 300×600 desktop skyscraper (SideRailAd reserves 648px).
+    // The AdSense fallback is still present (default 300×600 skyscraper) — used
+    // only when no partnerTag matches the marketplace.
     expect(decisionFor(plan, 'rail')?.adsense?.format).toBe('300x600')
-    // AdSense-only: the rail never carries Amazon inventory, even with a
-    // matching partnerTag configured (seededConfig has amazon.de).
-    expect(decisionFor(plan, 'rail')?.network).toBe('adsense')
-    expect(decisionFor(plan, 'rail')?.amazon).toBeUndefined()
+    // v2.3 R1: with a matching partnerTag the rail carries AMAZON (the
+    // home/category page's Amazon surface — mix AdSense + Amazon per page).
+    expect(decisionFor(plan, 'rail')?.network).toBe('amazon')
+    expect(decisionFor(plan, 'rail')?.amazon).toBeDefined()
   })
 
-  it('a configured rail unit resolves and can override the format to 300×250', () => {
+  it('the rail falls back to AdSense when no partnerTag matches the marketplace', () => {
+    // GB visitor → www.amazon.co.uk → no .co.uk tag seeded ⇒ AdSense rail.
+    const gb = buildAdPlan(input({ country: 'GB', region: 'UK' }), seededConfig())
+    expect(decisionFor(gb, 'rail')?.network).toBe('adsense')
+    expect(decisionFor(gb, 'rail')?.amazon).toBeUndefined()
+  })
+
+  it('the rail carries Amazon even without page keywords (generic shopping fallback)', () => {
+    // Homepage: no category, refused visitor ⇒ no contextual/behavioural
+    // keywords, yet the rail still resolves an Amazon decision (R1).
+    const plan = buildAdPlan(
+      input({ categorySlug: undefined, consent: 'refused', profile: null }),
+      seededConfig(),
+    )
+    const rail = decisionFor(plan, 'rail')
+    expect(rail?.network).toBe('amazon')
+    expect(rail?.amazon?.marketplace).toBe(DEFAULT_MARKETPLACE)
+    expect(rail?.amazon?.partnerTag).toBe('newsr01-21')
+    expect(rail?.amazon?.keywords.length).toBeGreaterThan(0)
+  })
+
+  it('a configured rail unit still resolves as the AdSense fallback (no matching tag)', () => {
     const config = seededConfig({
+      amazonPartnerTags: [], // no tag anywhere ⇒ rail degrades to AdSense
       adUnitIds: [{ slot: 'rail', unitId: '5555555555', format: 'rectangle' }],
     })
     const rail = decisionFor(buildAdPlan(input(), config), 'rail')
+    expect(rail?.network).toBe('adsense')
     expect(rail?.adsense?.unitId).toBe('5555555555')
     expect(rail?.adsense?.format).toBe('rectangle')
   })
@@ -267,17 +291,18 @@ describe('marketplaceForCountry', () => {
 })
 
 describe('buildAdPlan — Amazon decisions', () => {
-  it('emits amazon only for the article placements (never in-feed/banner/rail)', () => {
+  it('emits amazon for the article slots and the rail (never in-feed/banner)', () => {
     // v2 moved the old sidebar's Amazon inventory to the end-of-article slot
-    // ('article-end'); the v2.2 desktop rail stays AdSense-only.
+    // ('article-end'); v2.3 R1 adds the desktop rail as an Amazon surface.
+    // In-feed and the top banner stay AdSense-only.
     const plan = buildAdPlan(input(), seededConfig())
     expect(decisionFor(plan, 'article')?.network).toBe('amazon')
     expect(decisionFor(plan, 'article-end')?.network).toBe('amazon')
+    expect(decisionFor(plan, 'rail')?.network).toBe('amazon')
     expect(decisionFor(plan, 'feed')?.network).toBe('adsense')
-    expect(decisionFor(plan, 'rail')?.network).toBe('adsense')
     expect(decisionFor(plan, 'leaderboard')?.network).toBe('adsense')
     expect(decisionFor(plan, 'feed')?.amazon).toBeUndefined()
-    expect(decisionFor(plan, 'rail')?.amazon).toBeUndefined()
+    expect(decisionFor(plan, 'leaderboard')?.amazon).toBeUndefined()
   })
 
   it('requires a partnerTag matching the visitor marketplace', () => {

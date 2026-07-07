@@ -1,5 +1,6 @@
 import geoip from 'geoip-lite'
 
+import { AD_PREVIEW } from '@/lib/ads/preview'
 import { getPayloadClient } from '@/lib/payload'
 import { cacheJson, rkey } from '@/lib/redis'
 
@@ -7,10 +8,15 @@ import { cacheJson, rkey } from '@/lib/redis'
  * Server-side IP geolocation (architecture.md §4) — feeds the ad engine's
  * region/adSet decision. Provider chain:
  *
- *   1. `x-geo-country` request header override (dev/testing ONLY — ignored in
- *      production so visitors cannot pick their ad region by sending a header)
- *   2. geoip-lite lookup(ip)
- *   3. country 'XX' (unknown)
+ *   1. explicit `countryOverride` (R6b: the ?geo=<CC> query param, threaded by
+ *      the SSR pages) — honored ONLY when AD_PREVIEW is on
+ *   2. `x-geo-country` request header override (dev/testing; also re-enabled
+ *      under AD_PREVIEW even in production, so the owner can preview any
+ *      country through the SSH tunnel where the server sees loopback and geoip
+ *      yields nothing — R6b). Ignored in production when preview is OFF, so
+ *      real visitors can never pick their ad region by sending a header.
+ *   3. geoip-lite lookup(ip)
+ *   4. country 'XX' (unknown)
  *
  * The country is then mapped to { region, adSet } via the site-config global's
  * `localeRules` array (Redis-cached 5 min); an unmatched country falls back to
@@ -114,13 +120,23 @@ export function isPrivateIp(ip: string): boolean {
 /**
  * Resolve the visitor's { country, region, adSet }. Accepts either a raw IP
  * string or a Headers-like object (e.g. `await headers()` in a server
- * component) — the latter also enables the dev `x-geo-country` override.
- * Never throws: any provider failure degrades to 'XX'/default/default.
+ * component); `countryOverride` is the optional ?geo=<CC> query param the SSR
+ * pages thread through (honored ONLY under AD_PREVIEW — R6b). Never throws:
+ * any provider failure degrades to 'XX'/default/default.
  */
-export async function resolveGeo(ipOrHeaders: string | null | HeaderReader): Promise<GeoResult> {
+export async function resolveGeo(
+  ipOrHeaders: string | null | HeaderReader,
+  countryOverride?: string | null,
+): Promise<GeoResult> {
+  // 1. Explicit ?geo=<CC> preview override — preview-gated so real visitors
+  //    can never force an ad region via the URL.
+  const preview = normalizeCountryOverride(countryOverride)
+  if (AD_PREVIEW && preview) return mapCountry(preview)
+
   if (isHeaderReader(ipOrHeaders)) {
-    const override = devCountryOverride(ipOrHeaders)
-    if (override) return mapCountry(override)
+    // 2. x-geo-country header override (dev, or preview-on in production).
+    const header = headerCountryOverride(ipOrHeaders)
+    if (header) return mapCountry(header)
     return resolveGeoForIp(getClientIp(ipOrHeaders))
   }
   return resolveGeoForIp(ipOrHeaders)
@@ -130,11 +146,21 @@ function isHeaderReader(value: string | null | HeaderReader): value is HeaderRea
   return typeof value === 'object' && value !== null && typeof value.get === 'function'
 }
 
-/** Dev/testing-only country override; production ignores the header. */
-function devCountryOverride(headersList: HeaderReader): string | null {
-  if (process.env.NODE_ENV === 'production') return null
-  const value = headersList.get('x-geo-country')?.trim().toUpperCase()
+/** Validate a raw ISO-3166 alpha-2 override (?geo / header): 2 letters or null. */
+function normalizeCountryOverride(raw: string | null | undefined): string | null {
+  const value = raw?.trim().toUpperCase()
   return value && /^[A-Z]{2}$/.test(value) ? value : null
+}
+
+/**
+ * `x-geo-country` header override. Honored in dev, and — for R6b — under
+ * AD_PREVIEW even in production (the owner previews any country through the
+ * SSH tunnel where the server sees loopback). Ignored in production when
+ * preview is OFF, so real visitors can never spoof their ad region.
+ */
+function headerCountryOverride(headersList: HeaderReader): string | null {
+  if (process.env.NODE_ENV === 'production' && !AD_PREVIEW) return null
+  return normalizeCountryOverride(headersList.get('x-geo-country'))
 }
 
 async function resolveGeoForIp(rawIp: string | null): Promise<GeoResult> {

@@ -28,7 +28,7 @@ import { absoluteUrl } from '@/lib/seo'
 
 interface CategoryPageProps {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<{ page?: string; geo?: string }>
 }
 
 // Fully dynamic: the feed comes from Payload per request (Redis-cached 60s)
@@ -50,7 +50,7 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
 
 export default async function CategoryPage({ params, searchParams }: CategoryPageProps) {
   const { slug } = await params
-  const { page: pageParam } = await searchParams
+  const { page: pageParam, geo } = await searchParams
   const parsed = Number.parseInt(pageParam ?? '1', 10)
   const page = Number.isNaN(parsed) || parsed < 1 ? 1 : parsed
   const isFirstPage = page === 1
@@ -61,7 +61,8 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   const [{ items, hasNextPage }, adPlan] = await Promise.all([
     getFeed({ page, categorySlug: category.slug }),
     // Per-request ad decisions — this category drives contextual keywords.
-    getRequestAdPlan(category.slug),
+    // ?geo=<CC> is the owner's preview override (honored only under AD_PREVIEW).
+    getRequestAdPlan(category.slug, { countryOverride: geo }),
   ])
 
   // Unit-rotation ordinal handoff to the client batches (§8.6).

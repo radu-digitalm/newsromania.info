@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 /**
  * „Mai multe știri” section (owner requirement 4) — the read-layer pool
  * (getMoreNews: same-category first, latest-backfill, exclusion, cache
- * contract) and the per-row ad layout (moreNewsCells + the MoreNews server
- * component): one 'feed' ad block at the end of each 3-column desktop row
- * (ad after every 2 cards), items cached but the ad layout never cached.
+ * contract) and the ad layout (moreNewsCells + the MoreNews server
+ * component): a fixed 2-row staggered layout of 4 cards + 2 'feed' ad
+ * blocks in the 3-column grid — 6 cells with the ads at grid indices 2 & 3
+ * (row 1 ad on the right, row 2 ad on the left), so the two ads are never
+ * vertically aligned; items cached but the ad layout never cached.
  *
  * Payload local API and Redis are ALWAYS mocked (tests/helpers/mocks.ts).
  * The MoreNews component is invoked as a plain async function (React server
@@ -208,42 +210,52 @@ describe('getMoreNews', () => {
 })
 
 // ---------------------------------------------------------------------------
-// moreNewsCells — one ad after every 2 cards (one ad per 3-col desktop row)
+// moreNewsCells — R5: fixed 2-row staggered layout (4 cards + 2 ads)
 // ---------------------------------------------------------------------------
 
 describe('moreNewsCells', () => {
-  it('interleaves an ad after every 2 cards (6 cards → 3 ads, one per desktop row)', () => {
-    const cells = moreNewsCells(6)
-    expect(cells.map((c) => c.kind)).toEqual([
-      'card',
-      'card',
-      'ad',
-      'card',
-      'card',
-      'ad',
-      'card',
-      'card',
-      'ad',
-    ])
-    // Ads land at grid indices 2, 5, 8 → the last cell of each 3-column row.
-    expect(cells.flatMap((c, i) => (c.kind === 'ad' ? [i] : []))).toEqual([2, 5, 8])
+  it('lays out two staggered rows for the full 4-card pool (ads at grid indices 2 & 3)', () => {
+    const cells = moreNewsCells(4)
+    // [card, card, AD, AD, card, card]: row 1 → [card, card, AD] (ad right),
+    // row 2 → [AD, card, card] (ad left) — ads never in the same column.
+    expect(cells.map((c) => c.kind)).toEqual(['card', 'card', 'ad', 'ad', 'card', 'card'])
+    // Ads sit at grid indices 2 and 3 (adjacent in source order, but the
+    // 3-column grid places them right-of-row-1 and left-of-row-2 → NOT aligned).
+    expect(cells.flatMap((c, i) => (c.kind === 'ad' ? [i] : []))).toEqual([2, 3])
     // Card indices and ad ordinals both stay sequential.
     expect(
       cells.filter((c) => c.kind === 'card').map((c) => (c as { cardIndex: number }).cardIndex),
-    ).toEqual([0, 1, 2, 3, 4, 5])
+    ).toEqual([0, 1, 2, 3])
     expect(
       cells.filter((c) => c.kind === 'ad').map((c) => (c as { adIndex: number }).adIndex),
-    ).toEqual([0, 1, 2])
+    ).toEqual([0, 1])
   })
 
-  it('never emits a lone ad-only row: a single card yields just that card', () => {
+  it('a fuller pool is clamped to the 4-card staggered layout', () => {
+    // MoreNews only ever feeds 4 items, but the layout is stable for more.
+    expect(moreNewsCells(6).map((c) => c.kind)).toEqual([
+      'card',
+      'card',
+      'ad',
+      'ad',
+      'card',
+      'card',
+    ])
+  })
+
+  it('never emits a lone ad-only row: short pools degrade to cards-only', () => {
     expect(moreNewsCells(1)).toEqual([{ kind: 'card', cardIndex: 0 }])
+    expect(moreNewsCells(3)).toEqual([
+      { kind: 'card', cardIndex: 0 },
+      { kind: 'card', cardIndex: 1 },
+      { kind: 'card', cardIndex: 2 },
+    ])
     expect(moreNewsCells(0)).toEqual([])
   })
 })
 
 // ---------------------------------------------------------------------------
-// MoreNews — element tree: 6 cards + one ad per row (ads at tiles 2, 5, 8)
+// MoreNews — element tree: 4 cards + 2 staggered feed ads (6 tiles, ads at indices 2/3)
 // ---------------------------------------------------------------------------
 
 const feedDecision = {
@@ -305,7 +317,7 @@ function seedSixSportItems() {
 }
 
 describe('MoreNews (server component output)', () => {
-  it('renders an h2 „Mai multe știri” with 6 h3 cards + one feed ad per row (9 tiles, ads at 2/5/8)', async () => {
+  it('renders an h2 „Mai multe știri” with 4 h3 cards + 2 staggered feed ads (6 tiles, ads at 2/3)', async () => {
     seedSixSportItems()
     const section = (await MoreNews({
       article: currentArticle,
@@ -324,17 +336,17 @@ describe('MoreNews (server component output)', () => {
     expect(JSON.stringify(heading?.props)).toContain('Mai multe știri')
 
     const all = tiles(section)
-    expect(all).toHaveLength(MORE_NEWS_COUNT + 3)
+    expect(all).toHaveLength(MORE_NEWS_COUNT + 2)
 
     const ads = all.filter((el) => el.type === AdSlot)
     const cards = all.filter((el) => el.type === ArticleCard)
-    expect(ads).toHaveLength(3)
+    expect(ads).toHaveLength(2)
     expect(cards).toHaveLength(MORE_NEWS_COUNT)
 
-    // One ad as the last cell of each 3-column desktop row.
+    // R5: ads staggered at grid indices 2 & 3 — row-1 right cell, row-2 left
+    // cell, so they never share a column in the 3-column grid.
     expect(all[2]?.type).toBe(AdSlot)
-    expect(all[5]?.type).toBe(AdSlot)
-    expect(all[8]?.type).toBe(AdSlot)
+    expect(all[3]?.type).toBe(AdSlot)
 
     for (const ad of ads) {
       const adProps = ad.props as { variant: string; decision?: unknown }
@@ -348,14 +360,14 @@ describe('MoreNews (server component output)', () => {
     }
   })
 
-  it('assigns sequential ad ordinals (0,1,2) so configured units rotate per row', async () => {
+  it('assigns sequential ad ordinals (0,1) so configured units rotate per box', async () => {
     seedSixSportItems()
     const section = (await MoreNews({
       article: currentArticle,
       adPlan: planWithFeed,
     })) as ReactElement
     const ads = tiles(section).filter((el) => el.type === AdSlot)
-    expect(ads.map((a) => (a.props as { index?: number }).index)).toEqual([0, 1, 2])
+    expect(ads.map((a) => (a.props as { index?: number }).index)).toEqual([0, 1])
   })
 
   it('excludes the article being read from its own section', async () => {
@@ -395,7 +407,7 @@ describe('MoreNews (server component output)', () => {
       adPlan: planWithoutFeed,
     })) as ReactElement
     const ads = tiles(section).filter((el) => el.type === AdSlot)
-    expect(ads).toHaveLength(3)
+    expect(ads).toHaveLength(2)
     // AdSlot renders its inert reserved shell for an undefined decision.
     for (const ad of ads) {
       expect((ad.props as { decision?: unknown }).decision).toBeUndefined()
@@ -435,8 +447,9 @@ describe('MoreNews (server component output)', () => {
   it('caches the ITEMS under the feed:more key — the ad layout itself is never cached', async () => {
     seedSixSportItems()
     await MoreNews({ article: currentArticle, adPlan: planWithFeed })
+    // MoreNews requests MORE_NEWS_COUNT (4) items → the key carries :4.
     expect(cacheCalls).toEqual([
-      { key: 'newsromania:feed:more:sport:stirea-curenta:6', ttlSec: 60 },
+      { key: 'newsromania:feed:more:sport:stirea-curenta:4', ttlSec: 60 },
     ])
   })
 })
