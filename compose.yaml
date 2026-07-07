@@ -58,7 +58,11 @@ services:
   # App service (production runtime) — enabled with: docker compose --profile app up
   app:
     profiles: [app]
-    build: .
+    build:
+      context: .
+      args:
+        # Ad preview mode — NEXT_PUBLIC (inlined at build). Set in .env; '0' for launch.
+        NEXT_PUBLIC_AD_PREVIEW: ${NEXT_PUBLIC_AD_PREVIEW:-0}
     container_name: newsromania-app
     restart: unless-stopped
     env_file: .env

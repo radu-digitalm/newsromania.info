@@ -1,5 +1,7 @@
 import { adsenseAt, type AdDecision, type AdSenseDecision } from '@/lib/ads/engine-core'
+import { AD_PREVIEW } from '@/lib/ads/preview'
 
+import { AdPreviewBox } from './AdPreviewBox'
 import { AdSenseUnit } from './AdSenseUnit'
 
 /**
@@ -86,6 +88,14 @@ const SLOT: Record<AdSlotVariant, { wrapper: string; ins: string }> = {
 /** Inert fallback when a page renders a slot without an engine decision. */
 const INERT_DECISION: AdSenseDecision = { format: 'auto', npa: true, unitId: undefined }
 
+/** Real unit dimensions per variant — shown in the preview box (demo mode). */
+const PREVIEW_SIZE: Record<AdSlotVariant, string> = {
+  feed: '300 × 250',
+  article: '300 × 250',
+  rail: '300 × 250',
+  leaderboard: '728 × 90',
+}
+
 export function AdSlot({
   variant,
   decision,
@@ -102,6 +112,9 @@ export function AdSlot({
   index?: number
 }) {
   const slot = SLOT[variant]
+  const ad = adsenseAt(decision, index) ?? INERT_DECISION
+  // Preview only fills the EMPTY reserved field — a real unit still serves.
+  const showPreview = AD_PREVIEW && !ad.unitId
   return (
     <aside
       aria-label="Publicitate"
@@ -111,7 +124,11 @@ export function AdSlot({
         Publicitate
       </p>
       <div className="flex min-h-0 flex-1 flex-col justify-center">
-        <AdSenseUnit decision={adsenseAt(decision, index) ?? INERT_DECISION} className={slot.ins} />
+        {showPreview ? (
+          <AdPreviewBox size={PREVIEW_SIZE[variant]} />
+        ) : (
+          <AdSenseUnit decision={ad} className={slot.ins} />
+        )}
       </div>
     </aside>
   )

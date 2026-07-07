@@ -49,11 +49,15 @@ ARG REDIS_URL=redis://default:build@127.0.0.1:6379
 ARG PAYLOAD_SECRET=build-time-dummy-secret-not-used-at-runtime
 ARG NEXT_PUBLIC_SITE_URL=https://newsromania.info
 ARG NEXT_PUBLIC_ADSENSE_PUBLISHER_ID=ca-pub-8098077913729716
+# Ad PREVIEW mode (labelled demo boxes so the owner can see ad placement while
+# AdSense review is pending) — '0' for public launch. Inlined at build time.
+ARG NEXT_PUBLIC_AD_PREVIEW=0
 ENV DATABASE_URL=$DATABASE_URL \
     REDIS_URL=$REDIS_URL \
     PAYLOAD_SECRET=$PAYLOAD_SECRET \
     NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_PUBLIC_ADSENSE_PUBLISHER_ID=$NEXT_PUBLIC_ADSENSE_PUBLISHER_ID \
+    NEXT_PUBLIC_AD_PREVIEW=$NEXT_PUBLIC_AD_PREVIEW \
     NODE_ENV=production
 COPY . .
 # rm .next/cache in the SAME layer: the webpack build cache is useless at

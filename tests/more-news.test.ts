@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 /**
  * „Mai multe știri” section (owner requirement 4) — the read-layer pool
  * (getMoreNews: same-category first, latest-backfill, exclusion, cache
- * contract) and the random ad replacement (pickAdIndex + the MoreNews server
- * component): EXACTLY ONE of the section's cards becomes the plan's 'feed'
- * ad block, position driven by the injectable rng, never cached.
+ * contract) and the per-row ad layout (moreNewsCells + the MoreNews server
+ * component): one 'feed' ad block at the end of each 3-column desktop row
+ * (ad after every 2 cards), items cached but the ad layout never cached.
  *
  * Payload local API and Redis are ALWAYS mocked (tests/helpers/mocks.ts).
  * The MoreNews component is invoked as a plain async function (React server
@@ -27,7 +27,7 @@ import type { ReactElement, ReactNode } from 'react'
 
 import { AdSlot } from '../src/components/ads/AdSlot'
 import { ArticleCard } from '../src/components/articles/ArticleCard'
-import { MORE_NEWS_COUNT, MoreNews, pickAdIndex } from '../src/components/articles/MoreNews'
+import { MORE_NEWS_COUNT, MoreNews, moreNewsCells } from '../src/components/articles/MoreNews'
 import type { AdPlan } from '../src/lib/ads/engine-core'
 import { getMoreNews } from '../src/lib/content'
 import type { FeedItem } from '../src/types/content'
@@ -208,48 +208,42 @@ describe('getMoreNews', () => {
 })
 
 // ---------------------------------------------------------------------------
-// pickAdIndex — the injectable-rng replacement position
+// moreNewsCells — one ad after every 2 cards (one ad per 3-col desktop row)
 // ---------------------------------------------------------------------------
 
-describe('pickAdIndex', () => {
-  it('maps rng() uniformly onto [0, count-1]', () => {
-    expect(pickAdIndex(6, () => 0)).toBe(0)
-    expect(pickAdIndex(6, () => 0.5)).toBe(3)
-    expect(pickAdIndex(6, () => 0.9999)).toBe(5)
+describe('moreNewsCells', () => {
+  it('interleaves an ad after every 2 cards (6 cards → 3 ads, one per desktop row)', () => {
+    const cells = moreNewsCells(6)
+    expect(cells.map((c) => c.kind)).toEqual([
+      'card',
+      'card',
+      'ad',
+      'card',
+      'card',
+      'ad',
+      'card',
+      'card',
+      'ad',
+    ])
+    // Ads land at grid indices 2, 5, 8 → the last cell of each 3-column row.
+    expect(cells.flatMap((c, i) => (c.kind === 'ad' ? [i] : []))).toEqual([2, 5, 8])
+    // Card indices and ad ordinals both stay sequential.
+    expect(
+      cells.filter((c) => c.kind === 'card').map((c) => (c as { cardIndex: number }).cardIndex),
+    ).toEqual([0, 1, 2, 3, 4, 5])
+    expect(
+      cells.filter((c) => c.kind === 'ad').map((c) => (c as { adIndex: number }).adIndex),
+    ).toEqual([0, 1, 2])
   })
 
-  it('every rng output in [0,1) lands on a valid tile (exactly-one-ad guarantee)', () => {
-    for (let i = 0; i < 100; i++) {
-      const index = pickAdIndex(6, () => i / 100)
-      expect(index).toBeGreaterThanOrEqual(0)
-      expect(index).toBeLessThanOrEqual(5)
-    }
-  })
-
-  it('clamps out-of-range or garbage rng outputs into the tile range', () => {
-    expect(pickAdIndex(6, () => 1)).toBe(5) // rng contract edge
-    expect(pickAdIndex(6, () => 42)).toBe(5)
-    expect(pickAdIndex(6, () => -1)).toBe(0)
-    expect(pickAdIndex(6, () => Number.NaN)).toBe(0)
-  })
-
-  it('defaults to Math.random and stays in range', () => {
-    for (let i = 0; i < 20; i++) {
-      const index = pickAdIndex(6)
-      expect(index).toBeGreaterThanOrEqual(0)
-      expect(index).toBeLessThanOrEqual(5)
-    }
-  })
-
-  it('never replaces a lone card and never fires on empty input (news must remain)', () => {
-    expect(pickAdIndex(1, () => 0)).toBe(-1)
-    expect(pickAdIndex(0, () => 0)).toBe(-1)
-    expect(pickAdIndex(Number.NaN, () => 0)).toBe(-1)
+  it('never emits a lone ad-only row: a single card yields just that card', () => {
+    expect(moreNewsCells(1)).toEqual([{ kind: 'card', cardIndex: 0 }])
+    expect(moreNewsCells(0)).toEqual([])
   })
 })
 
 // ---------------------------------------------------------------------------
-// MoreNews — element tree: exactly one ad tile at the rng position
+// MoreNews — element tree: 6 cards + one ad per row (ads at tiles 2, 5, 8)
 // ---------------------------------------------------------------------------
 
 const feedDecision = {
@@ -311,12 +305,11 @@ function seedSixSportItems() {
 }
 
 describe('MoreNews (server component output)', () => {
-  it('renders an h2 „Mai multe știri” section with 6 tiles: 5 h3 cards + EXACTLY 1 feed ad', async () => {
+  it('renders an h2 „Mai multe știri” with 6 h3 cards + one feed ad per row (9 tiles, ads at 2/5/8)', async () => {
     seedSixSportItems()
     const section = (await MoreNews({
       article: currentArticle,
       adPlan: planWithFeed,
-      rng: () => 0.5,
     })) as ReactElement
 
     expect(section).not.toBeNull()
@@ -331,18 +324,23 @@ describe('MoreNews (server component output)', () => {
     expect(JSON.stringify(heading?.props)).toContain('Mai multe știri')
 
     const all = tiles(section)
-    expect(all).toHaveLength(MORE_NEWS_COUNT)
+    expect(all).toHaveLength(MORE_NEWS_COUNT + 3)
 
     const ads = all.filter((el) => el.type === AdSlot)
     const cards = all.filter((el) => el.type === ArticleCard)
-    expect(ads).toHaveLength(1)
-    expect(cards).toHaveLength(5)
+    expect(ads).toHaveLength(3)
+    expect(cards).toHaveLength(MORE_NEWS_COUNT)
 
-    // rng 0.5 over 6 tiles → the ad replaces the 4th tile (index 3).
-    expect(all[3]?.type).toBe(AdSlot)
-    const adProps = ads[0]?.props as { variant: string; decision?: unknown }
-    expect(adProps.variant).toBe('feed')
-    expect(adProps.decision).toBe(feedDecision)
+    // One ad as the last cell of each 3-column desktop row.
+    expect(all[2]?.type).toBe(AdSlot)
+    expect(all[5]?.type).toBe(AdSlot)
+    expect(all[8]?.type).toBe(AdSlot)
+
+    for (const ad of ads) {
+      const adProps = ad.props as { variant: string; decision?: unknown }
+      expect(adProps.variant).toBe('feed')
+      expect(adProps.decision).toBe(feedDecision)
+    }
 
     // Cards keep the section's heading hierarchy (h2 section → h3 cards).
     for (const card of cards) {
@@ -350,22 +348,14 @@ describe('MoreNews (server component output)', () => {
     }
   })
 
-  it('moves the ad with the rng (first tile at rng→0, last tile at rng→~1) — per-request variety', async () => {
+  it('assigns sequential ad ordinals (0,1,2) so configured units rotate per row', async () => {
     seedSixSportItems()
-    const first = (await MoreNews({
+    const section = (await MoreNews({
       article: currentArticle,
       adPlan: planWithFeed,
-      rng: () => 0,
     })) as ReactElement
-    expect(tiles(first)[0]?.type).toBe(AdSlot)
-
-    seedSixSportItems()
-    const last = (await MoreNews({
-      article: currentArticle,
-      adPlan: planWithFeed,
-      rng: () => 0.9999,
-    })) as ReactElement
-    expect(tiles(last)[5]?.type).toBe(AdSlot)
+    const ads = tiles(section).filter((el) => el.type === AdSlot)
+    expect(ads.map((a) => (a.props as { index?: number }).index)).toEqual([0, 1, 2])
   })
 
   it('excludes the article being read from its own section', async () => {
@@ -391,7 +381,6 @@ describe('MoreNews (server component output)', () => {
     const section = (await MoreNews({
       article: currentArticle,
       adPlan: planWithFeed,
-      rng: () => 0,
     })) as ReactElement
     const slugs = tiles(section)
       .filter((el) => el.type === ArticleCard)
@@ -399,17 +388,18 @@ describe('MoreNews (server component output)', () => {
     expect(slugs).not.toContain('stirea-curenta')
   })
 
-  it('no feed decision in the plan ⇒ the reserved „Publicitate” box still renders (never fake content)', async () => {
+  it('no feed decision in the plan ⇒ the reserved „Publicitate” boxes still render (never fake content)', async () => {
     seedSixSportItems()
     const section = (await MoreNews({
       article: currentArticle,
       adPlan: planWithoutFeed,
-      rng: () => 0,
     })) as ReactElement
     const ads = tiles(section).filter((el) => el.type === AdSlot)
-    expect(ads).toHaveLength(1)
+    expect(ads).toHaveLength(3)
     // AdSlot renders its inert reserved shell for an undefined decision.
-    expect((ads[0]?.props as { decision?: unknown }).decision).toBeUndefined()
+    for (const ad of ads) {
+      expect((ad.props as { decision?: unknown }).decision).toBeUndefined()
+    }
   })
 
   it('renders nothing at all with an empty pool', async () => {
@@ -417,7 +407,6 @@ describe('MoreNews (server component output)', () => {
     const section = await MoreNews({
       article: currentArticle,
       adPlan: planWithFeed,
-      rng: () => 0,
     })
     expect(section).toBeNull()
   })
@@ -437,16 +426,15 @@ describe('MoreNews (server component output)', () => {
     const section = (await MoreNews({
       article: currentArticle,
       adPlan: planWithFeed,
-      rng: () => 0,
     })) as ReactElement
     const all = tiles(section)
     expect(all).toHaveLength(1)
     expect(all[0]?.type).toBe(ArticleCard)
   })
 
-  it('caches the ITEMS under the feed:more key — the ad choice itself is never cached', async () => {
+  it('caches the ITEMS under the feed:more key — the ad layout itself is never cached', async () => {
     seedSixSportItems()
-    await MoreNews({ article: currentArticle, adPlan: planWithFeed, rng: () => 0.2 })
+    await MoreNews({ article: currentArticle, adPlan: planWithFeed })
     expect(cacheCalls).toEqual([
       { key: 'newsromania:feed:more:sport:stirea-curenta:6', ttlSec: 60 },
     ])

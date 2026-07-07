@@ -1,5 +1,7 @@
 import { adsenseAt, type AdDecision } from '@/lib/ads/engine-core'
+import { AD_PREVIEW } from '@/lib/ads/preview'
 
+import { AdPreviewBox } from './AdPreviewBox'
 import { AdSenseUnit } from './AdSenseUnit'
 import { RailAdReveal } from './RailAdReveal'
 
@@ -53,12 +55,18 @@ export function SideRailAd({ decision }: { decision?: AdDecision }) {
         <p className="flex h-6 shrink-0 items-center justify-center font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
           Publicitate
         </p>
-        <RailAdReveal className="flex min-h-0 flex-1 flex-col justify-center">
-          <AdSenseUnit
-            decision={adsense}
-            className={short ? 'h-[250px] max-w-[300px]' : 'h-[600px] max-w-[300px]'}
-          />
-        </RailAdReveal>
+        {AD_PREVIEW && !adsense.unitId ? (
+          <div className="flex min-h-0 flex-1 flex-col justify-center">
+            <AdPreviewBox size={short ? '300 × 250' : '300 × 600'} />
+          </div>
+        ) : (
+          <RailAdReveal className="flex min-h-0 flex-1 flex-col justify-center">
+            <AdSenseUnit
+              decision={adsense}
+              className={short ? 'h-[250px] max-w-[300px]' : 'h-[600px] max-w-[300px]'}
+            />
+          </RailAdReveal>
+        )}
       </aside>
     </div>
   )

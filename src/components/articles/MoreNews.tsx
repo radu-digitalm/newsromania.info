@@ -6,60 +6,57 @@ import type { FeedItem } from '@/types/content'
 
 /**
  * MoreNews — the article pages' „Mai multe știri” section (owner requirement
- * 4, superseding the v2 §3.5 ⑧ three-card block): SIX standard cards — same
- * category first (newest first), backfilled with the latest items from other
- * categories (read layer getMoreNews, Redis-cached 60s) — with EXACTLY ONE
- * card randomly replaced by an in-feed ad block.
+ * 4): SIX standard cards — same category first (newest first), backfilled with
+ * the latest items from other categories (read layer getMoreNews, Redis-cached
+ * 60s) — laid out in the 3-column grid with ONE ad block per desktop row
+ * (owner request: „related news should have 1 ad block on each row”).
  *
  * Ad mechanics:
- * - The ad renders the page's existing 'feed' placement decision
+ * - An ad cell is inserted after every 2 cards, so each 3-column desktop row
+ *   reads [card, card, ad] — exactly one ad per row (moreNewsCells()).
+ * - Each ad renders the page's 'feed' placement decision
  *   (decisionFor(adPlan, 'feed')) through the standard <AdSlot variant="feed">
  *   shell: „Publicitate” label + reserved height (zero CLS), honest by
- *   construction — while site-config has no feed unit (or the plan carries no
- *   feed decision at all) the box stays reserved-empty, NEVER fake content.
- * - The replaced position comes from pickAdIndex(count, rng) — rng is
- *   injectable for tests and defaults to Math.random. The section is rendered
- *   per request on the force-dynamic article pages, so the position varies
- *   per view. The ITEMS come from the 60s cache; the ad choice is computed
- *   after the cache read and is never cached.
+ *   construction — while site-config has no feed unit the box stays
+ *   reserved-empty (or a labelled demo box under NEXT_PUBLIC_AD_PREVIEW),
+ *   NEVER fake content. `index` rotates configured units deterministically.
  *
  * Structure: h2 „Mai multe știri” (section heading grammar of v2 §3.2),
  * cards as h3 under it, internal links + images + relative dates all via
  * ArticleCard (the fixed card contract).
  */
 
-/** How many tiles (cards + the one ad) the section renders. */
+/** How many news cards the section renders (ads are inserted between them). */
 export const MORE_NEWS_COUNT = 6
 
+/** One ad after every N cards — N=2 puts one ad at the end of each 3-col row. */
+export const MORE_NEWS_AD_EVERY = 2
+
+type MoreNewsCell = { kind: 'card'; cardIndex: number } | { kind: 'ad'; adIndex: number }
+
 /**
- * Pure picker for the replaced tile: floor(rng() * count) clamped into
- * [0, count-1], so ANY rng() output — including out-of-range or NaN garbage —
- * still lands on a valid tile and the section carries exactly one ad.
- *
- * Returns -1 (no replacement) when count < 2: a „Mai multe știri” section
- * must always contain at least one real news card — replacing a lone card
- * would leave an ad-only „news” section, which the honest-ads contract
- * (design direction v2 §4.4) forbids.
+ * Interleave cards and ad cells: after every MORE_NEWS_AD_EVERY cards, emit an
+ * ad. With 6 cards this yields card,card,ad ×3 → in a 3-column grid, one ad as
+ * the last cell of each row. Pure + deterministic (unit-tested).
  */
-export function pickAdIndex(count: number, rng: () => number = Math.random): number {
-  if (!Number.isFinite(count) || count < 2) return -1
-  const tiles = Math.floor(count)
-  const raw = Math.floor(rng() * tiles)
-  if (!Number.isFinite(raw)) return 0
-  return Math.min(Math.max(raw, 0), tiles - 1)
+export function moreNewsCells(cardCount: number): MoreNewsCell[] {
+  const cells: MoreNewsCell[] = []
+  let adIndex = 0
+  for (let i = 0; i < cardCount; i++) {
+    cells.push({ kind: 'card', cardIndex: i })
+    if ((i + 1) % MORE_NEWS_AD_EVERY === 0) cells.push({ kind: 'ad', adIndex: adIndex++ })
+  }
+  return cells
 }
 
 export async function MoreNews({
   article,
   adPlan,
-  rng = Math.random,
 }: {
   /** The article being read — excluded from the pool, drives the category. */
   article: FeedItem
   /** The page's per-request plan — the section reuses its 'feed' decision. */
   adPlan: AdPlan
-  /** Injectable randomness (tests); production keeps Math.random. */
-  rng?: () => number
 }) {
   const items = await getMoreNews({
     excludeSlug: article.slug,
@@ -68,8 +65,8 @@ export async function MoreNews({
   })
   if (items.length === 0) return null
 
-  const adIndex = pickAdIndex(items.length, rng)
   const feedDecision = decisionFor(adPlan, 'feed')
+  const cells = moreNewsCells(items.length)
 
   return (
     <section aria-labelledby="mai-multe-stiri" className="mx-auto mt-10 w-full max-w-[1280px]">
@@ -81,14 +78,16 @@ export async function MoreNews({
         Mai multe știri
       </h2>
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
-        {items.map((item, index) =>
-          index === adIndex ? (
-            // The one ad tile — replaces (never joins) the card at this
-            // position; grid cells stretch, so the reserved shell fills the
-            // row height next to its card siblings.
-            <AdSlot key="more-news-ad" variant="feed" decision={feedDecision} />
+        {cells.map((cell) =>
+          cell.kind === 'ad' ? (
+            <AdSlot
+              key={`more-news-ad-${cell.adIndex}`}
+              variant="feed"
+              decision={feedDecision}
+              index={cell.adIndex}
+            />
           ) : (
-            <ArticleCard key={item.id} item={item} as="h3" />
+            <ArticleCard key={items[cell.cardIndex].id} item={items[cell.cardIndex]} as="h3" />
           ),
         )}
       </div>
