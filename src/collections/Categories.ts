@@ -5,7 +5,7 @@ import { anyone, isAdmin, isEditorOrAdmin } from './access'
 
 /**
  * `categories` — the 8 canonical slugs are seeded by scripts/seed/baseline.mjs
- * (actualitate, politica, economie, externe, sport, sanatate, tehnologie,
+ * (actualitate, politica, economie, international, sport, sanatate, tehnologie,
  * cultura); the collection stays extensible (architecture.md §3).
  */
 export const Categories: CollectionConfig = {

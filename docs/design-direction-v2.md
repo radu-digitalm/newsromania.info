@@ -211,7 +211,7 @@ on articles; interpunct separators; always `<time datetime>`).
    `@supports not (backdrop-filter: blur(1px))`); bottom 1px `border`. Content, left→right:
    **`logo-symbol.png` 28px** link `/` (`shrink-0` — brand persists while the masthead has
    scrolled away), then a single row of **CategoryChips** (§4.2) for the 8 categories —
-   Actualitate, Politică, Economie, Externe, Sport, Sănătate, Tehnologie, Cultură — vertically
+   Actualitate, Politică, Economie, Internațional, Sport, Sănătate, Tehnologie, Cultură — vertically
    centered. Active chip = current section (server-rendered from pathname). Overflow (any
    width — the row can also overflow between 768px and ~900px): `overflow-x: auto`, hidden
    scrollbars, `-webkit-overflow-scrolling: touch`, 24px right fade

@@ -15,7 +15,7 @@ const categories: Record<string, Category> = {
   actualitate: { slug: 'actualitate', name: 'Actualitate' },
   politica: { slug: 'politica', name: 'Politică' },
   economie: { slug: 'economie', name: 'Economie' },
-  externe: { slug: 'externe', name: 'Externe' },
+  international: { slug: 'international', name: 'Internațional' },
   sport: { slug: 'sport', name: 'Sport' },
   tehnologie: { slug: 'tehnologie', name: 'Tehnologie' },
   sanatate: { slug: 'sanatate', name: 'Sănătate' },
@@ -198,11 +198,11 @@ const aggregatedItems: AggregatedItem[] = [
     title: 'Analiză: cum funcționează spațiul Schengen și ce înseamnă pentru călători',
     excerpt:
       'Spațiul Schengen permite trecerea frontierelor interne fără controale sistematice, dar regulile de ședere și documentele necesare rămân adesea neclare pentru călători. Materialul explică pe înțelesul tuturor cum funcționează zona de liberă circulație, ce verificări pot apărea în situații excepționale și ce drepturi au pasagerii care călătoresc frecvent între statele membre.',
-    category: categories.externe,
+    category: categories.international,
     tags: ['schengen', 'călătorii', 'uniunea europeană'],
     publishedAt: '2026-07-05T19:10:00+03:00',
     image: {
-      url: '/placeholders/externe.png',
+      url: '/placeholders/international.png',
       alt: 'Ilustrație pentru o analiză despre spațiul Schengen și libera circulație',
       width: 1200,
       height: 675,

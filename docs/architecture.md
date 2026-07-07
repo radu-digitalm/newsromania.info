@@ -147,6 +147,33 @@ frontPageMaxAgeHours: 72, maxSummariesPerRun: 40 }.
   target, passive-voice heuristic for RO ('a fi' + participle), min 300
   words). Admin UI component renders it live in the article editor and
   writes seoScore/seoReport on save. Publish gate honors blockPublishOnRed.
+- `src/lib/stock-photos.ts` → `searchStockPhoto({ query, orientation? })`
+  → `{ url, attribution, source: 'pexels'|'pixabay', width, height } | null`.
+  Royalty-free lead image for OUR AI-written articles only (Pexels first via
+  PEXELS_API_KEY as the RAW Authorization header, Pixabay fallback via
+  PIXABAY_API_KEY). Returns the best landscape/large result as a HOTLINK (never
+  downloaded); cached `newsromania:stock:<source>:<sha1(query|orientation)>`
+  TTL 24h. Returns null gracefully (no throw) when no keys are set or nothing
+  matches → the article renders imageless. See docs/stock-photos.md.
+
+### Image policy (owner decision — the contract)
+
+Every post should show a photo; the source depends on the content type:
+
+- **Aggregated items** → the image is ALWAYS a **hotlink** to the source's own
+  image (RSS enclosure / media:content, or the publisher article's og:image).
+  We NEVER download or store an aggregated image into our media library.
+- **Original articles (human-written)** → our own uploaded Payload media photo
+  ("only our stories have our photos").
+- **Original articles (AI-written)** → a royalty-free stock photo first via
+  `searchStockPhoto()` (Pexels then Pixabay), served as a hotlink.
+
+If a photo is genuinely impossible to obtain, the post shows **NO image at
+all** (text-only card / no lead image) — NEVER a branded category placeholder.
+Placeholders as an image fallback are removed everywhere. API-sourced stock
+photos REQUIRE visible attribution (rendered as the image caption) and must not
+show trademarks/logos in a commercial context — use neutral, concept-level
+search queries.
 
 ## 5. API routes (first-party only)
 

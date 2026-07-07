@@ -37,7 +37,7 @@ yet, re-runs never overwrite knobs the owner has since tuned in the admin.
 ## What it creates
 
 - **8 categories** — the canonical slugs, in `src/config/site.ts` order:
-  actualitate, politica, economie, externe, sport, sanatate, tehnologie,
+  actualitate, politica, economie, international, sport, sanatate, tehnologie,
   cultura.
 - **2 users**
   - the admin, from `PAYLOAD_ADMIN_EMAIL` / `PAYLOAD_ADMIN_PASSWORD` (role

@@ -26,7 +26,7 @@ const item = (id: number): FeedItem => ({
   category: { slug: 'actualitate', name: 'Actualitate' },
   tags: [],
   publishedAt: '2026-07-06T10:00:00.000Z',
-  image: { url: '/placeholders/actualitate.png', alt: 'Ilustrație', width: 1200, height: 675 },
+  image: { url: 'https://www.digi24.ro/foto.jpg', alt: 'Ilustrație', width: 1200, height: 675 },
   source: { name: 'Digi24', url: 'https://www.digi24.ro' },
   sourceUrl: 'https://www.digi24.ro/stiri/exemplu',
 })

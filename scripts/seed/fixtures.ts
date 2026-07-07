@@ -19,7 +19,7 @@ const categories = {
   actualitate: cat('actualitate', 'Actualitate'),
   politica: cat('politica', 'Politică'),
   economie: cat('economie', 'Economie'),
-  externe: cat('externe', 'Externe'),
+  international: cat('international', 'Internațional'),
   sport: cat('sport', 'Sport'),
   sanatate: cat('sanatate', 'Sănătate'),
   tehnologie: cat('tehnologie', 'Tehnologie'),
@@ -166,7 +166,7 @@ export const seedAggregatedItems: AggregatedItem[] = [
     title: 'Analiză: cum funcționează spațiul Schengen și ce înseamnă pentru călători',
     excerpt:
       'Spațiul Schengen permite trecerea frontierelor interne fără controale sistematice, dar regulile de ședere și documentele necesare rămân adesea neclare pentru călători. Materialul explică pe înțelesul tuturor cum funcționează zona de liberă circulație, ce verificări pot apărea în situații excepționale și ce drepturi au pasagerii care călătoresc frecvent între statele membre.',
-    category: categories.externe,
+    category: categories.international,
     tags: ['schengen', 'călătorii', 'uniunea europeană'],
     publishedAt: '2026-07-05T19:10:00+03:00',
     source: { name: 'Meridianul de Est', url: 'https://example.org/meridianul-de-est' },

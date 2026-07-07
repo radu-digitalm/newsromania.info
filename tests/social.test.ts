@@ -11,7 +11,6 @@ import {
   missingPlatforms,
   nextSlotAfter,
   parseSchedule,
-  placeholderImageUrl,
   selectStories,
   storyUrl,
 } from '../scripts/worker/lib/social-plan.mjs'
@@ -211,21 +210,8 @@ describe('selectStories (idempotency + caption budget)', () => {
 
 describe('URL helpers', () => {
   const SITE = 'https://newsromania.info'
-  const KNOWN = new Set(['actualitate', 'sport'])
 
   it('both content types link to OUR site (/stiri/<slug>)', () => {
     expect(storyUrl(SITE, 'buget-aprobat')).toBe('https://newsromania.info/stiri/buget-aprobat')
-  })
-
-  it('category placeholder is absolute; unknown categories fall back to generic', () => {
-    expect(placeholderImageUrl(SITE, 'sport', KNOWN)).toBe(
-      'https://newsromania.info/placeholders/sport.png',
-    )
-    expect(placeholderImageUrl(SITE, 'necunoscut', KNOWN)).toBe(
-      'https://newsromania.info/placeholders/generic.png',
-    )
-    expect(placeholderImageUrl(SITE, null, KNOWN)).toBe(
-      'https://newsromania.info/placeholders/generic.png',
-    )
   })
 })

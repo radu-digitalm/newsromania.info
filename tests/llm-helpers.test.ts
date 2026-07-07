@@ -20,7 +20,7 @@ describe('resolveCategorySlug', () => {
       'actualitate',
       'politica',
       'economie',
-      'externe',
+      'international',
       'sport',
       'sanatate',
       'tehnologie',

@@ -43,7 +43,7 @@ const PLACEHOLDER_LABELS = {
   actualitate: 'Actualitate',
   politica: 'Politică',
   economie: 'Economie',
-  externe: 'Externe',
+  international: 'Internațional',
   sport: 'Sport',
   sanatate: 'Sănătate',
   tehnologie: 'Tehnologie',

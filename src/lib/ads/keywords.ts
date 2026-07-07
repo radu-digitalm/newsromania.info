@@ -22,7 +22,7 @@ export const CATEGORY_KEYWORDS: Readonly<Record<string, readonly string[]>> = {
   actualitate: ['cărți bestseller', 'espressor de cafea', 'lanternă de urgență'],
   politica: ['cărți de istorie', 'biografii politice', 'cărți de politică'],
   economie: ['cărți finanțe personale', 'accesorii de birou', 'calculator de birou'],
-  externe: ['ghiduri de călătorie', 'accesorii de voiaj', 'adaptor priză universal'],
+  international: ['ghiduri de călătorie', 'accesorii de voiaj', 'adaptor priză universal'],
   sport: ['echipament sport', 'încălțăminte de alergare', 'accesorii fitness'],
   sanatate: ['vitamine și suplimente', 'tensiometru', 'aparat de masaj'],
   tehnologie: ['gadgeturi', 'laptop', 'telefon'],

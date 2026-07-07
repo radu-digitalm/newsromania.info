@@ -270,7 +270,7 @@ const currentArticle: FeedItem = {
   category: { slug: 'sport', name: 'Sport' },
   tags: [],
   publishedAt: iso(6, 12),
-  image: { url: '/placeholders/sport.png', alt: 'Ilustrație', width: 1200, height: 675 },
+  image: { url: 'https://www.digisport.ro/foto.jpg', alt: 'Ilustrație', width: 1200, height: 675 },
   source: { name: 'Publisher Exemplu', url: 'https://publisher.example' },
   sourceUrl: 'https://publisher.example/stiri/999',
 }

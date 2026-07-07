@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'NewsRomania — Știri din România, la zi',
     short_name: 'NewsRomania',
     description:
-      'Știri din România, la zi: actualitate, politică, economie, externe, sport, tehnologie, sănătate și cultură.',
+      'Știri din România, la zi: actualitate, politică, economie, internațional, sport, tehnologie, sănătate și cultură.',
     lang: 'ro',
     start_url: '/',
     display: 'standalone',

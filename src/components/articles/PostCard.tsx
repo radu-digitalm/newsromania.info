@@ -85,6 +85,7 @@ function PostHeader({ item }: { item: FeedCardItem }) {
 export function PostCard({ item, as = 'h3', variant = 'post' }: PostCardProps) {
   const Heading = as
   const featured = variant === 'featured'
+  const imageUrl = item.image?.url ?? null
 
   // §8.5c featured differences are type-scale + image priority ONLY — same anatomy.
   const titleClass = featured
@@ -98,23 +99,28 @@ export function PostCard({ item, as = 'h3', variant = 'post' }: PostCardProps) {
     <article className="group relative flex flex-col overflow-hidden border-y border-border bg-surface transition-[transform,box-shadow] duration-200 ease-out sm:rounded-[16px] sm:border sm:shadow-[0_1px_2px_rgba(16,22,31,0.06),0_1px_3px_rgba(16,22,31,0.04)] sm:hover:-translate-y-0.5 sm:hover:shadow-[0_8px_24px_rgba(16,22,31,0.12)]">
       <PostHeader item={item} />
 
-      {/* ② Media — full-bleed 16:9, the card owns radius/clipping; the image
-          box is never dropped (branded placeholder inside ArticleImage) — zero CLS. */}
-      <div className="relative aspect-video overflow-hidden">
-        <div className="h-full w-full transition-transform duration-300 ease-out group-hover:scale-[1.03]">
-          <ArticleImage
-            src={item.image?.url ?? null}
-            alt={item.image?.alt ?? item.title}
-            categorySlug={item.category.slug}
-            priority={featured}
-            sizes="(min-width: 640px) 640px, 100vw"
-          />
+      {/* ② Media — full-bleed 16:9, the card owns radius/clipping (zero CLS).
+          Text-only posts (no real photo) drop the media box entirely — no
+          empty 16:9 frame, no placeholder — so the header flows straight into
+          the title and the card reads as an intentional text post (§8). */}
+      {imageUrl && (
+        <div className="relative aspect-video overflow-hidden">
+          <div className="h-full w-full transition-transform duration-300 ease-out group-hover:scale-[1.03]">
+            <ArticleImage
+              src={imageUrl}
+              alt={item.image?.alt ?? item.title}
+              categorySlug={item.category.slug}
+              priority={featured}
+              sizes="(min-width: 640px) 640px, 100vw"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* ③ Title — stretched internal link, 3-line clamp. */}
+      {/* ③ Title — stretched internal link, 3-line clamp. Extra top padding on
+          text-only cards so the title isn't cramped against the header row. */}
       <Heading
-        className={`px-4 pt-3 font-serif text-ink transition-colors group-hover:text-link ${titleClass}`}
+        className={`px-4 font-serif text-ink transition-colors group-hover:text-link ${imageUrl ? 'pt-3' : 'pt-1'} ${titleClass}`}
       >
         <StretchedTitleLink item={item} className="line-clamp-3" />
       </Heading>

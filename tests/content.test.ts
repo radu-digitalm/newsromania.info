@@ -141,10 +141,12 @@ describe('articleToFeedItem', () => {
     expect(noDims.image).toMatchObject({ width: 1200, height: 675 })
   })
 
-  it('missing image ⇒ category placeholder; unknown category ⇒ generic placeholder', () => {
+  // Image-policy contract: no branded placeholder fallback anywhere. An
+  // original with no uploaded photo maps to image: undefined and renders
+  // text-only — regardless of category (known or unknown).
+  it('missing featuredImage ⇒ no image (text-only), never a placeholder', () => {
     const known = articleToFeedItem(asArticle(articleDoc({ featuredImage: null })))
-    expect(known.image?.url).toBe('/placeholders/actualitate.png')
-    expect(known.image?.alt).toContain('Actualitate')
+    expect(known.image).toBeUndefined()
 
     const unknown = articleToFeedItem(
       asArticle(
@@ -154,7 +156,7 @@ describe('articleToFeedItem', () => {
         }),
       ),
     )
-    expect(unknown.image?.url).toBe('/placeholders/generic.png')
+    expect(unknown.image).toBeUndefined()
   })
 
   it('null excerpt becomes an empty string (render-safe)', () => {
@@ -195,9 +197,9 @@ describe('aggregatedToFeedItem', () => {
     expect(item.source.url).toBe('https://alt.example/x')
   })
 
-  // Deliberate v2 behavior change (design-direction-v2 §5.1 — owner point 5):
-  // allowed remote publisher photos render for real; the placeholder is only
-  // the missing/disallowed fallback.
+  // Image-policy contract (§5.1 — owner point 5): allowed remote publisher
+  // photos are HOTLINKED and render for real; anything missing/disallowed maps
+  // to image: undefined (text-only), NEVER a branded placeholder.
   it('imageAllowed + imageUrl ⇒ real publisher photo (alt = title, 16:9 nominal box)', () => {
     const item = aggregatedToFeedItem(
       asAggregated(
@@ -216,21 +218,21 @@ describe('aggregatedToFeedItem', () => {
     })
   })
 
-  it('missing, blank or disallowed imageUrl ⇒ category placeholder', () => {
+  it('missing, blank or disallowed imageUrl ⇒ no image (text-only), never a placeholder', () => {
     const missing = aggregatedToFeedItem(asAggregated(aggregatedDoc()))
-    expect(missing.image?.url).toBe('/placeholders/sport.png')
+    expect(missing.image).toBeUndefined()
 
     const blank = aggregatedToFeedItem(
       asAggregated(aggregatedDoc({ imageUrl: '   ', imageAllowed: true })),
     )
-    expect(blank.image?.url).toBe('/placeholders/sport.png')
+    expect(blank.image).toBeUndefined()
 
     const disallowed = aggregatedToFeedItem(
       asAggregated(
         aggregatedDoc({ imageUrl: 'https://publisher.example/foto.jpg', imageAllowed: false }),
       ),
     )
-    expect(disallowed.image?.url).toBe('/placeholders/sport.png')
+    expect(disallowed.image).toBeUndefined()
   })
 
   it('ids can never collide with originals sharing the same numeric id', () => {

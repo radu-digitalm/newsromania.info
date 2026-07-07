@@ -173,17 +173,3 @@ export function selectStories(
 export function storyUrl(siteUrl, slug) {
   return `${siteUrl}/stiri/${slug}`
 }
-
-/**
- * Absolute category-placeholder illustration URL (public/placeholders/).
- * Unknown/missing category slugs fall back to the generic artwork.
- *
- * @param {string} siteUrl — no trailing slash
- * @param {string|null|undefined} categorySlug
- * @param {Set<string>} knownSlugs — the 8 canonical category slugs
- * @returns {string}
- */
-export function placeholderImageUrl(siteUrl, categorySlug, knownSlugs) {
-  const slug = categorySlug && knownSlugs.has(categorySlug) ? categorySlug : 'generic'
-  return `${siteUrl}/placeholders/${slug}.png`
-}

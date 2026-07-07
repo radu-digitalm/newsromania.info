@@ -66,18 +66,13 @@ function mapTags(tags: PayloadArticle['tags']): string[] {
   return (tags ?? []).flatMap((tag) => (typeof tag === 'object' ? [tag.name] : []))
 }
 
-/** Category placeholder illustration (public/placeholders/<slug>.png). */
-function placeholderImage(category: Category): ImageRef {
-  const known = siteConfig.categories.some((c) => c.slug === category.slug)
-  return {
-    url: `/placeholders/${known ? category.slug : 'generic'}.png`,
-    alt: `Ilustrație pentru categoria ${category.name}`,
-    width: 1200,
-    height: 675,
-  }
-}
-
-function mapFeaturedImage(media: PayloadArticle['featuredImage'], category: Category): ImageRef {
+/**
+ * Featured image of an original article — ONLY our own uploaded Payload media
+ * („only our stories have our photos”, image-policy contract). When no photo
+ * is attached the item is rendered text-only (image: undefined) — we NEVER
+ * substitute a branded category placeholder as a fallback.
+ */
+function mapFeaturedImage(media: PayloadArticle['featuredImage']): ImageRef | undefined {
   if (media && typeof media === 'object' && media.url) {
     return {
       url: media.url,
@@ -86,7 +81,7 @@ function mapFeaturedImage(media: PayloadArticle['featuredImage'], category: Cate
       height: media.height ?? 675,
     }
   }
-  return placeholderImage(category)
+  return undefined
 }
 
 /**
@@ -127,7 +122,7 @@ export function articleToFeedItem(doc: PayloadArticle): OriginalArticle {
     // publishedAt is stamped on the draft→published transition (Articles
     // beforeChange hook); createdAt covers legacy docs from before the field.
     publishedAt: doc.publishedAt ?? doc.createdAt,
-    image: mapFeaturedImage(doc.featuredImage, category),
+    image: mapFeaturedImage(doc.featuredImage),
     author: { name: authorName, slug: roSlugify(authorName) },
     body: lexicalToParagraphs(doc.body),
   }
@@ -135,18 +130,19 @@ export function articleToFeedItem(doc: PayloadArticle): OriginalArticle {
 
 export function aggregatedToFeedItem(doc: PayloadAggregatedItem): AggregatedItem {
   const category = mapCategory(doc.category)
-  // Real publisher photo (design-direction-v2 §5.1): imageUrl comes ONLY from
-  // RSS enclosure/media:content (ingest worker) or the owner-approved
-  // backfill, and renders only when imageAllowed. Remote URLs are hotlinked
-  // by ArticleImage via plain <img> (never proxied through next/image, so no
-  // remotePatterns needed); dimensions are the nominal 16:9 box — every
-  // surface crops with object-fit: cover, so intrinsic size never drives
-  // layout (zero CLS).
+  // Real publisher photo (design-direction-v2 §5.1): imageUrl is ALWAYS a
+  // HOTLINK to the source's own image (RSS enclosure/media:content), never
+  // downloaded/stored by us, and renders only when imageAllowed. Remote URLs
+  // are hotlinked by ArticleImage via plain <img> (never proxied through
+  // next/image, so no remotePatterns needed); dimensions are the nominal 16:9
+  // box — every surface crops with object-fit: cover, so intrinsic size never
+  // drives layout (zero CLS). When there is no real image the item is
+  // rendered text-only (image: undefined) — NEVER a branded placeholder.
   const imageUrl = typeof doc.imageUrl === 'string' ? doc.imageUrl.trim() : ''
-  const image: ImageRef =
+  const image: ImageRef | undefined =
     doc.imageAllowed && imageUrl.length > 0
       ? { url: imageUrl, alt: doc.title, width: 1200, height: 675 }
-      : placeholderImage(category)
+      : undefined
   return {
     id: `aggregated-${doc.id}`,
     type: 'aggregated',

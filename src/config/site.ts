@@ -25,16 +25,16 @@ export const siteConfig: SiteConfig = {
   domain: 'newsromania.info',
   url: process.env.NEXT_PUBLIC_SITE_URL ?? 'https://newsromania.info',
   description:
-    'Știri din România și din lume, la zi: actualitate, politică, economie, externe, sport, tehnologie, sănătate și cultură.',
+    'Știri din România și din lume, la zi: actualitate, politică, economie, internațional, sport, tehnologie, sănătate și cultură.',
   // Public-facing AdSense publisher id (PROJECT_BRIEF 6.4) — safe to have in code.
   adsensePublisherId: process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID ?? 'ca-pub-8098077913729716',
   // Exact order per design direction §3.2: Actualitate, Politică, Economie,
-  // Externe, Sport, Sănătate, Tehnologie, Cultură.
+  // Internațional, Sport, Sănătate, Tehnologie, Cultură.
   categories: [
     { slug: 'actualitate', name: 'Actualitate' },
     { slug: 'politica', name: 'Politică' },
     { slug: 'economie', name: 'Economie' },
-    { slug: 'externe', name: 'Externe' },
+    { slug: 'international', name: 'Internațional' },
     { slug: 'sport', name: 'Sport' },
     { slug: 'sanatate', name: 'Sănătate' },
     { slug: 'tehnologie', name: 'Tehnologie' },

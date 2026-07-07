@@ -189,7 +189,11 @@ function OverlayMetaRow({ item }: { item: FeedItem }) {
   )
 }
 
-/** Photo of a card — src from the read layer, placeholder fallback inside ArticleImage. */
+/**
+ * Photo of a card — src from the read layer. Renders nothing when the item has
+ * no real image (ArticleImage returns null); callers drop the media box for
+ * text-only items rather than reserving an empty frame or a placeholder.
+ */
 function CardImage({
   item,
   priority,
@@ -270,13 +274,22 @@ function OverlayCard({
 /** List-tier row (§4.1d): 88/120px thumb, optional rank numeral, h4-token title. */
 function ListCard({ item, as, rank }: { item: FeedItem; as: HeadingTag; rank?: number }) {
   const Heading = as
+  // Text-only items drop the thumbnail column entirely — the title spans the
+  // full row rather than sitting beside an empty box or a placeholder.
+  const hasImage = Boolean(item.image?.url)
   return (
-    <article className="group relative grid grid-cols-[88px_1fr] items-start gap-3 transition-transform duration-200 ease-out hover:-translate-y-0.5 md:grid-cols-[120px_1fr]">
-      <div className="aspect-video overflow-hidden rounded-[10px] shadow-[inset_0_0_0_1px_rgba(16,22,31,0.06)]">
-        <div className="h-full w-full transition-transform duration-300 ease-out group-hover:scale-[1.03]">
-          <CardImage item={item} sizes="120px" />
+    <article
+      className={`group relative grid items-start gap-3 transition-transform duration-200 ease-out hover:-translate-y-0.5 ${
+        hasImage ? 'grid-cols-[88px_1fr] md:grid-cols-[120px_1fr]' : 'grid-cols-1'
+      }`}
+    >
+      {hasImage && (
+        <div className="aspect-video overflow-hidden rounded-[10px] shadow-[inset_0_0_0_1px_rgba(16,22,31,0.06)]">
+          <div className="h-full w-full transition-transform duration-300 ease-out group-hover:scale-[1.03]">
+            <CardImage item={item} sizes="120px" />
+          </div>
         </div>
-      </div>
+      )}
       <div className="min-w-0">
         <Heading className="font-serif text-[15px] font-semibold leading-5 text-ink transition-colors group-hover:text-link md:text-base md:leading-[21px]">
           {typeof rank === 'number' && (
@@ -304,22 +317,33 @@ export function ArticleCard({ item, as = 'h3', variant = 'feed', rank }: Article
   }
 
   const Heading = as
+  const hasImage = Boolean(item.image?.url)
 
-  // Standard grid card (§4.1a).
+  // Standard grid card (§4.1a). Text-only variant: drop the 16:9 media box
+  // (and its overlaid Kicker) entirely — no empty frame, no placeholder — and
+  // move the category chip inline above the title so the card still reads as
+  // an intentional text post.
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-[14px] border border-border bg-surface shadow-[0_1px_2px_rgba(16,22,31,0.06),0_1px_3px_rgba(16,22,31,0.04)] transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(16,22,31,0.12)]">
-      <div className="relative aspect-video overflow-hidden">
-        <div className="h-full w-full transition-transform duration-300 ease-out group-hover:scale-[1.03]">
-          <CardImage
-            item={item}
-            sizes="(min-width: 1024px) 400px, (min-width: 640px) 50vw, 100vw"
-          />
+      {hasImage && (
+        <div className="relative aspect-video overflow-hidden">
+          <div className="h-full w-full transition-transform duration-300 ease-out group-hover:scale-[1.03]">
+            <CardImage
+              item={item}
+              sizes="(min-width: 1024px) 400px, (min-width: 640px) 50vw, 100vw"
+            />
+          </div>
+          <div className="absolute left-2.5 top-2.5">
+            <Kicker category={item.category} onImage />
+          </div>
         </div>
-        <div className="absolute left-2.5 top-2.5">
-          <Kicker category={item.category} onImage />
-        </div>
-      </div>
+      )}
       <div className="flex flex-1 flex-col p-4">
+        {!hasImage && (
+          <div className="mb-2">
+            <Kicker category={item.category} />
+          </div>
+        )}
         <Heading className="font-serif text-[17px] font-bold leading-[23px] tracking-[-0.005em] text-ink transition-colors group-hover:text-link md:text-[19px] md:leading-[25px]">
           <StretchedTitleLink item={item} className="line-clamp-2" />
         </Heading>

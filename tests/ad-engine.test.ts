@@ -192,7 +192,7 @@ describe('keywords — consent gating & blending', () => {
         'actualitate',
         'politica',
         'economie',
-        'externe',
+        'international',
         'sport',
         'sanatate',
         'tehnologie',

@@ -32,18 +32,18 @@ Pe datele reale: **84/84 agregate prin regula 1** (ancoră externă în coadă),
 
 ## Tabel de mapare categorii (WP → cele 8 sluguri canonice)
 
-| Slug WP                            | Slug canonic  | Observații                                         |
-| ---------------------------------- | ------------- | -------------------------------------------------- |
-| `fara-categorie`                   | `actualitate` | singura categorie folosită pe site (84/84 postări) |
-| `actualitate`, `stiri`             | `actualitate` | identitate/robustețe                               |
-| `politica`                         | `politica`    | robustețe (nefolosit)                              |
-| `economie`                         | `economie`    | robustețe (nefolosit)                              |
-| `externe`, `international`         | `externe`     | robustețe (nefolosit)                              |
-| `sport`                            | `sport`       | robustețe (nefolosit)                              |
-| `sanatate`                         | `sanatate`    | robustețe (nefolosit)                              |
-| `tehnologie`, `stiinta-tehnologie` | `tehnologie`  | robustețe (nefolosit)                              |
-| `cultura`                          | `cultura`     | robustețe (nefolosit)                              |
-| _orice altceva_                    | `actualitate` | implicit                                           |
+| Slug WP                            | Slug canonic    | Observații                                         |
+| ---------------------------------- | --------------- | -------------------------------------------------- |
+| `fara-categorie`                   | `actualitate`   | singura categorie folosită pe site (84/84 postări) |
+| `actualitate`, `stiri`             | `actualitate`   | identitate/robustețe                               |
+| `politica`                         | `politica`      | robustețe (nefolosit)                              |
+| `economie`                         | `economie`      | robustețe (nefolosit)                              |
+| `externe`, `international`         | `international` | robustețe (nefolosit)                              |
+| `sport`                            | `sport`         | robustețe (nefolosit)                              |
+| `sanatate`                         | `sanatate`      | robustețe (nefolosit)                              |
+| `tehnologie`, `stiinta-tehnologie` | `tehnologie`    | robustețe (nefolosit)                              |
+| `cultura`                          | `cultura`       | robustețe (nefolosit)                              |
+| _orice altceva_                    | `actualitate`   | implicit                                           |
 
 Toate cele 84 de elemente importate au primit categoria `actualitate`.
 

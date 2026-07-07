@@ -23,10 +23,12 @@
  *      (CAPTION_BUDGET_PER_RUN) to bound LLM spend.
  *   4. link = OUR site URL (/stiri/<slug>) for both content types — social
  *      traffic lands on newsromania.info, never directly at the publisher.
- *   5. imageUrl = featured image (originals) or the category placeholder,
- *      always absolute. Aggregated items deliberately get the placeholder:
- *      publisher RSS thumbnails are licensed for on-site display at most,
- *      re-uploading them to social accounts is extra exposure (brief §0.2).
+ *   5. imageUrl = the SAME image the site shows for the story, always
+ *      absolute: originals use their uploaded featuredImage; aggregated items
+ *      hotlink the publisher's own image URL (item.imageUrl). If a story has
+ *      no real image it is posted WITHOUT one (imageUrl omitted) — we NEVER
+ *      attach a branded category placeholder (IMAGE POLICY: placeholders as an
+ *      image fallback are removed everywhere).
  *   6. scheduledFor = next FREE slot from site-config
  *      socialPlatforms.postingSchedule — strictly in the future, max 1 story
  *      per slot per platform, stories spread across consecutive slots.
@@ -45,7 +47,6 @@ import {
   createSlotAllocator,
   idempotencyKey,
   parseSchedule,
-  placeholderImageUrl,
   selectStories,
   storyUrl,
 } from './lib/social-plan.mjs'
@@ -57,7 +58,6 @@ const REFID_LOOKUP_BATCH = 80
 const OCCUPIED_LOOKUP_LIMIT = 1000
 
 const SITE_URL = siteConfig.url.replace(/\/+$/, '')
-const KNOWN_CATEGORY_SLUGS = new Set(siteConfig.categories.map((c) => c.slug))
 
 const startedAt = Date.now()
 const timeUp = () => Date.now() - startedAt >= RUN_CAP_MS
@@ -79,23 +79,35 @@ function parseArgs(argv) {
   return { dryRun, limit }
 }
 
-function categorySlugOf(doc) {
-  return doc.category && typeof doc.category === 'object' ? (doc.category.slug ?? null) : null
-}
-
 /** Absolute URL for a possibly-relative Payload media path. */
 function absoluteUrl(pathOrUrl) {
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl
   return `${SITE_URL}${pathOrUrl.startsWith('/') ? '' : '/'}${pathOrUrl}`
 }
 
-/** Featured image of an original (depth-1 populated), else placeholder. */
-function originalImageUrl(doc, categorySlug) {
+/**
+ * Featured image of an original (depth-1 populated), else null — a story with
+ * no real photo is posted WITHOUT an image (no branded placeholder fallback).
+ */
+function originalImageUrl(doc) {
   const media = doc.featuredImage
   if (media && typeof media === 'object' && typeof media.url === 'string' && media.url.length > 0) {
     return absoluteUrl(media.url)
   }
-  return placeholderImageUrl(SITE_URL, categorySlug, KNOWN_CATEGORY_SLUGS)
+  return null
+}
+
+/**
+ * The publisher's own image URL for an aggregated item (item.imageUrl — the
+ * same hotlink the site displays), else null. Aggregated images are ALWAYS a
+ * hotlink to the source; never a downloaded copy, never a placeholder.
+ */
+function aggregatedImageUrl(doc) {
+  const raw = doc.imageUrl
+  if (typeof raw === 'string' && raw.trim().length > 0) {
+    return absoluteUrl(raw.trim())
+  }
+  return null
 }
 
 /**
@@ -138,7 +150,6 @@ async function loadCandidates(payload, sinceIso) {
   ])
 
   const originals = articles.docs.map((doc) => {
-    const categorySlug = categorySlugOf(doc)
     return {
       contentType: 'original',
       refId: String(doc.id),
@@ -146,13 +157,12 @@ async function loadCandidates(payload, sinceIso) {
       excerpt:
         typeof doc.excerpt === 'string' && doc.excerpt.trim() ? doc.excerpt.trim() : doc.title,
       link: storyUrl(SITE_URL, doc.slug),
-      imageUrl: originalImageUrl(doc, categorySlug),
+      imageUrl: originalImageUrl(doc),
     }
   })
 
   const aggregatedStories = aggregated.docs
     .map((doc) => {
-      const categorySlug = categorySlugOf(doc)
       const hasExcerpt = typeof doc.excerpt === 'string' && doc.excerpt.trim().length > 0
       return {
         contentType: 'aggregated',
@@ -160,8 +170,8 @@ async function loadCandidates(payload, sinceIso) {
         title: doc.title,
         excerpt: hasExcerpt ? doc.excerpt.trim() : doc.title,
         link: storyUrl(SITE_URL, doc.slug),
-        // Placeholder by design — see the header comment (legal gate 0.2).
-        imageUrl: placeholderImageUrl(SITE_URL, categorySlug, KNOWN_CATEGORY_SLUGS),
+        // Publisher's own image (hotlink) or none — never a placeholder.
+        imageUrl: aggregatedImageUrl(doc),
         hasExcerpt,
       }
     })
@@ -291,7 +301,9 @@ async function main() {
             refId: story.refId,
             platform,
             caption: captions[platform] ?? story.title,
-            imageUrl: story.imageUrl,
+            // Omitted entirely when the story has no real image — never a
+            // branded placeholder fallback (IMAGE POLICY).
+            ...(story.imageUrl ? { imageUrl: story.imageUrl } : {}),
             link: story.link,
             scheduledFor: slot.toISOString(),
             status: 'queued',

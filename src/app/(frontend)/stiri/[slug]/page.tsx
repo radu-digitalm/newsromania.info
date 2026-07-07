@@ -94,25 +94,28 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
 
 /** Lead image (§3.5 ⑤): real photo, 16:9, radius 16px, eager + high priority. */
 function LeadImage({ article }: { article: FeedItem }) {
-  // „Foto: {Sursă}” only over a REAL publisher photo — never over our own
-  // branded placeholder (attribution accuracy, PROJECT_BRIEF 0.1/0.2). The
-  // read layer falls back to /placeholders/<slug>.png when imageUrl is
-  // missing/disallowed, so the path prefix is the placeholder signal.
-  const hasPublisherPhoto = Boolean(
-    article.image && !article.image.url.startsWith('/placeholders/'),
-  )
+  // No real photo → render NOTHING: no lead figure, no empty 16:9 box, no
+  // placeholder. The read layer already sets image: undefined whenever there
+  // is no genuine photo (image-policy contract), so image presence IS the
+  // signal — text-only articles simply open on their standfirst.
+  const imageUrl = article.image?.url
+  if (!imageUrl) return null
+
   return (
     <figure className="mt-6">
       <div className="aspect-video overflow-hidden rounded-[16px] shadow-[inset_0_0_0_1px_rgba(16,22,31,0.06)]">
         <ArticleImage
-          src={article.image?.url ?? null}
+          src={imageUrl}
           alt={article.image?.alt ?? article.title}
           categorySlug={article.category.slug}
           priority
           sizes="(min-width: 768px) 680px, 100vw"
         />
       </div>
-      {article.type === 'aggregated' && hasPublisherPhoto && (
+      {/* „Foto: {Sursă}” only over a REAL publisher photo (attribution accuracy,
+          PROJECT_BRIEF 0.1/0.2) — a hotlinked aggregated image is always the
+          source's own, so the credit is correct whenever a photo is present. */}
+      {article.type === 'aggregated' && (
         <figcaption className="mt-2 font-sans text-[13px] leading-[18px] text-ink-muted">
           Foto: {article.source.name}
         </figcaption>
