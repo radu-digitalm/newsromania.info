@@ -26,9 +26,11 @@
  *   5. imageUrl = the SAME image the site shows for the story, always
  *      absolute: originals use their uploaded featuredImage; aggregated items
  *      hotlink the publisher's own image URL (item.imageUrl). If a story has
- *      no real image it is posted WITHOUT one (imageUrl omitted) — we NEVER
- *      attach a branded category placeholder (IMAGE POLICY: placeholders as an
- *      image fallback are removed everywhere).
+ *      no real image, the card falls back to the SITE-LEVEL brand card
+ *      /og-default.png (IMAGE POLICY: "Keep OG default for social cards — that
+ *      is site-level, not a per-post placeholder"). We NEVER attach a branded
+ *      per-CATEGORY placeholder, and every social post carries a card image
+ *      (text-only posts get far less reach).
  *   6. scheduledFor = next FREE slot from site-config
  *      socialPlatforms.postingSchedule — strictly in the future, max 1 story
  *      per slot per platform, stories spread across consecutive slots.
@@ -84,6 +86,13 @@ function absoluteUrl(pathOrUrl) {
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl
   return `${SITE_URL}${pathOrUrl.startsWith('/') ? '' : '/'}${pathOrUrl}`
 }
+
+/**
+ * Site-level brand card used when a story has no per-post photo — the same
+ * /og-default.png the app serves as its default Open Graph image. NOT a
+ * per-category placeholder; keeps every social post carrying a card image.
+ */
+const OG_DEFAULT_IMAGE = absoluteUrl('/og-default.png')
 
 /**
  * Featured image of an original (depth-1 populated), else null — a story with
@@ -157,7 +166,7 @@ async function loadCandidates(payload, sinceIso) {
       excerpt:
         typeof doc.excerpt === 'string' && doc.excerpt.trim() ? doc.excerpt.trim() : doc.title,
       link: storyUrl(SITE_URL, doc.slug),
-      imageUrl: originalImageUrl(doc),
+      imageUrl: originalImageUrl(doc) ?? OG_DEFAULT_IMAGE,
     }
   })
 
@@ -170,8 +179,9 @@ async function loadCandidates(payload, sinceIso) {
         title: doc.title,
         excerpt: hasExcerpt ? doc.excerpt.trim() : doc.title,
         link: storyUrl(SITE_URL, doc.slug),
-        // Publisher's own image (hotlink) or none — never a placeholder.
-        imageUrl: aggregatedImageUrl(doc),
+        // Publisher's own image (hotlink), else the site brand card — never a
+        // per-category placeholder.
+        imageUrl: aggregatedImageUrl(doc) ?? OG_DEFAULT_IMAGE,
         hasExcerpt,
       }
     })
