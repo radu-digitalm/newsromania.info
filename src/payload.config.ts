@@ -41,7 +41,12 @@ export default buildConfig({
     components: {
       // Panoul operațional (PROJECT_BRIEF §17) — deasupra dashboardului admin.
       beforeDashboard: ['@/components/admin/OpsDashboard#OpsDashboard'],
-      // Legătură către site-ul public (#6a), în capul barei de navigare.
+      // Legătură „Vezi site-ul” (#2a) în DOUĂ sloturi ca să fie MEREU vizibilă:
+      // - `actions`: colțul dreapta-sus al antetului, prezent pe orice ecran
+      //   (dashboard/listă/editare/creare) și niciodată colapsat — garanția de
+      //   vizibilitate (bara laterală devine inertă când e închisă pe mobil/mid).
+      // - `beforeNavLinks`: în capul barei de navigare, când aceasta e deschisă.
+      actions: ['@/components/admin/BackToSite#BackToSite'],
       beforeNavLinks: ['@/components/admin/BackToSite#BackToSite'],
     },
     importMap: {

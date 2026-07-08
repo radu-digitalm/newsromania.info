@@ -1,5 +1,6 @@
 import type { Payload } from 'payload'
 
+import { topArticles, type TopArticle } from '@/lib/article-views'
 import type { LlmUsage, SiteConfig } from '@/payload-types'
 
 /**
@@ -40,6 +41,8 @@ export interface OpsStats {
     newestItemAgeMinutes: number | null
   }
   llm: OpsLlmDay[]
+  /** Content performance — „cele mai citite” (aggregate view tally, no PII). */
+  mostRead: TopArticle[]
   cdp: {
     events24h: number
     profiles: number
@@ -48,6 +51,10 @@ export interface OpsStats {
       refused: number
       withdrawn: number
     }
+    /** Consent-gated traffic for the current UTC day (page_view events). */
+    todayViews: number
+    /** Distinct visitorId seen today (bounded sample — see buildOpsStats). */
+    todayVisitors: number
   }
   social: {
     queued: number
@@ -63,6 +70,15 @@ export interface OpsStats {
 const LLM_WINDOW_DAYS = 7
 const MAX_FEEDS = 200
 const MAX_LLM_ROWS = 500
+/** How many „most read” rows the dashboard panel shows. */
+const TOP_ARTICLES = 5
+/**
+ * Bounded page_view sample for today's unique-visitor count. Payload has no
+ * COUNT(DISTINCT), so we pull today's page_view rows (id+visitorId only, depth
+ * 0) up to this cap and dedupe in memory — cheap and correct at current volume;
+ * degrades to „≥ cap” semantics only if a single day ever exceeds it.
+ */
+const MAX_TODAY_EVENTS = 5_000
 
 /** Ultimele `count` zile (UTC, YYYY-MM-DD), de la cea mai veche la azi. */
 export function lastNDays(count: number, now: Date = new Date()): string[] {
@@ -150,6 +166,9 @@ export async function buildOpsStats(payload: Payload, now: Date = new Date()): P
     socialApproved,
     socialPostedToday,
     siteConfig,
+    mostRead,
+    todayViews,
+    todayEventsResult,
   ] = await Promise.all([
     payload.find({
       collection: 'feeds',
@@ -195,11 +214,33 @@ export async function buildOpsStats(payload: Payload, now: Date = new Date()): P
       and: [{ status: { equals: 'posted' } }, { postedAt: { greater_than_equal: dayStart } }],
     }),
     payload.findGlobal({ slug: 'site-config', depth: 0 }) as Promise<SiteConfig>,
+    // „Cele mai citite” — aggregate view tally joined to titles (never throws;
+    // returns [] if Redis is down or nothing has been read yet).
+    topArticles(payload, TOP_ARTICLES),
+    // Today at a glance: consent-gated page_view volume for the current UTC day.
+    countDocs(payload, 'cdp-events', {
+      and: [{ type: { equals: 'page_view' } }, { ts: { greater_than_equal: dayStart } }],
+    }),
+    // Bounded sample of today's page_view rows to count DISTINCT visitors in JS
+    // (Payload has no COUNT(DISTINCT)); id+visitorId only, depth 0.
+    payload.find({
+      collection: 'cdp-events',
+      depth: 0,
+      limit: MAX_TODAY_EVENTS,
+      pagination: false,
+      where: {
+        and: [{ type: { equals: 'page_view' } }, { ts: { greater_than_equal: dayStart } }],
+      },
+    }),
   ])
 
   const newestItem = newestItemResult.docs[0]
   const newestIso = newestItem?.publishedAt ?? newestItem?.createdAt ?? null
   const newestItemAgeMinutes = ageMinutes(newestIso, now)
+
+  const todayVisitors = new Set(
+    todayEventsResult.docs.map((event) => event.visitorId).filter(Boolean),
+  ).size
 
   return {
     generatedAt: now.toISOString(),
@@ -219,6 +260,7 @@ export async function buildOpsStats(payload: Payload, now: Date = new Date()): P
       newestItemAgeMinutes,
     },
     llm: rollupLlmUsage(llmResult.docs, days),
+    mostRead,
     cdp: {
       events24h,
       profiles,
@@ -227,6 +269,8 @@ export async function buildOpsStats(payload: Payload, now: Date = new Date()): P
         refused: consentsRefused,
         withdrawn: consentsWithdrawn,
       },
+      todayViews,
+      todayVisitors,
     },
     social: {
       queued: socialQueued,

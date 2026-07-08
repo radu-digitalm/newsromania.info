@@ -345,12 +345,15 @@ describe('buildAdPlan — Amazon decisions', () => {
   })
 
   it('requires a partnerTag matching the visitor marketplace', () => {
-    // RO visitor → www.amazon.de → seeded tag matches.
+    // RO visitor → www.amazon.de → seeded tag matches. The page category
+    // 'tehnologie' has a house-catalog department bias, so it rides along as
+    // preferredCategories (owner fix round: "based on cookies + content").
     const ro = buildAdPlan(input({ country: 'RO' }), seededConfig())
     expect(decisionFor(ro, 'article-end')?.amazon).toEqual({
       keywords: contextualKeywords('tehnologie'),
       marketplace: 'www.amazon.de',
       partnerTag: 'newsr01-21',
+      preferredCategories: ['tehnologie'],
     })
     // GB visitor → www.amazon.co.uk → no tag seeded ⇒ AdSense keeps the slot.
     const gb = buildAdPlan(input({ country: 'GB', region: 'UK' }), seededConfig())
@@ -388,5 +391,57 @@ describe('buildAdPlan — Amazon decisions', () => {
     const amazon = decisionFor(plan, 'article')?.amazon
     expect(amazon).toBeDefined()
     expect(amazon?.keywords.some((kw) => CATEGORY_KEYWORDS.sport.includes(kw))).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// preferredCategories — house-product CATEGORY bias (owner fix round:
+// "products chosen based on cookies + content"). Consent-gated exactly like the
+// behavioural keyword blend; only slugs with a house-catalog department bias
+// survive (sport/politics/etc. carry no product department → dropped).
+// ---------------------------------------------------------------------------
+
+describe('buildAdPlan — preferredCategories (cookies + content bias)', () => {
+  it('no consent ⇒ preferredCategories is the PAGE category only (never the profile)', () => {
+    const plan = buildAdPlan(
+      input({ consent: 'refused', profile: PROFILE, categorySlug: 'tehnologie' }),
+      seededConfig(),
+    )
+    // tehnologie has a department bias; the (illegally-passed) profile is ignored.
+    expect(decisionFor(plan, 'article')?.amazon?.preferredCategories).toEqual(['tehnologie'])
+  })
+
+  it('consent + profile ⇒ top interests lead, then the page category (deduped)', () => {
+    // PROFILE = sport(5) > sanatate(3) > tehnologie(1). sport has NO department
+    // bias (dropped); sanatate does; then the page category tehnologie.
+    const plan = buildAdPlan(
+      input({ consent: 'accepted', profile: PROFILE, categorySlug: 'tehnologie' }),
+      seededConfig(),
+    )
+    expect(decisionFor(plan, 'article')?.amazon?.preferredCategories).toEqual([
+      'sanatate',
+      'tehnologie',
+    ])
+  })
+
+  it('consent but behaviouralTargeting disabled ⇒ page category only', () => {
+    const plan = buildAdPlan(
+      input({ consent: 'accepted', profile: PROFILE, categorySlug: 'tehnologie' }),
+      seededConfig({ behaviouralTargetingEnabled: false }),
+    )
+    expect(decisionFor(plan, 'article')?.amazon?.preferredCategories).toEqual(['tehnologie'])
+  })
+
+  it('is omitted when no slug has a department bias (e.g. politics homepage)', () => {
+    // No category + refused ⇒ rail carries the generic-keyword Amazon decision
+    // but with no biasable slug, so preferredCategories is absent (pure rotation).
+    const plan = buildAdPlan(
+      input({ categorySlug: undefined, consent: 'refused', profile: null }),
+      seededConfig(),
+    )
+    expect(decisionFor(plan, 'rail')?.amazon?.preferredCategories).toBeUndefined()
+    // A politics page (no product department) also carries no bias.
+    const politics = buildAdPlan(input({ categorySlug: 'politica' }), seededConfig())
+    expect(decisionFor(politics, 'article')?.amazon?.preferredCategories).toBeUndefined()
   })
 })

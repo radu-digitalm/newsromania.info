@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 
 import { AdSlot } from '@/components/ads/AdSlot'
 import { ArticleAdSlot } from '@/components/ads/ArticleAdSlot'
+import { ArticleSideRail } from '@/components/ads/ArticleSideRail'
 import { ExternalLinkIcon, SourcePill } from '@/components/articles/ArticleCard'
 import { ArticleImage } from '@/components/articles/ArticleImage'
 import { CategoryChip } from '@/components/articles/CategoryChip'
@@ -10,6 +11,7 @@ import { formatArticleDate } from '@/components/articles/format-date'
 import { MoreNews } from '@/components/articles/MoreNews'
 import { decisionFor, type AdPlan } from '@/lib/ads/engine'
 import { getRequestAdPlan } from '@/lib/ads/plan-for-request'
+import { recordArticleView } from '@/lib/article-views'
 import { getFeedItemBySlug } from '@/lib/content'
 import { absoluteUrl, articleJsonLd, serializeJsonLd } from '@/lib/seo'
 import { siteConfig } from '@/config/site'
@@ -195,10 +197,17 @@ function Standfirst({ text }: { text: string }) {
 function ArticleShell({
   adPlan,
   children,
+  sidebar,
   after,
 }: {
   adPlan: AdPlan
   children: React.ReactNode
+  /**
+   * Owner fix round: the desktop-only sticky Amazon sidebar beside the article
+   * (the post page had no sidebar ad before). Rendered at lg+ only; on mobile
+   * the article stays single-column, so text is never covered.
+   */
+  sidebar?: React.ReactNode
   after?: React.ReactNode
 }) {
   return (
@@ -209,10 +218,15 @@ function ArticleShell({
         <AdSlot variant="leaderboard" decision={decisionFor(adPlan, 'leaderboard')} />
       </div>
 
-      {/* Reading surface: full-bleed white section on the page canvas. */}
+      {/* Reading surface: full-bleed white section on the page canvas. Two
+          columns at lg+ (article + sticky Amazon sidebar), single column below
+          — the article column stays centered when no sidebar renders. */}
       <div className="bg-surface">
         <div className="mx-auto w-full max-w-[1280px] px-4 md:px-6 xl:px-8">
-          <article className="mx-auto max-w-[760px] py-8 md:py-10">{children}</article>
+          <div className="mx-auto flex w-full max-w-[760px] justify-center gap-8 lg:max-w-[1092px] lg:justify-between">
+            <article className="w-full min-w-0 max-w-[760px] py-8 md:py-10">{children}</article>
+            {sidebar && <div className="hidden py-8 md:py-10 lg:block">{sidebar}</div>}
+          </div>
         </div>
       </div>
 
@@ -227,6 +241,12 @@ export default async function ArticlePage({ params, searchParams }: ArticlePageP
   const article = await getFeedItemBySlug(slug)
   if (!article) notFound()
 
+  // Record ONE aggregate view for the „cele mai citite” admin dashboard (owner
+  // ask #2b). Fire-and-forget: recordArticleView is best-effort and never throws
+  // (a view counter must never block or fail an article render); we don't await
+  // the result. Consent-free — a plain global tally, no per-visitor data.
+  void recordArticleView(article.slug)
+
   // Per-request ad decisions (architecture.md §4) — the article's category
   // drives contextual keywords; consent/profile handled inside the helper.
   // ?geo=<CC> is the owner's preview override (honored only under AD_PREVIEW).
@@ -240,10 +260,24 @@ export default async function ArticlePage({ params, searchParams }: ArticlePageP
   const articleEndAd = decisionFor(adPlan, 'article-end')
   const ARTICLE_END_ORDINAL = 0
 
+  // Owner fix round: the desktop-only sticky Amazon sidebar (the post page had
+  // no sidebar ad before, "prioritise amazon"). It uses the rail placement's
+  // Amazon decision — present whenever a partnerTag matches the marketplace, and
+  // it carries the generic shopping-keyword fallback so it resolves even for an
+  // article whose category yields no contextual keywords. Its cards start at a
+  // variant PAST the article-end/MoreNews Amazon ordinals (0–2) so no two Amazon
+  // slots on the page repeat.
+  const sidebarAmazon = decisionFor(adPlan, 'rail')?.amazon
+  const ARTICLE_SIDEBAR_START_VARIANT = 3
+  const sidebar = sidebarAmazon ? (
+    <ArticleSideRail decision={sidebarAmazon} startVariant={ARTICLE_SIDEBAR_START_VARIANT} />
+  ) : undefined
+
   if (article.type === 'aggregated') {
     return (
       <ArticleShell
         adPlan={adPlan}
+        sidebar={sidebar}
         after={<MoreNews article={article} adPlan={adPlan} adOrdinalStart={1} />}
       >
         <ArticleHeader article={article} />
@@ -264,6 +298,7 @@ export default async function ArticlePage({ params, searchParams }: ArticlePageP
   return (
     <ArticleShell
       adPlan={adPlan}
+      sidebar={sidebar}
       after={<MoreNews article={article} adPlan={adPlan} adOrdinalStart={1} />}
     >
       {jsonLd && (

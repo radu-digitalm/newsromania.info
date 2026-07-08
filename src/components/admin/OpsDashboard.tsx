@@ -15,6 +15,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import type { OpsStats } from '@/lib/ops-stats'
 import { FeedHealthCard } from './ops/FeedHealthCard'
 import { LlmUsageCard } from './ops/LlmUsageCard'
+import { MostReadCard } from './ops/MostReadCard'
 import { formatInt, OpsCard, Stat } from './ops/OpsCard'
 
 const REFRESH_MS = 60_000
@@ -118,6 +119,8 @@ export function OpsDashboard(): React.ReactElement {
             lineHeight: 1.5,
           }}
         >
+          <MostReadCard items={stats.mostRead} />
+
           <FeedHealthCard feeds={stats.feeds} />
 
           <OpsCard title="Conținut">
@@ -141,6 +144,15 @@ export function OpsDashboard(): React.ReactElement {
           <LlmUsageCard llm={stats.llm} />
 
           <OpsCard title="CDP și consimțământ">
+            <Stat
+              label="Vizualizări azi (cu consimțământ)"
+              value={formatInt(stats.cdp.todayViews)}
+            />
+            <Stat
+              label="Vizitatori unici azi"
+              value={formatInt(stats.cdp.todayVisitors)}
+              emphasis
+            />
             <Stat label="Evenimente (24 h)" value={formatInt(stats.cdp.events24h)} />
             <Stat label="Profiluri de vizitatori" value={formatInt(stats.cdp.profiles)} />
             <Stat label="Consimțământ acceptat" value={formatInt(stats.cdp.consents.accepted)} />

@@ -10,6 +10,7 @@ const authMock = vi.hoisted(() => vi.fn())
 const countMock = vi.hoisted(() => vi.fn())
 const findMock = vi.hoisted(() => vi.fn())
 const findGlobalMock = vi.hoisted(() => vi.fn())
+const topArticlesMock = vi.hoisted(() => vi.fn())
 const cacheCalls = vi.hoisted(() => [] as Array<{ key: string; ttlSec: number }>)
 
 vi.mock('@/lib/payload', () => ({
@@ -27,6 +28,12 @@ vi.mock('@/lib/redis', () => ({
     cacheCalls.push({ key, ttlSec })
     return fn()
   },
+}))
+
+// „Cele mai citite” este acoperit de tests/article-views.test.ts; aici îl
+// izolăm ca buildOpsStats să nu depindă de Redis pentru contorul de vizualizări.
+vi.mock('@/lib/article-views', () => ({
+  topArticles: topArticlesMock,
 }))
 
 import type { Payload } from 'payload'
@@ -69,6 +76,32 @@ const FEED_DOCS = [
 // înainte de NOW pentru a verifica prospețimea ingestiei.
 const NEWEST_ITEM_DOCS = [{ publishedAt: '2026-07-06T09:30:00.000Z' }]
 
+// Eșantion page_view de azi: 4 evenimente, 3 vizitatori unici (v1 apare de 2 ori).
+const TODAY_EVENT_DOCS = [
+  { visitorId: 'v1' },
+  { visitorId: 'v2' },
+  { visitorId: 'v1' },
+  { visitorId: 'v3' },
+]
+
+// „Cele mai citite” — două rânduri deterministe (join-ul real e testat separat).
+const MOST_READ = [
+  {
+    slug: 'orig-1',
+    title: 'Original unu',
+    url: 'https://newsromania.info/stiri/orig-1',
+    type: 'original' as const,
+    views: 9,
+  },
+  {
+    slug: 'agg-1',
+    title: 'Agregat unu',
+    url: 'https://sursa.example/x',
+    type: 'aggregated' as const,
+    views: 5,
+  },
+]
+
 const LLM_DOCS = [
   // Două rânduri în aceeași zi (purpose diferit) — trebuie însumate.
   { day: '2026-07-06', calls: 10, inputTokens: 1_000, outputTokens: 500, estCostUsd: 0.1 },
@@ -101,7 +134,8 @@ function countFor({ collection, where }: CountArgs): number {
       if (raw.includes('createdAt')) return 3 // ingestate în ultima oră
       return raw.includes('publishedAt') ? 5 : 34
     case 'cdp-events':
-      return 120
+      // Vizualizări de azi (page_view + ts) vs. evenimente pe 24h.
+      return raw.includes('page_view') ? 18 : 120
     case 'cdp-profiles':
       return 40
     case 'consent-records':
@@ -135,9 +169,11 @@ beforeEach(() => {
     if (collection === 'feeds') return { docs: FEED_DOCS }
     if (collection === 'llm-usage') return { docs: LLM_DOCS }
     if (collection === 'aggregated-items') return { docs: NEWEST_ITEM_DOCS }
+    if (collection === 'cdp-events') return { docs: TODAY_EVENT_DOCS }
     throw new Error(`find neașteptat pentru colecția ${collection}`)
   })
   findGlobalMock.mockReset().mockResolvedValue(SITE_CONFIG)
+  topArticlesMock.mockReset().mockResolvedValue(MOST_READ)
 })
 
 afterEach(() => {
@@ -253,10 +289,13 @@ describe('buildOpsStats', () => {
         newestItemAgeMinutes: 30,
       },
       llm: rollupLlmUsage(LLM_DOCS as never, lastNDays(7, NOW)),
+      mostRead: MOST_READ,
       cdp: {
         events24h: 120,
         profiles: 40,
         consents: { accepted: 30, refused: 9, withdrawn: 3 },
+        todayViews: 18,
+        todayVisitors: 3,
       },
       social: { queued: 4, approved: 2, postedToday: 1 },
       adConfig: { unitsConfigured: 2, amazonTags: 1 },
@@ -282,6 +321,7 @@ describe('buildOpsStats', () => {
       if (collection === 'feeds') return { docs: FEED_DOCS }
       if (collection === 'llm-usage') return { docs: LLM_DOCS }
       if (collection === 'aggregated-items') return { docs: [] }
+      if (collection === 'cdp-events') return { docs: TODAY_EVENT_DOCS }
       throw new Error(`find neașteptat pentru colecția ${collection}`)
     })
     const payload = {
@@ -331,6 +371,14 @@ describe('GET /api/admin/ops-stats', () => {
     expect(response.status).toBe(403)
   })
 
+  it('răspunde 403 pentru un rol non-admin (editor/author) — date de business', async () => {
+    authMock.mockResolvedValue({ user: { id: 2, role: 'author' } })
+    const response = await GET(makeRequest())
+    expect(response.status).toBe(403)
+    expect(countMock).not.toHaveBeenCalled()
+    expect(cacheCalls).toHaveLength(0)
+  })
+
   it('răspunde 200 cu agregatul complet pentru un utilizator logat', async () => {
     const response = await GET(makeRequest())
 
@@ -346,7 +394,10 @@ describe('GET /api/admin/ops-stats', () => {
     })
     expect(stats.feeds).toHaveLength(2)
     expect(stats.llm).toHaveLength(7)
+    expect(stats.mostRead).toEqual(MOST_READ)
     expect(stats.cdp.consents).toEqual({ accepted: 30, refused: 9, withdrawn: 3 })
+    expect(stats.cdp.todayViews).toBe(18)
+    expect(stats.cdp.todayVisitors).toBe(3)
     expect(stats.social).toEqual({ queued: 4, approved: 2, postedToday: 1 })
     expect(stats.adConfig).toEqual({ unitsConfigured: 2, amazonTags: 1 })
 

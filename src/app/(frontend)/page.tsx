@@ -9,6 +9,7 @@ import { Pagination } from '@/components/articles/NextPageLink'
 import { PostCard } from '@/components/articles/PostCard'
 import { decisionFor, feedAdPositions } from '@/lib/ads/engine'
 import { getRequestAdPlan, resolveFeedAmazonProducts } from '@/lib/ads/plan-for-request'
+import { amazonOrdinalsForBatch } from '@/lib/feed-serialize'
 import { getFeaturedArticle, getFeed } from '@/lib/content'
 import type { FeedItem } from '@/types/content'
 
@@ -155,6 +156,16 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     adOrdinalStart: 0,
   })
 
+  // Rail rotation variant (owner fix round): land the sticky rail on a product
+  // DIFFERENT from the page's first in-feed Amazon slot. The feed slots pick
+  // variant floor(ordinal/3); the rail continues one past the highest page-1
+  // feed variant so, on first paint, the rail and the feed never show the same
+  // house product (deterministic — same request ⇒ same pair).
+  const page1FeedVariants = amazonOrdinalsForBatch(adPlan.everyNth, streamItems.length, 0).map(
+    (o) => Math.floor(o / 3),
+  )
+  const railVariant = page1FeedVariants.length > 0 ? Math.max(...page1FeedVariants) + 1 : 0
+
   return (
     <div className="min-h-full bg-canvas-dim">
       {/* v2.2 pair container: identical to the lone max-w-2xl column below lg;
@@ -222,8 +233,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
 
         {/* v2.2 desktop rail — sticky 300px ad column, lg+ only; hidden ⇒
-            never pushed (visibility guard in both push paths). */}
-        <SideRailAd decision={decisionFor(adPlan, 'rail')} />
+            never pushed (visibility guard in both push paths). `variant` lands
+            it on a product distinct from the first in-feed Amazon slot. */}
+        <SideRailAd decision={decisionFor(adPlan, 'rail')} variant={railVariant} />
       </div>
     </div>
   )

@@ -1,6 +1,7 @@
 import type { ConsentState } from '@/lib/consent'
 
-import { blendKeywords, contextualKeywords } from './keywords'
+import { hasCategoryBias } from './house-category'
+import { blendKeywords, contextualKeywords, topInterests } from './keywords'
 
 /**
  * Pure ad-decision core (architecture.md §4) — types, constants, and the
@@ -79,6 +80,17 @@ export interface AmazonDecision {
   marketplace: string
   /** Associates tracking id valid for that marketplace. */
   partnerTag: string
+  /**
+   * Ordered site-category slugs the HOUSE-fallback product selector should bias
+   * toward (owner fix round — products chosen "based on cookies + content"),
+   * strongest first: the consent-approved CDP profile's top interests when
+   * present, else the current article/feed category. Empty ⇒ no bias (pure
+   * rotation). Never read on the LIVE Creators-API path (it already returns a
+   * contextual product); used only by houseProductsForMarketplace selection in
+   * resolveAmazonProduct. Consent-gated exactly like `keywords`' behavioural
+   * blend — the profile is folded in only when consent === 'accepted'.
+   */
+  preferredCategories?: string[]
 }
 
 export interface AdDecision {
@@ -260,11 +272,38 @@ function resolveKeywords(input: AdPlanInput, config: AdEngineConfig): string[] {
     : contextualKeywords(input.categorySlug)
 }
 
+/**
+ * Ordered site-category slugs the house-fallback product selector should bias
+ * toward (owner fix round — "based on cookies + content"), strongest first:
+ *   1. the consent-approved CDP profile's top interests (same gate as the
+ *      behavioural keyword blend — profile consulted ONLY when consent ===
+ *      'accepted' AND behaviouralTargeting is enabled);
+ *   2. the current article/feed category.
+ * De-duplicated; only slugs that actually carry a department bias are kept (an
+ * unmappable slug would never re-order anything). Empty ⇒ pure rotation.
+ */
+function resolvePreferredCategories(input: AdPlanInput, config: AdEngineConfig): string[] {
+  const behavioural =
+    input.consent === 'accepted' && input.profile != null && config.behaviouralTargetingEnabled
+  const ordered: string[] = []
+  if (behavioural) ordered.push(...topInterests(input.profile?.interests))
+  if (input.categorySlug) ordered.push(input.categorySlug)
+  const seen = new Set<string>()
+  const preferred: string[] = []
+  for (const slug of ordered) {
+    if (seen.has(slug) || !hasCategoryBias(slug)) continue
+    seen.add(slug)
+    preferred.push(slug)
+  }
+  return preferred
+}
+
 function amazonDecisionFor(
   placement: AdPlacement,
   keywords: string[],
   marketplace: string,
   config: AdEngineConfig,
+  preferredCategories: string[],
 ): AmazonDecision | undefined {
   if (!AMAZON_PLACEMENTS.has(placement)) return undefined
   // The rail and the feed (v2.4) always carry Amazon on home/category; when the
@@ -284,7 +323,12 @@ function amazonDecisionFor(
     (row) => row.marketplace.trim().toLowerCase() === marketplace.toLowerCase(),
   )
   if (!tag) return undefined
-  return { keywords: resolved, marketplace, partnerTag: tag.tag }
+  return {
+    keywords: resolved,
+    marketplace,
+    partnerTag: tag.tag,
+    ...(preferredCategories.length > 0 ? { preferredCategories } : {}),
+  }
 }
 
 /**
@@ -301,6 +345,7 @@ export function buildAdPlan(input: AdPlanInput, config: AdEngineConfig): AdPlan 
   // users (revenue loss) and fight the CMP.
   const npa = false
   const keywords = resolveKeywords(input, config)
+  const preferredCategories = resolvePreferredCategories(input, config)
   const marketplace = marketplaceForCountry(input.country ?? input.region)
 
   const slots: AdDecision[] = AD_PLACEMENTS.map((placement) => {
@@ -314,7 +359,7 @@ export function buildAdPlan(input: AdPlanInput, config: AdEngineConfig): AdPlan 
       format: units[0]?.format ?? DEFAULT_FORMAT[placement],
       npa,
     }
-    const amazon = amazonDecisionFor(placement, keywords, marketplace, config)
+    const amazon = amazonDecisionFor(placement, keywords, marketplace, config, preferredCategories)
     // Placement-level `network` = how a SINGLE-slot placement dispatches at
     // render time (article/article-end/rail → ArticleAdSlot/SideRailAd read it
     // directly). The 'feed' placement is MULTI-slot: its per-slot network is

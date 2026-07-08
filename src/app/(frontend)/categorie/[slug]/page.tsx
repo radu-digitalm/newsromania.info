@@ -9,6 +9,7 @@ import { Pagination } from '@/components/articles/NextPageLink'
 import { siteConfig } from '@/config/site'
 import { decisionFor, feedAdPositions } from '@/lib/ads/engine'
 import { getRequestAdPlan, resolveFeedAmazonProducts } from '@/lib/ads/plan-for-request'
+import { amazonOrdinalsForBatch } from '@/lib/feed-serialize'
 import { getFeed } from '@/lib/content'
 import { absoluteUrl } from '@/lib/seo'
 
@@ -72,6 +73,12 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
     itemCount: items.length,
     adOrdinalStart: 0,
   })
+  // Rail rotation variant (owner fix round): land the sticky rail on a product
+  // distinct from the page's first in-feed Amazon slot (see home page).
+  const page1FeedVariants = amazonOrdinalsForBatch(adPlan.everyNth, items.length, 0).map((o) =>
+    Math.floor(o / 3),
+  )
+  const railVariant = page1FeedVariants.length > 0 ? Math.max(...page1FeedVariants) + 1 : 0
   const hrefFor = (n: number) => `/categorie/${category.slug}?page=${n}`
 
   return (
@@ -148,8 +155,9 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
         </div>
 
         {/* v2.2 desktop rail — sticky 300px ad column, lg+ only; hidden ⇒
-            never pushed (visibility guard in both push paths). */}
-        <SideRailAd decision={decisionFor(adPlan, 'rail')} />
+            never pushed (visibility guard in both push paths). `variant` lands
+            it on a product distinct from the first in-feed Amazon slot. */}
+        <SideRailAd decision={decisionFor(adPlan, 'rail')} variant={railVariant} />
       </div>
     </div>
   )

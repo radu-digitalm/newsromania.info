@@ -8,8 +8,10 @@ import { cacheJson, rkey } from '@/lib/redis'
  * coadă socială, configurare reclame).
  *
  * - Autentificat prin Payload: cererea trebuie să poarte sesiunea de admin
- *   (cookie `payload-token`); fără utilizator → 403. Orice rol logat
- *   (admin/editor/author) poate citi — sunt doar agregate, fără date brute.
+ *   (cookie `payload-token`). DOAR rolul `admin` poate citi — agregatele includ
+ *   cost LLM, defalcarea consimțământului și numărul de profiluri CDP (semnal
+ *   de business/conformitate), iar sursa brută (cdp-events) este oricum
+ *   admin-only. Orice alt rol → 403.
  * - Agregarea rulează prin Local API (src/lib/ops-stats.ts) și este pusă în
  *   cache Redis 60 s (`newsromania:admin:ops-stats`), astfel încât
  *   auto-reîmprospătarea panoului să nu bombardeze Postgres.
@@ -31,15 +33,17 @@ export async function GET(request: Request): Promise<Response> {
     )
   }
 
-  let user: unknown = null
+  let user: { role?: string } | null = null
   try {
-    ;({ user } = await payload.auth({ headers: request.headers }))
+    ;({ user } = (await payload.auth({ headers: request.headers })) as {
+      user: { role?: string } | null
+    })
   } catch {
     user = null
   }
-  if (!user) {
+  if (!user || user.role !== 'admin') {
     return Response.json(
-      { error: 'Acces interzis. Autentifică-te în panoul de administrare.' },
+      { error: 'Acces interzis. Este necesar un cont de administrator.' },
       { status: 403, headers: { 'Cache-Control': 'no-store' } },
     )
   }

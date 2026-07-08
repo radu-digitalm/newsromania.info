@@ -33,13 +33,23 @@ export type { AmazonAdLayout }
 export async function AmazonProductAd({
   decision,
   layout = 'card',
+  variant = 0,
 }: {
   decision: AmazonDecision
   layout?: AmazonAdLayout
+  /**
+   * House-set rotation index (owner fix round). Every single-slot Amazon surface
+   * on a page passes a DISTINCT variant so no two show the same product: the
+   * sticky rail, the article-end box, and each „Mai multe știri” Amazon cell get
+   * a different index into the (personalized-ordered) marketplace set. Omitted ⇒
+   * 0 (first product). Ignored on the live Creators-API path.
+   */
+  variant?: number
 }) {
   // Live API product, then the always-on marketplace-correct house bestseller
   // (AMAZON_HOUSE_ADS) — one resolution path shared with the /api/feed batch.
-  const product = await resolveAmazonProduct(decision)
+  // `variant` spreads single-slot surfaces across the set so they never repeat.
+  const product = await resolveAmazonProduct(decision, variant)
   if (!product) return <AmazonEmptyBox layout={layout} />
   return <AmazonProductCard product={product} layout={layout} />
 }

@@ -4,6 +4,7 @@ import { getRedis, rkey } from '@/lib/redis'
 
 import type { AmazonDecision } from './engine-core'
 import { houseProductsForMarketplace } from './house-amazon-products'
+import { productMatchesCategory } from './house-category'
 import { AMAZON_HOUSE_ADS } from './preview'
 
 /**
@@ -287,8 +288,44 @@ export async function searchProductsWithTimeout(
 }
 
 // ---------------------------------------------------------------------------
-// Single-product resolver — the always-on house fallback (owner v2.4)
+// Single-product resolver — the always-on house fallback (owner fix round)
 // ---------------------------------------------------------------------------
+
+/**
+ * Order the marketplace's house set for selection (owner fix round: VARIETY +
+ * "based on cookies + content"). Products whose department matches the
+ * decision's `preferredCategories` come FIRST, grouped in preferred order
+ * (strongest interest → page category), each group in catalog order; every
+ * remaining product follows. Then the caller picks orderedPool[variant % len],
+ * so:
+ *   - consecutive slots (variant 0,1,2,…) show DIFFERENT products until the
+ *     whole set is exhausted (no repeat) — fixes the single-product complaint;
+ *   - the visitor's top-interest / the page category leads the rotation —
+ *     personalization "based on cookies + content".
+ * With no preferences the order is the plain catalog order (pure rotation).
+ * Pure + deterministic: same (set, preferences) ⇒ same order every render.
+ */
+export function orderedHouseSet(
+  set: readonly AmazonProduct[],
+  preferredCategories: readonly string[] | undefined,
+): AmazonProduct[] {
+  if (!preferredCategories || preferredCategories.length === 0) return [...set]
+  const chosen = new Set<AmazonProduct>()
+  const ordered: AmazonProduct[] = []
+  for (const slug of preferredCategories) {
+    for (const product of set) {
+      if (chosen.has(product)) continue
+      if (productMatchesCategory(product.category, slug)) {
+        chosen.add(product)
+        ordered.push(product)
+      }
+    }
+  }
+  for (const product of set) {
+    if (!chosen.has(product)) ordered.push(product)
+  }
+  return ordered
+}
 
 /**
  * Resolve ONE product for an AmazonDecision — the single source of truth used
@@ -298,11 +335,13 @@ export async function searchProductsWithTimeout(
  *
  *   1. the live Creators API product (searchProductsWithTimeout — Redis-cached,
  *      800ms budget). Once the Associates account is eligible this wins.
- *   2. while the live API returns nothing (AssociateNotEligible), the
- *      geo-matched SiteStripe HOUSE bestseller for decision.marketplace — a
- *      REAL affiliate product with the marketplace-correct partner tag. This is
- *      the PRODUCTION always-on path, gated ONLY by AMAZON_HOUSE_ADS (default
- *      on), independent of AD_PREVIEW.
+ *   2. while the live API returns nothing (AssociateNotEligible), a geo-matched
+ *      SiteStripe HOUSE bestseller for decision.marketplace — a REAL affiliate
+ *      product with the marketplace-correct partner tag. VARIETY + PERSONALIZED:
+ *      the marketplace set is ordered by decision.preferredCategories (CDP
+ *      top-interest / page category) then rotated by `variant`, so consecutive
+ *      slots differ and the visitor's interest leads. Always-on, gated ONLY by
+ *      AMAZON_HOUSE_ADS (default on), independent of AD_PREVIEW.
  *   3. undefined ⇒ the caller renders its reserved-empty „Publicitate" box.
  *
  * Never throws (searchProductsWithTimeout already swallows). Server-only
@@ -311,11 +350,13 @@ export async function searchProductsWithTimeout(
 export async function resolveAmazonProduct(
   decision: AmazonDecision,
   /**
-   * House-set rotation index (owner v2.4): the feed shows several Amazon slots,
-   * so it passes each slot's ordinal to spread the house bestsellers across the
-   * marketplace set (product[variant % set.length]) instead of repeating one.
-   * Single-slot surfaces (article-end / rail) omit it → the first house product.
-   * Ignored on the LIVE path (the API already returns a contextual product).
+   * House-set rotation index (owner fix round): each Amazon SLOT passes its own
+   * index so slot k shows a DIFFERENT product from slot k−1 — the rail, article
+   * box, MoreNews and every feed slot each get a distinct variant, so no two
+   * visible Amazon slots repeat until the (now large) catalog is exhausted.
+   * Combined with `preferredCategories` (personalized ordering) the selection is
+   * deterministic given (visitor→preferences, variant) so SSR and the client
+   * /api/feed batches render identically. Ignored on the LIVE path.
    */
   variant = 0,
 ): Promise<AmazonProduct | undefined> {
@@ -329,8 +370,9 @@ export async function resolveAmazonProduct(
   if (AMAZON_HOUSE_ADS) {
     const set = houseProductsForMarketplace(decision.marketplace)
     if (set.length === 0) return undefined
+    const ordered = orderedHouseSet(set, decision.preferredCategories)
     const index = Number.isFinite(variant) && variant >= 0 ? Math.floor(variant) : 0
-    return set[index % set.length]
+    return ordered[index % ordered.length]
   }
   return undefined
 }

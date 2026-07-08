@@ -47,7 +47,19 @@ import { RailAdReveal } from './RailAdReveal'
 /** Formats that reserve the short 300×250 shell; everything else gets 300×600. */
 const SHORT_FORMATS = new Set(['rectangle', '300x250'])
 
-export function SideRailAd({ decision }: { decision?: AdDecision }) {
+export function SideRailAd({
+  decision,
+  variant = 0,
+}: {
+  decision?: AdDecision
+  /**
+   * House-set rotation index (owner fix round): the page passes a variant that
+   * lands the sticky rail on a DIFFERENT product than the page's first in-feed
+   * Amazon slot, so the rail and the feed never show the same product on first
+   * paint. Ignored on the live Creators-API path.
+   */
+  variant?: number
+}) {
   // Amazon rail (R1): a single sticky product card, desktop-only. The
   // AmazonProductAd renders its own labelled „Publicitate" card + Associate
   // disclosure, so the column just provides the sticky 300px frame.
@@ -55,7 +67,7 @@ export function SideRailAd({ decision }: { decision?: AdDecision }) {
     return (
       <div className="hidden w-[300px] shrink-0 pt-6 lg:block" data-testid="side-rail">
         <div className="sticky top-[72px]">
-          <AmazonProductAd decision={decision.amazon} />
+          <AmazonProductAd decision={decision.amazon} variant={variant} />
         </div>
       </div>
     )

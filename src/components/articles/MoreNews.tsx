@@ -118,6 +118,10 @@ export async function MoreNews({
               <AmazonProductAd
                 key={`more-news-ad-${cell.adIndex}`}
                 decision={feedDecision.amazon}
+                // Ordinal doubles as the house-set rotation variant (owner fix
+                // round) so this Amazon cell shows a product distinct from the
+                // article-end box and the rail — no repeat on the article page.
+                variant={ordinal}
               />
             )
           }

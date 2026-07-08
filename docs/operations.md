@@ -210,12 +210,35 @@ the owner.
 Umami is our **cookieless, GDPR-friendly** analytics — self-hosted as the
 `umami` compose service (`ghcr.io/umami-software/umami:postgresql-latest`), on
 the internal network, published only to `127.0.0.1:3141`. It is served
-**same-origin** at `/stats/*` via a `next.config` rewrite
-(`/stats/:path* → http://umami:3000/:path*`), so the tracker script
-(`/stats/script.js`) and its collector (`/stats/api/send`) are first-party — no
-nginx change, no third-party host. Umami sets **no cookies** and stores no
-personal data, so it runs **consent-free** (no CMP gate), unlike the
-consent-gated first-party CDP.
+**same-origin** at `/stats/*` via a `next.config` rewrite, so the tracker
+script (`/stats/script.js`), its collector (`/stats/api/send`) AND the human
+dashboard at `/stats` are all first-party — no nginx change, no third-party
+host. Umami sets **no cookies** and stores no personal data, so it runs
+**consent-free** (no CMP gate), unlike the consent-gated first-party CDP.
+
+**Subpath routing — `BASE_PATH=/stats` + a full-path rewrite (they pair).**
+Umami is a Next.js app; by default it emits **root-absolute** asset URLs
+(`/_next/*`, `/favicon.ico`, …). Under the `/stats` subpath the browser then
+requests those at the site root, where OUR app answers → 404 → the dashboard is
+a **blank white page**. The fix is to run Umami itself under the subpath by
+setting **`BASE_PATH: /stats`** on the `umami` service (`compose.yaml`); Umami
+3.x reads `process.env.BASE_PATH` and prefixes EVERYTHING with it — the
+dashboard HTML, every `/_next/*` asset, the tracker (`/stats/script.js`) and the
+collector (`/stats/api/send`). Because Umami now expects the `/stats` prefix on
+incoming requests, the `next.config.ts` rewrite must forward the **full** path
+(keep the prefix) rather than stripping it:
+
+```
+source:      '/stats/:path*'
+destination: 'http://umami:3000/stats/:path*'   # NOT '.../:path*'
+```
+
+These two changes are a matched pair — changing only one leaves `/stats`
+broken. The rewrite reads `UMAMI_INTERNAL_URL` (server-runtime, not
+`NEXT_PUBLIC`), so the app must be rebuilt/redeployed for the rewrite change to
+take effect; the compose `BASE_PATH` change needs the `umami` container
+recreated. After deploy, verify all three resolve `200`:
+`/stats/script.js`, `/stats/api/send` (POST), and `/stats` (dashboard).
 
 > This is OUR OWN Umami on OUR OWN postgres container — unrelated to the other
 > tenant's Umami on the host `:5432`, which stays off-limits (CLAUDE.md §6).
@@ -248,7 +271,21 @@ cannot run inside a transaction, hence the `\gexec` pattern rather than a
 `DO` block.) Umami applies its own schema migrations automatically on first
 container start, into that `umami` DB.
 
-### 11.2 First run (owner — create admin, add the site, copy the id)
+### 11.2 First run (create admin, add the site, set the id)
+
+The website id lives in `.env` as **`UMAMI_WEBSITE_ID`** (a UUID). It is read at
+**runtime** by a server component (`src/components/analytics/UmamiScript.tsx`
+reads `process.env.UMAMI_WEBSITE_ID` when the layout renders) — it is **NOT** a
+`NEXT_PUBLIC_*` build-time value. Changing it therefore only needs an app
+**restart**, never a rebuild. The id is public (it appears verbatim as
+`data-website-id` in the page HTML), so a server-runtime read is fine. With no
+id the tracker renders nothing, so the site is fine before Umami is configured.
+
+> **INTEGRATE automates this.** During integration, INTEGRATE creates the
+> `newsromania.info` website in Umami (via the Umami admin API against
+> `127.0.0.1:3141`, after the container is healthy) and writes the generated
+> UUID into `.env` as `UMAMI_WEBSITE_ID`, then restarts the app. The manual
+> steps below are the fallback / reference for doing it by hand.
 
 1. Start the stack (the `umami` service is in the `app` profile, so it comes
    up with `systemctl --user start newsromania-app`). Verify:
@@ -258,15 +295,16 @@ container start, into that `umami` DB.
    ```
 2. Log into the Umami admin **through the site** at
    `https://newsromania.info/stats/` (same-origin; works over TLS with no extra
-   nginx config). Default credentials on a fresh install are `admin` /
-   `umami` — **change the password immediately** on first login.
+   nginx config — the dashboard now renders thanks to `BASE_PATH=/stats`).
+   Default credentials on a fresh install are `admin` / `umami` — **change the
+   password immediately** on first login.
 3. Umami admin → **Settings → Websites → Add website**: Name `NewsRomania`,
    Domain `newsromania.info`. Save, then open it and copy the **Website ID**
    (a UUID).
-4. Put that id into `.env` as `NEXT_PUBLIC_UMAMI_WEBSITE_ID=<uuid>` and
-   **rebuild the app image** (it is a `NEXT_PUBLIC_*` value, inlined at build —
-   the tracker `<script>` renders nothing until it is set). Reload the site and
-   confirm hits appear in the Umami dashboard.
+4. Put that id into `.env` as `UMAMI_WEBSITE_ID=<uuid>` and **restart the app**
+   (`systemctl --user restart newsromania-app` — no rebuild needed; it is a
+   runtime var). Reload the site and confirm hits appear in the Umami
+   dashboard. (The literal `stats` is NOT a valid id — it must be the UUID.)
 
 ### 11.3 Ops notes
 

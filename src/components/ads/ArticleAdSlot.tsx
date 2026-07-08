@@ -33,7 +33,10 @@ export function ArticleAdSlot({
   index?: number
 }) {
   if (networkForOrdinal(ordinal) === 'amazon' && decision?.amazon) {
-    return <AmazonProductAd decision={decision.amazon} />
+    // The ordinal doubles as the house-set rotation variant (owner fix round) so
+    // this box shows a different product from the other Amazon surfaces on the
+    // article page (rail/MoreNews) — no repeated product on first paint.
+    return <AmazonProductAd decision={decision.amazon} variant={ordinal} />
   }
   return <AdSlot variant="article" decision={decision} index={index} />
 }

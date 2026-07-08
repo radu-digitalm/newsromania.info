@@ -26,21 +26,15 @@ const nextConfig: NextConfig = {
     // app/global-not-found.tsx provides the branded Romanian one.
     globalNotFound: true,
   },
-  // Self-hosted Umami served SAME-ORIGIN (PROJECT_BRIEF §7). The tracker
-  // script (/stats/script.js) and its collector (/stats/api/send) are proxied
-  // to the internal `umami` compose service over the internal network — so
-  // analytics is first-party (no third-party host, cookieless, no CMP needed)
-  // and needs no nginx change or sudo. `umami:3000` resolves via compose DNS;
-  // in local dev without the umami container the /stats/* paths simply 502
-  // (the tracker script fails to load and analytics is a no-op — harmless).
-  async rewrites() {
-    return [
-      {
-        source: '/stats/:path*',
-        destination: `${process.env.UMAMI_INTERNAL_URL ?? 'http://umami:3000'}/:path*`,
-      },
-    ]
-  },
+  // Self-hosted Umami served SAME-ORIGIN (PROJECT_BRIEF §7) — first-party,
+  // cookieless analytics; no third-party host, no CMP needed. Proxying is done
+  // by the route handler at `src/app/stats/[[...path]]/route.ts`, NOT a rewrite
+  // here: the handler must additionally rewrite Umami's root-absolute `/_next/`
+  // chunk refs (baked into its client bundle at build time; unreachable by the
+  // server.js assetPrefix patch) to `/stats/_next/` in the HTML/RSC response
+  // body, or the dashboard never boots (blank page). A `next.config` rewrite
+  // forwards the request but cannot transform the response body, so it cannot
+  // fix that. See that file's header for the full rationale.
 }
 
 export default withPayload(nextConfig, { devBundleServerPackages: false })

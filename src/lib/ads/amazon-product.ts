@@ -22,4 +22,15 @@ export interface AmazonProduct {
   image?: AmazonProductImage
   /** Localized display price, e.g. "449,00 €" (offersV2 buy-box listing). */
   price?: string
+  /**
+   * House-catalog product department, verbatim from the marketplace (e.g.
+   * "High-Tech", "Kamera & Foto", "Health & Personal Care"). Used ONLY by the
+   * house-fallback selector to bias which product a slot shows toward the
+   * visitor's CDP top-interest / the page category (owner: products chosen "based
+   * on cookies + content"). Absent on live Creators-API products (the API already
+   * returns a contextual product) and irrelevant to rendering.
+   */
+  category?: string
+  /** House-catalog flag: a marketplace best-seller (owner: bias toward bestsellers). */
+  bestseller?: boolean
 }
