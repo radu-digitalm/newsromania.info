@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 // Pure per-item helpers of the ingest worker (scripts/worker/lib/rss.mjs) —
 // no network: fetchFeedXml is exercised only via the fixture path in dev.
 import {
+  decodeFeedBytes,
   extractImage,
   itemDescription,
   itemGuid,
@@ -191,6 +192,45 @@ describe('rssExcerpt — LEGAL GATE: ≤70-word very-short extract', () => {
     expect(out).not.toBeNull()
     expect(out!.endsWith(',…')).toBe(false)
     expect(out!.endsWith('gata…')).toBe(true)
+  })
+})
+
+describe('decodeFeedBytes — charset-aware feed decode (bursa.ro mojibake fix)', () => {
+  // 0xE3 = „ă" in ISO-8859-2 (invalid as UTF-8 ⇒ would become U+FFFD).
+  const iso88592Body = (declEncoding: string | null) =>
+    Uint8Array.from([
+      ...new TextEncoder().encode(
+        `<?xml version="1.0"${declEncoding ? ` encoding="${declEncoding}"` : ''}?><t>b`,
+      ),
+      0xe3,
+      ...new TextEncoder().encode('</t>'),
+    ])
+
+  it('decodes an iso-8859-2 feed via its XML encoding declaration', () => {
+    const out = decodeFeedBytes(iso88592Body('iso-8859-2'))
+    expect(out).toContain('bă')
+    expect(out).not.toContain('�')
+  })
+
+  it('honors the HTTP Content-Type charset when the XML omits encoding', () => {
+    const out = decodeFeedBytes(iso88592Body(null), 'application/xml; charset=iso-8859-2')
+    expect(out).toContain('bă')
+    expect(out).not.toContain('�')
+  })
+
+  it('defaults to UTF-8 when nothing is declared', () => {
+    const bytes = new TextEncoder().encode('<?xml version="1.0"?><t>ăâîșț</t>')
+    expect(decodeFeedBytes(bytes)).toContain('ăâîșț')
+  })
+
+  it('falls back to UTF-8 for an unknown charset label (never throws)', () => {
+    const bytes = new TextEncoder().encode('<?xml version="1.0" encoding="bogus-xyz-42"?><t>ok</t>')
+    expect(decodeFeedBytes(bytes)).toContain('ok')
+  })
+
+  it('accepts an ArrayBuffer as well as a Uint8Array', () => {
+    const u8 = iso88592Body('iso-8859-2')
+    expect(decodeFeedBytes(u8.buffer)).toContain('bă')
   })
 })
 

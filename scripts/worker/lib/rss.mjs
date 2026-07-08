@@ -21,6 +21,36 @@ export const ARTICLE_FETCH_TIMEOUT_MS = 12_000
 export const ARTICLE_FETCH_MIN_INTERVAL_MS = 1_000
 
 /**
+ * Decode raw feed bytes honoring the DECLARED charset. fetch's `res.text()`
+ * always decodes as UTF-8 (WHATWG spec), which corrupts feeds served in a
+ * legacy charset — e.g. bursa.ro serves `encoding="iso-8859-2"`, so its
+ * diacritic bytes become U+FFFD („�") under UTF-8. Charset priority: the XML
+ * declaration `encoding="…"` (authoritative for XML), then the HTTP
+ * Content-Type charset, then UTF-8. Unknown/unsupported labels fall back to
+ * UTF-8 — never throws. Pure + unit-tested (tests/rss-helpers.test.ts).
+ *
+ * @param {ArrayBuffer | Uint8Array} buffer raw response bytes
+ * @param {string} [contentType] HTTP Content-Type header value
+ * @returns {string}
+ */
+export function decodeFeedBytes(buffer, contentType = '') {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
+  // The XML declaration is pure ASCII; read a safe head (latin1 never throws)
+  // to find encoding="…". 512 bytes is far more than any declaration needs.
+  const head = new TextDecoder('latin1').decode(bytes.subarray(0, 512))
+  const xmlEnc = head.match(/<\?xml[^>]*\bencoding\s*=\s*["']([^"']+)["']/i)?.[1]
+  const ctEnc = /charset\s*=\s*["']?([^"'\s;]+)/i.exec(contentType)?.[1]
+  const label = (xmlEnc || ctEnc || 'utf-8').trim().toLowerCase()
+  if (label === 'utf-8' || label === 'utf8') return new TextDecoder('utf-8').decode(bytes)
+  try {
+    return new TextDecoder(label, { fatal: false }).decode(bytes)
+  } catch {
+    // Unsupported label → best-effort UTF-8 so a quirky feed never fails the run.
+    return new TextDecoder('utf-8').decode(bytes)
+  }
+}
+
+/**
  * @param {string} url
  * @param {{ etag?: string | null, lastModified?: string | null }} [validators]
  * @returns {Promise<{ notModified: true } |
@@ -42,7 +72,10 @@ export async function fetchFeedXml(url, validators = {}) {
     if (!res.ok) {
       throw new Error(`HTTP ${res.status} ${res.statusText}`)
     }
-    const xml = await res.text()
+    // Decode by declared charset (NOT res.text(), which forces UTF-8 and
+    // mojibakes legacy-charset feeds like bursa.ro's iso-8859-2).
+    const buffer = await res.arrayBuffer()
+    const xml = decodeFeedBytes(buffer, res.headers.get('content-type') ?? '')
     return {
       notModified: false,
       xml,
