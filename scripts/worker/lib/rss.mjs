@@ -217,25 +217,110 @@ export function extractImage(item) {
   return null
 }
 
+// Common named HTML entities publishers emit in feed text beyond the structural
+// five. Case-sensitive per the HTML spec (©=&copy;, Ä=&Auml;). Covers
+// punctuation, legal/currency marks, and the accented Latin that shows up in
+// Romanian/EN copy — e.g. G4Media appends „&copy; G4Media.ro" to every item.
+const NAMED_ENTITIES = {
+  copy: '©',
+  reg: '®',
+  trade: '™',
+  hellip: '…',
+  mdash: '—',
+  ndash: '–',
+  minus: '−',
+  laquo: '«',
+  raquo: '»',
+  lsquo: '‘',
+  rsquo: '’',
+  sbquo: '‚',
+  ldquo: '“',
+  rdquo: '”',
+  bdquo: '„',
+  bull: '•',
+  middot: '·',
+  deg: '°',
+  dagger: '†',
+  sect: '§',
+  para: '¶',
+  euro: '€',
+  pound: '£',
+  yen: '¥',
+  cent: '¢',
+  times: '×',
+  divide: '÷',
+  plusmn: '±',
+  frac12: '½',
+  frac14: '¼',
+  frac34: '¾',
+  prime: '′',
+  Prime: '″',
+  shy: '',
+  ensp: ' ',
+  emsp: ' ',
+  thinsp: ' ',
+  zwnj: '',
+  zwj: '',
+  aacute: 'á',
+  agrave: 'à',
+  acirc: 'â',
+  auml: 'ä',
+  atilde: 'ã',
+  aring: 'å',
+  aelig: 'æ',
+  ccedil: 'ç',
+  eacute: 'é',
+  egrave: 'è',
+  ecirc: 'ê',
+  euml: 'ë',
+  iacute: 'í',
+  igrave: 'ì',
+  icirc: 'î',
+  iuml: 'ï',
+  ntilde: 'ñ',
+  oacute: 'ó',
+  ograve: 'ò',
+  ocirc: 'ô',
+  ouml: 'ö',
+  otilde: 'õ',
+  oslash: 'ø',
+  uacute: 'ú',
+  ugrave: 'ù',
+  ucirc: 'û',
+  uuml: 'ü',
+  yacute: 'ý',
+  szlig: 'ß',
+  Auml: 'Ä',
+  Ouml: 'Ö',
+  Uuml: 'Ü',
+  Ccedil: 'Ç',
+  Eacute: 'É',
+  Agrave: 'À',
+}
+
 /** Strip HTML tags + collapse whitespace + decode HTML entities. */
 export function stripHtml(html) {
   if (typeof html !== 'string') return ''
   return (
     html
       .replace(/<[^>]*>/g, ' ')
-      // Named entities we handle explicitly (decode before the numeric pass so
-      // e.g. a literal &amp;#8230; still resolves as a stray, not a real ref).
+      // Structural entities first (decode before the numeric pass so e.g. a
+      // literal &amp;#8230; still resolves as a stray, not a real ref).
       .replace(/&nbsp;/gi, ' ')
-      .replace(/&amp;/gi, '&')
       .replace(/&quot;/gi, '"')
       .replace(/&#0?39;|&apos;/gi, "'")
       .replace(/&lt;/gi, '<')
       .replace(/&gt;/gi, '>')
+      // Any other common named entity (©, …, — – « » „ " ", €, accents, …).
+      // Unknown names are left intact so nothing legitimate is mangled.
+      .replace(/&([a-zA-Z][a-zA-Z0-9]+);/g, (m, name) => NAMED_ENTITIES[name] ?? m)
       // Numeric character references — Romanian publishers routinely emit curly
       // quotes (&#8222;/&#8221;), en-dash (&#8211;), ellipsis (&#8230;) and
       // nbsp (&#160;). Decode both decimal and hex forms.
       .replace(/&#(\d+);/g, (m, dec) => codePointOr(m, Number.parseInt(dec, 10)))
       .replace(/&#x([0-9a-f]+);/gi, (m, hex) => codePointOr(m, Number.parseInt(hex, 16)))
+      // &amp; LAST so „&amp;copy;" stays a literal, not a re-decoded entity.
+      .replace(/&amp;/gi, '&')
       .replace(/\s+/g, ' ')
       .trim()
   )

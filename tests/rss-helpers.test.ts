@@ -12,7 +12,11 @@ import {
   stripHtml,
   USER_AGENT,
 } from '../scripts/worker/lib/rss.mjs'
-import { MAX_EXCERPT_WORDS, rssExcerpt } from '../scripts/worker/lib/excerpt.mjs'
+import {
+  MAX_EXCERPT_WORDS,
+  rssExcerpt,
+  stripPublisherBoilerplate,
+} from '../scripts/worker/lib/excerpt.mjs'
 import { parseOgImage, resolveImageUrl } from '../scripts/worker/lib/og-image.mjs'
 import { DEFAULT_BATCH_SIZE, normalizeCursor, selectBatch } from '../scripts/worker/lib/batch.mjs'
 
@@ -192,6 +196,54 @@ describe('rssExcerpt — LEGAL GATE: ≤70-word very-short extract', () => {
     expect(out).not.toBeNull()
     expect(out!.endsWith(',…')).toBe(false)
     expect(out!.endsWith('gata…')).toBe(true)
+  })
+})
+
+describe('stripHtml — named entity decoding (G4Media &copy; fix)', () => {
+  it('decodes common named entities beyond the structural five', () => {
+    expect(stripHtml('a &copy; b')).toBe('a © b')
+    expect(stripHtml('x &hellip; y')).toBe('x … y')
+    expect(stripHtml('p &mdash; q &ndash; r')).toBe('p — q – r')
+    expect(stripHtml('&laquo;citat&raquo;')).toBe('«citat»')
+    expect(stripHtml('caf&eacute;')).toBe('café')
+  })
+
+  it('leaves unknown entities intact rather than mangling them', () => {
+    expect(stripHtml('r&d and m&nfoo;')).toContain('&nfoo;')
+  })
+
+  it('does not re-decode a doubly-escaped entity (&amp;copy; stays literal)', () => {
+    expect(stripHtml('&amp;copy;')).toBe('&copy;')
+  })
+})
+
+describe('stripPublisherBoilerplate — WordPress feed footers', () => {
+  it('removes a trailing „© Publisher." copyright footer', () => {
+    expect(stripPublisherBoilerplate('Povestea completă aici. © G4Media.ro.')).toBe(
+      'Povestea completă aici.',
+    )
+  })
+
+  it('removes the „appeared first on" English WordPress footer', () => {
+    expect(
+      stripPublisherBoilerplate('Story body here The post Big News appeared first on Example.'),
+    ).toBe('Story body here')
+  })
+
+  it('leaves ordinary text (no footer) untouched', () => {
+    const clean = 'Guvernul a aprobat bugetul, potrivit Agerpres.'
+    expect(stripPublisherBoilerplate(clean)).toBe(clean)
+  })
+
+  it('rssExcerpt on a G4Media-style description drops the footer + decodes ©', () => {
+    const raw =
+      '<p>Teaser scurt despre ceva important [&#8230;]</p><p>&copy; <a href="x">G4Media.ro</a>.</p>'
+    const out = rssExcerpt(raw)
+    expect(out).not.toBeNull()
+    expect(out).not.toContain('&copy;')
+    expect(out).not.toContain('©')
+    expect(out).not.toContain('G4Media.ro')
+    expect(out).toContain('Teaser scurt despre ceva important')
   })
 })
 

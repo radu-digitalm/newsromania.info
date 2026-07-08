@@ -43,8 +43,25 @@ function splitWords(text) {
  * @param {number} [maxWords]
  * @returns {string | null}
  */
+/**
+ * Remove the footer WordPress feeds append AFTER the teaser — not part of the
+ * story: a copyright line („© G4Media.ro.") and/or the „appeared first on …" /
+ * „Articolul … a apărut prima dată pe …" credit. Runs on already-stripped,
+ * entity-decoded text (so © is a real „©", not „&copy;"). Only ever removes a
+ * TRAILING segment. Exported for the one-off backfill.
+ * @param {string} text
+ * @returns {string}
+ */
+export function stripPublisherBoilerplate(text) {
+  return text
+    .replace(/\s*©.*$/u, '') // „© Publisher." copyright footer → end
+    .replace(/\s*The post\b.*?\bappeared first on\b.*$/i, '') // EN WordPress footer
+    .replace(/\s*Articol(?:ul)?\b[^.]*?\ba(?:p[ăa]rut|pare)\b.*$/i, '') // RO WordPress credit
+    .trim()
+}
+
 export function rssExcerpt(raw, maxWords = MAX_EXCERPT_WORDS) {
-  const text = stripHtml(raw)
+  const text = stripPublisherBoilerplate(stripHtml(raw))
   if (text.length === 0) return null
   const words = splitWords(text)
   if (words.length === 0) return null
