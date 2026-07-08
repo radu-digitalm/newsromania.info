@@ -56,13 +56,14 @@ services:
       options: { max-size: '10m', max-file: '3' }
 
   # Self-hosted analytics (cookieless, GDPR-friendly — consent-free per §7).
-  # Served SAME-ORIGIN via a next.config rewrite (/stats/:path* → umami:3000),
-  # so the tracker script + /stats/api/send are first-party (no nginx change,
-  # no sudo). Published ONLY to loopback in the reserved 3100–3199 range; the
-  # app reaches it over the internal compose network (service DNS `umami`). Its
-  # data lives in a SEPARATE `umami` database + role on the EXISTING postgres
-  # container (NOT the app DB/schema) — one-time create step in
-  # docs/operations.md §11.
+  # Umami serves at its container ROOT. DASHBOARD is exposed on the dedicated
+  # subdomain stats.newsromania.info (deploy/nginx/stats.newsromania.info.conf →
+  # 127.0.0.1:3141) where the image's baked root-absolute /_next paths are
+  # correct and the SPA loads fully. FIRST-PARTY TRACKING stays same-origin: the
+  # app route src/app/stats/[[...path]]/route.ts proxies /stats/script.js +
+  # /stats/api/* to this container's root. Published ONLY to loopback in the
+  # reserved 3100–3199 range. Data lives in a SEPARATE `umami` database + role on
+  # the EXISTING postgres container (NOT the app DB/schema) — docs/operations.md §11.
   umami:
     profiles: [app]
     image: ghcr.io/umami-software/umami:postgresql-latest
@@ -74,50 +75,24 @@ services:
       DATABASE_TYPE: postgresql
       # Signs the Umami session/JWT — from .env UMAMI_APP_SECRET.
       APP_SECRET: ${UMAMI_APP_SECRET}
-      # Umami listens on :3000 inside the container; only reached via the rewrite.
+      # Umami listens on :3000 inside the container (root basePath).
       PORT: '3000'
-      # Serve the tracker at /stats/script.js (matches the layout <script src>).
+      # Tracker served at /script.js (proxied first-party as /stats/script.js).
       TRACKER_SCRIPT_NAME: script
-      # Run Umami UNDER the /stats subpath so the dashboard HTML, all /_next/*
-      # asset URLs, the tracker (/stats/script.js) and the collector
-      # (/stats/api/send) self-reference under /stats and resolve through the app
-      # rewrite below. Without it, Umami emits ROOT-absolute /_next/* asset URLs
-      # that 404 under /stats (the Next.js APP answers them, not Umami) → the
-      # dashboard renders a blank white page (the owner's report).
-      #
-      # NOTE: the stock image is a Next.js STANDALONE build with basePath baked
-      # in as "" at BUILD time; its start-docker script never rebuilds, so a
-      # `BASE_PATH` env var is a NO-OP. The real mechanism is the entrypoint shim
-      # below, which patches the embedded basePath/assetPrefix in server.js to
-      # /stats at boot (idempotent). See deploy/umami/basepath-entrypoint.sh.
-      #
-      # PAIRED CHANGE: because Umami now expects the /stats prefix on incoming
-      # requests, next.config.ts rewrites() forwards the FULL path (keeps the
-      # /stats prefix) instead of stripping it — the two MUST change together.
-    # Patch the standalone server.js basePath/assetPrefix → /stats before Umami
-    # starts (see the shim's header for why a BASE_PATH env cannot work here),
-    # then hand off to the image's real entrypoint + CMD.
-    entrypoint: ['/bin/sh', '/usr/local/bin/umami-basepath-entrypoint.sh']
-    # Overriding `entrypoint` drops the image's CMD, so restate it — the shim
-    # execs `docker-entrypoint.sh "$@"`, i.e. the original `npm run start-docker`.
-    command: ['npm', 'run', 'start-docker']
-    volumes:
-      - ./deploy/umami/basepath-entrypoint.sh:/usr/local/bin/umami-basepath-entrypoint.sh:ro
     ports:
-      # Loopback-only, reserved range. Direct hits are for first-run admin only;
-      # public traffic always goes through the app's same-origin /stats rewrite.
+      # Loopback-only, reserved range. Reached by BOTH the app's /stats tracking
+      # proxy (internal compose DNS `umami`) and the stats.newsromania.info nginx
+      # server block (dashboard). No public port is opened directly.
       - '127.0.0.1:3141:3000'
     depends_on:
       postgres: { condition: service_healthy }
     networks: [internal]
     healthcheck:
-      # BASE_PATH=/stats moves ALL Umami routes (incl. /api/heartbeat) under the
-      # /stats prefix, so the in-container probe must hit /stats/api/heartbeat —
-      # /api/heartbeat now 404s and would flap the container unhealthy.
+      # Umami serves at root, so the in-container probe hits /api/heartbeat.
       test:
         [
           'CMD-SHELL',
-          'wget -qO- http://127.0.0.1:3000/stats/api/heartbeat || exit 1',
+          'wget -qO- http://127.0.0.1:3000/api/heartbeat || exit 1',
         ]
       interval: 30s
       timeout: 5s

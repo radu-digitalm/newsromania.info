@@ -8,11 +8,14 @@
  * unlike the first-party CDP beacon, which stores a persistent visitor id and
  * is therefore gated on Google's CMP consent (see components/cdp/*).
  *
- * SAME-ORIGIN: the script is served from `/stats/script.js` and posts to
- * `/stats/api/send`, both proxied by the next.config `rewrites()` to the
- * internal `umami` compose service (which itself runs under BASE_PATH=/stats).
- * Nothing here talks to a third-party host, so the strict CSP and first-party
- * model hold and no external DNS is needed.
+ * SAME-ORIGIN: the script is served from `/stats/script.js` and the tracker is
+ * told (via `data-host-url`) to POST to `/stats/api/send` — both proxied by the
+ * app route src/app/stats/[[...path]]/route.ts to the internal `umami` service,
+ * which serves at its ROOT. `data-host-url` is required because Umami-at-root
+ * would otherwise derive the collector as `<origin>/api/send` (no /stats) and
+ * miss the proxy. Nothing here talks to a third-party host, so the strict CSP
+ * and first-party model hold and no external DNS is needed. (The dashboard UI
+ * lives on the stats.newsromania.info subdomain; only tracking is same-origin.)
  *
  * WEBSITE ID — read at RUNTIME from the server env var `UMAMI_WEBSITE_ID`.
  * This is deliberately NOT a `NEXT_PUBLIC_*` var: those are inlined into the
@@ -36,5 +39,9 @@ export function UmamiScript() {
   if (!websiteId) {
     return null
   }
-  return <script defer src="/stats/script.js" data-website-id={websiteId} />
+  // Absolute first-party collector base so Umami-at-root posts to /stats/api/send
+  // (proxied) rather than <origin>/api/send. NEXT_PUBLIC_SITE_URL is the public
+  // origin; the '/stats' suffix routes through the app's tracking proxy.
+  const hostUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://newsromania.info'}/stats`
+  return <script defer src="/stats/script.js" data-website-id={websiteId} data-host-url={hostUrl} />
 }
