@@ -9,7 +9,7 @@
  */
 import React from 'react'
 
-import type { TopArticle } from '@/lib/article-views'
+import type { TopArticle } from '@/lib/umami-stats'
 import { formatInt, OpsCard } from './OpsCard'
 
 export function MostReadCard({ items }: { items: TopArticle[] }): React.ReactElement {

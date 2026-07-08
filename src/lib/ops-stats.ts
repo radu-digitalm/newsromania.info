@@ -1,6 +1,6 @@
 import type { Payload } from 'payload'
 
-import { topArticles, type TopArticle } from '@/lib/article-views'
+import { topArticlesFromUmami, type TopArticle } from '@/lib/umami-stats'
 import type { LlmUsage, SiteConfig } from '@/payload-types'
 
 /**
@@ -214,9 +214,9 @@ export async function buildOpsStats(payload: Payload, now: Date = new Date()): P
       and: [{ status: { equals: 'posted' } }, { postedAt: { greater_than_equal: dayStart } }],
     }),
     payload.findGlobal({ slug: 'site-config', depth: 0 }) as Promise<SiteConfig>,
-    // „Cele mai citite” — aggregate view tally joined to titles (never throws;
-    // returns [] if Redis is down or nothing has been read yet).
-    topArticles(payload, TOP_ARTICLES),
+    // „Cele mai citite” — REAL Umami pageviews (last 7 days) joined to titles
+    // (never throws; returns [] if Umami is unreachable or has no data yet).
+    topArticlesFromUmami(payload, TOP_ARTICLES),
     // Today at a glance: consent-gated page_view volume for the current UTC day.
     countDocs(payload, 'cdp-events', {
       and: [{ type: { equals: 'page_view' } }, { ts: { greater_than_equal: dayStart } }],

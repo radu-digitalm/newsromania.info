@@ -30,10 +30,10 @@ vi.mock('@/lib/redis', () => ({
   },
 }))
 
-// „Cele mai citite” este acoperit de tests/article-views.test.ts; aici îl
-// izolăm ca buildOpsStats să nu depindă de Redis pentru contorul de vizualizări.
-vi.mock('@/lib/article-views', () => ({
-  topArticles: topArticlesMock,
+// „Cele mai citite” vine din Umami (tests/umami-stats.test.ts acoperă parsarea);
+// aici îl izolăm ca buildOpsStats să nu depindă de baza Umami în teste.
+vi.mock('@/lib/umami-stats', () => ({
+  topArticlesFromUmami: topArticlesMock,
 }))
 
 import type { Payload } from 'payload'

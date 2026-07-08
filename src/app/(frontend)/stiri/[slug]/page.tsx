@@ -11,7 +11,6 @@ import { formatArticleDate } from '@/components/articles/format-date'
 import { MoreNews } from '@/components/articles/MoreNews'
 import { decisionFor, type AdPlan } from '@/lib/ads/engine'
 import { getRequestAdPlan } from '@/lib/ads/plan-for-request'
-import { recordArticleView } from '@/lib/article-views'
 import { getFeedItemBySlug } from '@/lib/content'
 import { absoluteUrl, articleJsonLd, serializeJsonLd } from '@/lib/seo'
 import { siteConfig } from '@/config/site'
@@ -139,6 +138,9 @@ function ReadFullArticleCta({ article }: { article: AggregatedItem }) {
         href={article.sourceUrl}
         target="_blank"
         rel="noopener noreferrer nofollow"
+        data-umami-event="source_click"
+        data-umami-event-source={article.source.name}
+        data-umami-event-slug={article.slug}
         className="flex h-[52px] w-full max-w-[560px] items-center justify-center gap-2 rounded-[12px] bg-link px-5 text-center font-sans text-base font-semibold leading-[22px] text-white transition-colors hover:bg-link-hover active:opacity-85"
       >
         Citește articolul integral pe {article.source.name}
@@ -240,12 +242,6 @@ export default async function ArticlePage({ params, searchParams }: ArticlePageP
   const { geo } = await searchParams
   const article = await getFeedItemBySlug(slug)
   if (!article) notFound()
-
-  // Record ONE aggregate view for the „cele mai citite” admin dashboard (owner
-  // ask #2b). Fire-and-forget: recordArticleView is best-effort and never throws
-  // (a view counter must never block or fail an article render); we don't await
-  // the result. Consent-free — a plain global tally, no per-visitor data.
-  void recordArticleView(article.slug)
 
   // Per-request ad decisions (architecture.md §4) — the article's category
   // drives contextual keywords; consent/profile handled inside the helper.

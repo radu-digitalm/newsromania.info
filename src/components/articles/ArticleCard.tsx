@@ -136,7 +136,13 @@ export function SourcePill({ name, href }: { name: string; href?: string }) {
     'inline-flex h-6 items-center rounded-full border border-border-pill bg-accent-bg px-2.5 font-sans text-xs font-semibold leading-4 text-pill-text'
   if (href) {
     return (
-      <a href={href} rel="noopener noreferrer nofollow" className={`${className} hover:underline`}>
+      <a
+        href={href}
+        rel="noopener noreferrer nofollow"
+        data-umami-event="source_click"
+        data-umami-event-source={name}
+        className={`${className} hover:underline`}
+      >
         Sursa: {name}
       </a>
     )
