@@ -483,7 +483,7 @@ export interface LlmUsage {
   day: string;
   provider: string;
   model: string;
-  purpose: 'summarize' | 'categorize' | 'captions' | 'seed';
+  purpose: 'summarize' | 'categorize' | 'captions' | 'seed' | 'rank';
   inputTokens?: number | null;
   outputTokens?: number | null;
   calls?: number | null;

@@ -19,7 +19,7 @@ import { MAX_EXCERPT_WORDS, MAX_VERBATIM_RUN, validateExcerpt, wordCount } from 
 // ---------------------------------------------------------------------------
 
 export type LlmAudience = 'public' | 'member'
-export type LlmPurpose = 'summarize' | 'categorize' | 'captions' | 'seed'
+export type LlmPurpose = 'summarize' | 'categorize' | 'captions' | 'seed' | 'rank'
 
 export interface ChatRequest {
   system: string
@@ -463,6 +463,58 @@ export async function categorizeAndTag(
     categorySlug: resolveCategorySlug(parsed.categorySlug),
     tags: sanitizeTags(parsed.tags),
   }
+}
+
+// ---------------------------------------------------------------------------
+// 2b) pickMostImpactful — choose the ONE highest-impact item from a feed pull
+// ---------------------------------------------------------------------------
+
+export interface ImpactCandidate {
+  title: string
+  /** Short plain-text hint (already HTML-stripped); may be empty. */
+  snippet: string
+}
+
+const IMPACT_PICK_SYSTEM = `Ești redactor-șef la o publicație de știri din România. Primești o listă numerotată de titluri NOI apărute la ACEEAȘI sursă într-o singură verificare. Alege UNA SINGURĂ — cea mai importantă și cu cel mai mare impact pentru publicul general din România (relevanță națională, amploare, consecințe pentru cât mai mulți oameni). Preferă știrile de interes public major (politică, economie, evenimente majore, siguranță) în detrimentul divertismentului minor, promoțiilor sau conținutului repetitiv, DACĂ există o alternativă mai importantă. Răspunde DOAR cu un obiect JSON de forma {"index": N}, unde N este numărul din listă al știrii alese.`
+
+/**
+ * Given several NEW items pulled from ONE source in a single run, return the
+ * 0-based index of the single most important / highest-impact story for a
+ * Romanian audience (owner rule: "1 news per source per pull, AI decides").
+ *
+ * Low temperature for stability. On ≤1 candidate, any error, or an
+ * unparseable/out-of-range reply it returns 0 — the caller always ingests one
+ * item (index 0 = earliest by publish order, preserving the "keep earliest"
+ * convention), so the pipeline degrades gracefully without an LLM.
+ */
+export async function pickMostImpactful(
+  input: { candidates: ImpactCandidate[]; sourceName: string },
+  opts: { audience?: LlmAudience } = {},
+): Promise<number> {
+  const { candidates, sourceName } = input
+  if (candidates.length <= 1) return 0
+  const provider = getProvider(opts.audience ?? 'public')
+  const list = candidates
+    .map((c, i) => `${i}. ${c.title}${c.snippet ? ` — ${c.snippet}` : ''}`)
+    .join('\n')
+  try {
+    const result = await meteredChat(provider, 'rank', {
+      system: IMPACT_PICK_SYSTEM,
+      user: `Sursa: ${sourceName}\n\nȘtiri:\n${list}`,
+      temperature: 0.1,
+      jsonMode: true,
+    })
+    const parsed = parseJsonObject(result.text)
+    const idx = parsed ? Number(parsed.index) : Number.NaN
+    if (Number.isInteger(idx) && idx >= 0 && idx < candidates.length) return idx
+    console.warn(
+      `[llm] selecție impact în afara intervalului (${String(parsed?.index)}), folosesc index 0`,
+    )
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.warn(`[llm] selecția de impact a eșuat, folosesc index 0: ${message}`)
+  }
+  return 0
 }
 
 // ---------------------------------------------------------------------------

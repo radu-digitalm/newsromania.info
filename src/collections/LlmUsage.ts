@@ -55,6 +55,7 @@ export const LlmUsage: CollectionConfig = {
         { label: 'Categorizare', value: 'categorize' },
         { label: 'Texte postări', value: 'captions' },
         { label: 'Import inițial', value: 'seed' },
+        { label: 'Selecție impact', value: 'rank' },
       ],
     },
     {

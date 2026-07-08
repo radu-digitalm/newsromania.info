@@ -7,12 +7,28 @@ import {
   getProvider,
   limitHashtags,
   parseJsonObject,
+  pickMostImpactful,
   resolveCategorySlug,
   sanitizeTags,
   stripWrapping,
 } from '../src/lib/llm'
 
 // Pure helpers only — no OpenAI client is ever constructed, no API calls.
+
+describe('pickMostImpactful (guard path — no OpenAI call)', () => {
+  it('returns 0 for a single candidate without touching the provider', async () => {
+    const idx = await pickMostImpactful({
+      candidates: [{ title: 'O singură știre', snippet: '' }],
+      sourceName: 'Sursa Test',
+    })
+    expect(idx).toBe(0)
+  })
+
+  it('returns 0 for an empty candidate list', async () => {
+    const idx = await pickMostImpactful({ candidates: [], sourceName: 'Sursa Test' })
+    expect(idx).toBe(0)
+  })
+})
 
 describe('resolveCategorySlug', () => {
   it('accepts each of the 8 canonical slugs', () => {

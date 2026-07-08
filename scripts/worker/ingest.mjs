@@ -17,6 +17,10 @@
  *     15s timeout, UA newsromania-bot/1.0;
  *   - only items NEWER than the feed's lastItemAt (guid dedup handles repeats);
  *   - dedup by guid (guid || link);
+ *   - ONE PER SOURCE PER PULL (owner rule): of the new, non-duplicate items an
+ *     LLM picks the single most important/impactful one and ONLY that is
+ *     ingested; the rest are dropped (lastItemAt advances past them so they are
+ *     not re-fetched). The --fixture/integration path is exempt (ingests all);
  *   - stored titles/excerpts normalized to comma-below diacritics (ş/ţ → ș/ț);
  *   - near-duplicate clustering: normalized-title Jaccard ≥ 0.6 against items
  *     from the last 48h ⇒ same story from another outlet ⇒ SKIP (keep earliest);
@@ -45,7 +49,7 @@ import path from 'node:path'
 import { getPayload } from 'payload'
 
 import configPromise from '../../src/payload.config.ts'
-import { summarizeExcerpt, categorizeAndTag } from '../../src/lib/llm.ts'
+import { summarizeExcerpt, categorizeAndTag, pickMostImpactful } from '../../src/lib/llm.ts'
 import { getRedis, purgeFeedCache, rkey } from '../../src/lib/redis.ts'
 import { roSlugify } from '../../src/lib/slugify.ts'
 import { DEFAULT_BATCH_SIZE, selectBatch } from './lib/batch.mjs'
@@ -195,6 +199,102 @@ function errMsg(err) {
 }
 
 /**
+ * Create ONE aggregated-items doc from a chosen feed item: RSS-first excerpt
+ * (AI summary only for `ai-excerpt` feeds, within the per-run budget), image
+ * (RSS enclosure/media then publisher og:image), and categorize+tag when an AI
+ * summary was produced. Mutates stats.created + ctx.candidates.
+ * @param {{ item: object, guid: string, publishedAt: Date, title: string, link: string }} chosen
+ */
+async function createAggregatedItem(payload, feed, chosen, ctx, stats) {
+  const { item, guid, publishedAt, title, link } = chosen
+  const clusterKey = normalizeTitle(title)
+  const sourceText = itemSourceText(item)
+
+  // --- excerpt (RSS-first, AI only for ai-excerpt feeds) --------------------
+  let excerpt = null
+  let excerptIsAi = false
+  let categoryId =
+    typeof feed.defaultCategory === 'object' && feed.defaultCategory !== null
+      ? feed.defaultCategory.id
+      : (feed.defaultCategory ?? null)
+  let tagIds = []
+
+  const rssText = rssExcerpt(itemDescription(item))
+  if (rssText !== null) {
+    excerpt = fixRomanianDiacritics(rssText)
+  } else if (feed.excerptPolicy === 'ai-excerpt' && sourceText.length > 0) {
+    if (ctx.summariesUsed >= ctx.maxSummariesPerRun) {
+      console.log('[ingest]   buget de rezumate epuizat — element doar-link')
+    } else {
+      ctx.summariesUsed += 1
+      try {
+        const ai = await summarizeExcerpt({ title, sourceText, sourceName: feed.name })
+        if (ai !== null) {
+          excerpt = fixRomanianDiacritics(ai)
+          excerptIsAi = true
+        }
+      } catch (err) {
+        console.warn(`[ingest]   rezumat eșuat („${title.slice(0, 50)}”): ${errMsg(err)}`)
+      }
+    }
+  }
+
+  const linkOnly = excerpt === null
+
+  // Categorize+tag only when we invested an AI summary (keeps LLM cost tied to
+  // the ai-excerpt gate; RSS-excerpt items keep the feed's default category).
+  if (excerptIsAi) {
+    try {
+      const cat = await categorizeAndTag({ title, excerpt })
+      categoryId = ctx.categoriesBySlug.get(cat.categorySlug) ?? categoryId
+      tagIds = await resolveTagIds(payload, cat.tags)
+    } catch (err) {
+      console.warn(`[ingest]   categorizare eșuată: ${errMsg(err)}`)
+    }
+  }
+
+  // --- image (RSS enclosure/media first, publisher og:image fallback) -------
+  let imageUrl = extractImage(item)
+  if (imageUrl === null && !ctx.dateOverrides) {
+    try {
+      const html = await fetchArticleHtml(link)
+      if (html !== null) imageUrl = parseOgImage(html, link)
+    } catch (err) {
+      console.warn(`[ingest]   og:image eșuat: ${errMsg(err)}`)
+    }
+  }
+
+  const slug = await uniqueSlug(payload, title, guid, ctx.usedSlugs)
+  await payload.create({
+    collection: 'aggregated-items',
+    data: {
+      title,
+      slug,
+      guid,
+      sourceUrl: link,
+      sourceName: feed.name,
+      sourceHomepage: feed.homepage ?? null,
+      feed: feed.id,
+      excerpt,
+      linkOnly,
+      category: categoryId,
+      tags: tagIds,
+      imageUrl: imageUrl ?? '',
+      imageAllowed: imageUrl !== null,
+      publishedAt: publishedAt.toISOString(),
+      clusterKey,
+      contentHash: sha256(`${title}\n${sourceText}`),
+      archived: false,
+    },
+    depth: 0,
+    overrideAccess: true,
+  })
+  ctx.candidates.push({ title, clusterKey, publishedAt: publishedAt.toISOString() })
+  stats.created += 1
+  console.log(`[ingest]   + creat: „${title.slice(0, 70)}”${linkOnly ? ' (doar link)' : ''}`)
+}
+
+/**
  * Process one parsed feed's items. Mutates ctx counters + candidate pool.
  * @returns {{ created: number, skipped: number, clustered: number, newestItemAt: Date | null }}
  */
@@ -231,6 +331,10 @@ async function processFeedItems(payload, feed, items, ctx) {
     prepared.map((p) => p.guid),
   )
 
+  // Classify every prepared item → skip / cluster / eligible, ALWAYS advancing
+  // newestItemAt over each item seen (so lastItemAt moves forward and any item
+  // we do NOT ingest this run is not re-fetched next run — the 1-per-pull rule).
+  const eligible = []
   for (const { item, guid, publishedAt, title } of prepared) {
     if (timeUp()) {
       console.warn('[ingest] limită de timp atinsă — opresc procesarea elementelor')
@@ -258,97 +362,37 @@ async function processFeedItems(payload, feed, items, ctx) {
       continue
     }
 
-    const clusterKey = normalizeTitle(title)
-    const sourceText = itemSourceText(item)
+    const candidate = { item, guid, publishedAt, title, link }
 
-    // --- excerpt (RSS-first, AI only for ai-excerpt feeds) ------------------
-    // Every item gets the publisher's OWN summary trimmed to a legal ≤55-word
-    // extract (within the aggregation gate for ALL feeds, incl. link-only).
-    // AI summarization is reserved for `ai-excerpt` feeds and only when the
-    // RSS gave no usable text — see docs/legal-basis-aggregation.md.
-    let excerpt = null
-    let excerptIsAi = false
-    let categoryId =
-      typeof feed.defaultCategory === 'object' && feed.defaultCategory !== null
-        ? feed.defaultCategory.id
-        : (feed.defaultCategory ?? null)
-    let tagIds = []
-
-    const rssText = rssExcerpt(itemDescription(item))
-    if (rssText !== null) {
-      excerpt = fixRomanianDiacritics(rssText)
-    } else if (feed.excerptPolicy === 'ai-excerpt' && sourceText.length > 0) {
-      if (ctx.summariesUsed >= ctx.maxSummariesPerRun) {
-        console.log('[ingest]   buget de rezumate epuizat — element doar-link')
-      } else {
-        ctx.summariesUsed += 1
-        try {
-          const ai = await summarizeExcerpt({ title, sourceText, sourceName: feed.name })
-          if (ai !== null) {
-            excerpt = fixRomanianDiacritics(ai)
-            excerptIsAi = true
-          }
-        } catch (err) {
-          console.warn(`[ingest]   rezumat eșuat („${title.slice(0, 50)}”): ${errMsg(err)}`)
-        }
-      }
+    // Fixture/integration path (dateOverrides present): ingest EVERY
+    // non-duplicate item — the harness asserts on all of them and relies on
+    // within-feed clustering as the candidate pool grows.
+    if (ctx.dateOverrides) {
+      await createAggregatedItem(payload, feed, candidate, ctx, stats)
+    } else {
+      eligible.push(candidate)
     }
+  }
 
-    const linkOnly = excerpt === null
-
-    // Categorize+tag only when we invested an AI summary (keeps LLM cost tied
-    // to the ai-excerpt gate; RSS-excerpt items keep the feed's default cat).
-    if (excerptIsAi) {
-      try {
-        const cat = await categorizeAndTag({ title, excerpt })
-        categoryId = ctx.categoriesBySlug.get(cat.categorySlug) ?? categoryId
-        tagIds = await resolveTagIds(payload, cat.tags)
-      } catch (err) {
-        console.warn(`[ingest]   categorizare eșuată: ${errMsg(err)}`)
-      }
+  // LIVE path (owner rule): exactly ONE item per source per pull. The LLM picks
+  // the single most important/impactful of the new items; only that one is
+  // ingested, the rest are dropped (newestItemAt already advanced past them).
+  // pickMostImpactful falls back to index 0 (earliest) with ≤1 candidate or if
+  // the LLM is unavailable, so the pipeline never blocks on it.
+  if (!ctx.dateOverrides && eligible.length > 0) {
+    let idx = 0
+    if (eligible.length > 1 && !timeUp()) {
+      const candidates = eligible.map((e) => ({
+        title: e.title,
+        snippet: (rssExcerpt(itemDescription(e.item)) ?? '').slice(0, 200),
+      }))
+      idx = await pickMostImpactful({ candidates, sourceName: feed.name })
+      console.log(
+        `[ingest]   impact: ales „${(eligible[idx] ?? eligible[0]).title.slice(0, 60)}” ` +
+          `(${idx + 1}/${eligible.length} elemente noi de la sursă)`,
+      )
     }
-
-    // --- image (RSS enclosure/media first, publisher og:image fallback) -----
-    let imageUrl = extractImage(item)
-    if (imageUrl === null && !ctx.dateOverrides) {
-      // No RSS image: politely fetch the article once and read its og:image.
-      // Skipped on the fixture path (no network in integration/tests).
-      try {
-        const html = await fetchArticleHtml(link)
-        if (html !== null) imageUrl = parseOgImage(html, link)
-      } catch (err) {
-        console.warn(`[ingest]   og:image eșuat: ${errMsg(err)}`)
-      }
-    }
-
-    const slug = await uniqueSlug(payload, title, guid, ctx.usedSlugs)
-    await payload.create({
-      collection: 'aggregated-items',
-      data: {
-        title,
-        slug,
-        guid,
-        sourceUrl: link,
-        sourceName: feed.name,
-        sourceHomepage: feed.homepage ?? null,
-        feed: feed.id,
-        excerpt,
-        linkOnly,
-        category: categoryId,
-        tags: tagIds,
-        imageUrl: imageUrl ?? '',
-        imageAllowed: imageUrl !== null,
-        publishedAt: publishedAt.toISOString(),
-        clusterKey,
-        contentHash: sha256(`${title}\n${sourceText}`),
-        archived: false,
-      },
-      depth: 0,
-      overrideAccess: true,
-    })
-    ctx.candidates.push({ title, clusterKey, publishedAt: publishedAt.toISOString() })
-    stats.created += 1
-    console.log(`[ingest]   + creat: „${title.slice(0, 70)}”${linkOnly ? ' (doar link)' : ''}`)
+    await createAggregatedItem(payload, feed, eligible[idx] ?? eligible[0], ctx, stats)
   }
 
   return stats
