@@ -37,7 +37,7 @@ function AdLabel() {
 function AssociateDisclosure() {
   return (
     <p className="border-t border-border px-3 py-2 text-center font-sans text-[11px] leading-4 text-ink-muted">
-      În calitate de Asociat Amazon, câștigăm din achizițiile eligibile.
+      Amazon affiliate
     </p>
   )
 }
