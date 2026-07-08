@@ -157,15 +157,43 @@ export const DEFAULT_FORMAT: Record<AdPlacement, string> = {
 }
 
 /**
- * Amazon placements (§6.2): product ads sit beside content, never in-feed and
- * never in the top banner. v2 moved the old sidebar's Amazon inventory to the
- * end-of-article slot; v2.3 (owner R1: mix AdSense + Amazon on every page) adds
- * the desktop side rail — the home/category page's Amazon surface — so a page
- * with no article-below slot still shows both networks. The end-of-article slot
- * ('article-end') carries the single below-article Amazon box; the in-feed and
- * leaderboard placements stay AdSense-only (OUT of this set).
+ * Amazon-eligible placements (§6.2). v2.4 (owner: 2 AdSense : 1 Amazon on
+ * EVERY ad slot, incl. the infinite-scroll feed) — the per-slot network is no
+ * longer decided by the placement but by the slot's 0-based ORDINAL via
+ * networkForOrdinal(): every 3rd slot (ordinal % 3 === 2) is Amazon. So the
+ * 'feed' placement now ALSO carries an AmazonDecision (keywords/marketplace/
+ * partnerTag) — the amazon-ordinal feed ad-posts resolve a real product from
+ * it (server-side, serialized into the /api/feed batch). Only the top
+ * 'leaderboard' banner stays AdSense-only (a product banner in the top slot
+ * reads as chrome — kept out). Product ads still never sit between a title and
+ * its attribution (page-level placement ethics, unchanged).
  */
-const AMAZON_PLACEMENTS: ReadonlySet<AdPlacement> = new Set(['article', 'article-end', 'rail'])
+const AMAZON_PLACEMENTS: ReadonlySet<AdPlacement> = new Set([
+  'feed',
+  'article',
+  'article-end',
+  'rail',
+])
+
+/**
+ * Ad-slot network by 0-based ordinal — the owner's 2 AdSense : 1 Amazon ratio
+ * (v2.4), applied EVERYWHERE ad slots appear (home/category feed incl. the
+ * infinite scroll, article body, related-news, rail). Pattern: adsense,
+ * adsense, amazon, adsense, adsense, amazon, … (ordinal % 3 === 2 ⇒ amazon).
+ *
+ * Pure + deterministic so the SAME ordinal always picks the SAME network on
+ * SSR page 1 and across every client scroll batch — the feed's cumulative
+ * ordinal (adOrdinalStart + position) keys straight into this, so the 2:1
+ * pattern holds unbroken across page boundaries. An amazon-ordinal slot only
+ * RENDERS Amazon when the engine actually resolved an AmazonDecision for the
+ * placement (partnerTag matches the marketplace, keywords resolved); with no
+ * decision it degrades to the always-present AdSense fallback — the ratio is a
+ * target, never a reason to show an empty Amazon box.
+ */
+export function networkForOrdinal(ordinal: number): 'adsense' | 'amazon' {
+  const n = Number.isFinite(ordinal) && ordinal >= 0 ? Math.floor(ordinal) : 0
+  return n % 3 === 2 ? 'amazon' : 'adsense'
+}
 
 /**
  * Generic shopping keywords for the desktop side rail (R1) when the page has
@@ -177,6 +205,16 @@ const AMAZON_PLACEMENTS: ReadonlySet<AdPlacement> = new Set(['article', 'article
  * this fallback. amazon.de-appropriate generic terms (RO/unmatched buy there).
  */
 const RAIL_FALLBACK_KEYWORDS: readonly string[] = ['recomandări Amazon', 'oferte']
+
+/**
+ * Placements that fall back to generic shopping keywords when the page has no
+ * contextual/behavioural keywords of its own (v2.4): the always-present desktop
+ * rail AND the infinite-scroll feed — the homepage has no category, yet its
+ * amazon-ordinal feed slots (every 3rd, §networkForOrdinal) must still resolve
+ * a product. Article placements keep the strict contextual gate (no keywords ⇒
+ * AdSense keeps the slot) so an ad next to the body is always page-relevant.
+ */
+const AMAZON_FALLBACK_PLACEMENTS: ReadonlySet<AdPlacement> = new Set(['rail', 'feed'])
 
 /**
  * Country → Amazon marketplace (PROJECT_BRIEF §6.4; no amazon.ro — RO and
@@ -229,11 +267,16 @@ function amazonDecisionFor(
   config: AdEngineConfig,
 ): AmazonDecision | undefined {
   if (!AMAZON_PLACEMENTS.has(placement)) return undefined
-  // The rail (R1) always carries Amazon on home/category; when the page has no
-  // keywords of its own it falls back to generic shopping terms. Article
-  // placements keep the strict gate — no keywords ⇒ AdSense keeps the slot.
+  // The rail and the feed (v2.4) always carry Amazon on home/category; when the
+  // page has no keywords of its own they fall back to generic shopping terms so
+  // the every-3rd-slot Amazon inventory always resolves. Article placements
+  // keep the strict gate — no keywords ⇒ AdSense keeps the slot.
   const resolved =
-    keywords.length > 0 ? keywords : placement === 'rail' ? [...RAIL_FALLBACK_KEYWORDS] : []
+    keywords.length > 0
+      ? keywords
+      : AMAZON_FALLBACK_PLACEMENTS.has(placement)
+        ? [...RAIL_FALLBACK_KEYWORDS]
+        : []
   if (resolved.length === 0) return undefined
   // The partnerTag MUST match the request marketplace (PROJECT_BRIEF §6.4) —
   // no tag for this marketplace ⇒ no Amazon ad, AdSense keeps the slot.
@@ -272,9 +315,17 @@ export function buildAdPlan(input: AdPlanInput, config: AdEngineConfig): AdPlan 
       npa,
     }
     const amazon = amazonDecisionFor(placement, keywords, marketplace, config)
+    // Placement-level `network` = how a SINGLE-slot placement dispatches at
+    // render time (article/article-end/rail → ArticleAdSlot/SideRailAd read it
+    // directly). The 'feed' placement is MULTI-slot: its per-slot network is
+    // decided by networkForOrdinal(ordinal) at render, not here — so feed stays
+    // network 'adsense' (its ordinals 0,1 are adsense) even though it carries an
+    // AmazonDecision for the amazon-ordinal slots (§2.4). All other placements
+    // keep the placement = network mapping.
+    const network: 'amazon' | 'adsense' = amazon && placement !== 'feed' ? 'amazon' : 'adsense'
     return {
       placement,
-      network: amazon ? ('amazon' as const) : ('adsense' as const),
+      network,
       adsense,
       ...(units.length > 0 ? { adsenseUnits: units } : {}),
       ...(amazon ? { amazon } : {}),

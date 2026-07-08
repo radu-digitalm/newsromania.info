@@ -55,10 +55,13 @@ export function Stat({
   label,
   value,
   emphasis = false,
+  alert = false,
 }: {
   label: string
   value: string
   emphasis?: boolean
+  /** Evidențiază valoarea în roșu (ex. ingestie învechită) — WCAG AA. */
+  alert?: boolean
 }): React.ReactElement {
   return (
     <div
@@ -73,10 +76,12 @@ export function Stat({
     >
       <span style={{ color: 'var(--theme-elevation-700)' }}>{label}</span>
       <strong
+        {...(alert ? { role: 'alert' } : {})}
         style={{
           fontSize: emphasis ? '20px' : '15px',
           fontVariantNumeric: 'tabular-nums',
           whiteSpace: 'nowrap',
+          color: alert ? '#b91c1c' : undefined,
         }}
       >
         {value}

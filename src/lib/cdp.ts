@@ -8,7 +8,10 @@ import type { CdpProfile } from '@/payload-types'
  * STRICTLY consent-gated: nothing in this module is reachable for a visitor
  * without an explicit 'accepted' choice — the /api/cdp/events route validates
  * consent BEFORE calling trackEvents(), and the visitor identity is the
- * HttpOnly `nr_vid` cookie minted only on acceptance (src/lib/consent.ts).
+ * `nr_vid` cookie. Since the CMP reconciliation (2026-07) that consent proof
+ * (`nr_consent`) + `nr_vid` are written first-party by <CdpConsentGate> once
+ * Google's CMP reports consent client-side (components/cdp/consent-signal.ts),
+ * NOT by the retired server banner — the server-side guard is unchanged.
  *
  * The module has three layers:
  *   1. pure validation + interest-decay math (no I/O — shared with the

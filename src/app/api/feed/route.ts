@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
-import { getRequestAdPlan } from '@/lib/ads/plan-for-request'
+import { getRequestAdPlan, resolveFeedAmazonProducts } from '@/lib/ads/plan-for-request'
 import { getFeed, searchPage } from '@/lib/content'
 import { buildFeedBatchResponse, parseFeedParams } from '@/lib/feed-serialize'
 import { getClientIp, normalizeIp } from '@/lib/geo'
@@ -67,7 +67,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     getRequestAdPlan(params.category),
   ])
 
-  return NextResponse.json(buildFeedBatchResponse({ page: params.page, feedPage, adPlan }), {
-    headers: NO_STORE,
+  // Owner v2.4: resolve the Amazon products for this batch's amazon-ordinal
+  // feed slots server-side (Amazon is server-only) and ship the serialized
+  // cards — the client PostBatch renders them without any server import. ?ao=
+  // (the batch's first ad ordinal) keeps the every-3rd pattern aligned across
+  // batches.
+  const products = await resolveFeedAmazonProducts(adPlan, {
+    itemCount: feedPage.items.length,
+    adOrdinalStart: params.adOrdinalStart,
   })
+
+  return NextResponse.json(
+    buildFeedBatchResponse({ page: params.page, feedPage, adPlan, products }),
+    { headers: NO_STORE },
+  )
 }

@@ -31,7 +31,13 @@ vi.mock('@/lib/redis', () => ({
 
 import type { Payload } from 'payload'
 
-import { buildOpsStats, lastNDays, rollupLlmUsage, type OpsStats } from '../src/lib/ops-stats'
+import {
+  ageMinutes,
+  buildOpsStats,
+  lastNDays,
+  rollupLlmUsage,
+  type OpsStats,
+} from '../src/lib/ops-stats'
 import { GET } from '../src/app/api/admin/ops-stats/route'
 
 // ---------------------------------------------------------------------------
@@ -45,6 +51,7 @@ const FEED_DOCS = [
     name: 'Digi24',
     active: true,
     lastFetchedAt: '2026-07-06T09:40:00.000Z',
+    lastItemAt: '2026-07-06T09:35:00.000Z',
     consecutiveFailures: 0,
     lastError: null,
   },
@@ -52,10 +59,15 @@ const FEED_DOCS = [
     name: 'HotNews',
     active: null, // valorile lipsă trebuie normalizate
     lastFetchedAt: null,
+    lastItemAt: null,
     consecutiveFailures: 4,
     lastError: 'HTTP 503 Service Unavailable',
   },
 ]
+
+// Cel mai recent articol agregat (find limit:1, sort:-publishedAt) — 30 min
+// înainte de NOW pentru a verifica prospețimea ingestiei.
+const NEWEST_ITEM_DOCS = [{ publishedAt: '2026-07-06T09:30:00.000Z' }]
 
 const LLM_DOCS = [
   // Două rânduri în aceeași zi (purpose diferit) — trebuie însumate.
@@ -86,6 +98,7 @@ function countFor({ collection, where }: CountArgs): number {
     case 'articles':
       return raw.includes('createdAt') ? 2 : 12
     case 'aggregated-items':
+      if (raw.includes('createdAt')) return 3 // ingestate în ultima oră
       return raw.includes('publishedAt') ? 5 : 34
     case 'cdp-events':
       return 120
@@ -121,6 +134,7 @@ beforeEach(() => {
   findMock.mockReset().mockImplementation(async ({ collection }: { collection: string }) => {
     if (collection === 'feeds') return { docs: FEED_DOCS }
     if (collection === 'llm-usage') return { docs: LLM_DOCS }
+    if (collection === 'aggregated-items') return { docs: NEWEST_ITEM_DOCS }
     throw new Error(`find neașteptat pentru colecția ${collection}`)
   })
   findGlobalMock.mockReset().mockResolvedValue(SITE_CONFIG)
@@ -179,6 +193,23 @@ describe('rollupLlmUsage', () => {
   })
 })
 
+describe('ageMinutes', () => {
+  it('calculează vârsta în minute întregi față de now', () => {
+    expect(ageMinutes('2026-07-06T09:30:00.000Z', NOW)).toBe(30)
+    expect(ageMinutes('2026-07-06T08:00:00.000Z', NOW)).toBe(120)
+  })
+
+  it('returnează 0 pentru timestamp din viitor (nenegativ)', () => {
+    expect(ageMinutes('2026-07-06T11:00:00.000Z', NOW)).toBe(0)
+  })
+
+  it('returnează null pentru valori lipsă sau nevalide', () => {
+    expect(ageMinutes(null, NOW)).toBeNull()
+    expect(ageMinutes(undefined, NOW)).toBeNull()
+    expect(ageMinutes('nu-e-o-dată', NOW)).toBeNull()
+  })
+})
+
 // ---------------------------------------------------------------------------
 // buildOpsStats — forma agregatului
 // ---------------------------------------------------------------------------
@@ -200,6 +231,7 @@ describe('buildOpsStats', () => {
           name: 'Digi24',
           active: true,
           lastFetchedAt: '2026-07-06T09:40:00.000Z',
+          lastItemAt: '2026-07-06T09:35:00.000Z',
           consecutiveFailures: 0,
           lastError: null,
         },
@@ -207,11 +239,19 @@ describe('buildOpsStats', () => {
           name: 'HotNews',
           active: false,
           lastFetchedAt: null,
+          lastItemAt: null,
           consecutiveFailures: 4,
           lastError: 'HTTP 503 Service Unavailable',
         },
       ],
-      content: { originals: 12, aggregated: 34, publishedToday: 7 },
+      content: {
+        originals: 12,
+        aggregated: 34,
+        publishedToday: 7,
+        ingestedLastHour: 3,
+        // NEWEST_ITEM_DOCS.publishedAt este cu 30 min înainte de NOW.
+        newestItemAgeMinutes: 30,
+      },
       llm: rollupLlmUsage(LLM_DOCS as never, lastNDays(7, NOW)),
       cdp: {
         events24h: 120,
@@ -235,6 +275,23 @@ describe('buildOpsStats', () => {
     const llmCall = findMock.mock.calls.find(([args]) => args.collection === 'llm-usage')!
     expect(llmCall[0].where).toEqual({ day: { in: lastNDays(7, NOW) } })
     expect(llmCall[0].limit).toBeLessThanOrEqual(500)
+  })
+
+  it('raportează prospețime null când nu există niciun articol agregat', async () => {
+    findMock.mockImplementation(async ({ collection }: { collection: string }) => {
+      if (collection === 'feeds') return { docs: FEED_DOCS }
+      if (collection === 'llm-usage') return { docs: LLM_DOCS }
+      if (collection === 'aggregated-items') return { docs: [] }
+      throw new Error(`find neașteptat pentru colecția ${collection}`)
+    })
+    const payload = {
+      count: countMock,
+      find: findMock,
+      findGlobal: findGlobalMock,
+    } as unknown as Payload
+
+    const stats = await buildOpsStats(payload, NOW)
+    expect(stats.content.newestItemAgeMinutes).toBeNull()
   })
 
   it('tratează site-config fără adNetworks (zero unități, zero taguri)', async () => {
@@ -280,7 +337,13 @@ describe('GET /api/admin/ops-stats', () => {
     expect(response.status).toBe(200)
     const stats = (await response.json()) as OpsStats
 
-    expect(stats.content).toEqual({ originals: 12, aggregated: 34, publishedToday: 7 })
+    expect(stats.content).toEqual({
+      originals: 12,
+      aggregated: 34,
+      publishedToday: 7,
+      ingestedLastHour: 3,
+      newestItemAgeMinutes: 30,
+    })
     expect(stats.feeds).toHaveLength(2)
     expect(stats.llm).toHaveLength(7)
     expect(stats.cdp.consents).toEqual({ accepted: 30, refused: 9, withdrawn: 3 })

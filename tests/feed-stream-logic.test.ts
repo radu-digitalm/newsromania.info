@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
  */
 
 import {
+  amazonOrdinalsForBatch,
   AUTO_LOAD_MAX_BATCHES,
   batchAdCount,
   batchEntries,
@@ -15,6 +16,7 @@ import {
   nextPageHref,
   shouldAutoLoad,
 } from '../src/lib/feed-serialize'
+import type { AmazonProduct } from '../src/lib/ads/amazon-product'
 import type { FeedItem } from '../src/types/content'
 
 const item = (id: number): FeedItem => ({
@@ -95,6 +97,79 @@ describe('batchEntries — ad interleaving per batch of 10 (§8.6)', () => {
   })
 })
 
+// ---------------------------------------------------------------------------
+// 2 AdSense : 1 Amazon in the feed (owner v2.4) — networks + serialized products
+// ---------------------------------------------------------------------------
+
+const houseProduct = (asin: string): AmazonProduct => ({
+  asin,
+  title: `Produs ${asin}`,
+  url: `https://www.amazon.de/dp/${asin}?tag=newsromaniade-21`,
+})
+
+describe('amazonOrdinalsForBatch — which of a batch’s slots are Amazon', () => {
+  it('page 1 (adOrdinalStart 0, everyNth 3): ordinals 0,1,2 → only 2 is amazon', () => {
+    expect(amazonOrdinalsForBatch(3, 10, 0)).toEqual([2])
+  })
+
+  it('the next batch continues the cumulative ordinal so the pattern never resets', () => {
+    // Page 1 ended at ordinal 3; batch 2 (ordinals 3,4,5) → 5 is amazon.
+    expect(amazonOrdinalsForBatch(3, 10, 3)).toEqual([5])
+    // Batch 3 (ordinals 6,7,8) → 8 is amazon.
+    expect(amazonOrdinalsForBatch(3, 10, 6)).toEqual([8])
+  })
+
+  it('a batch that spans an amazon boundary can carry it at any position', () => {
+    // Start at ordinal 1: batch ordinals 1,2,3 → 2 is the amazon one.
+    expect(amazonOrdinalsForBatch(3, 10, 1)).toEqual([2])
+    // Start at ordinal 2: batch ordinals 2,3,4 → 2 is amazon (first slot).
+    expect(amazonOrdinalsForBatch(3, 10, 2)).toEqual([2])
+  })
+
+  it('no ads ⇒ no amazon ordinals', () => {
+    expect(amazonOrdinalsForBatch(0, 10, 0)).toEqual([])
+    expect(amazonOrdinalsForBatch(5, 5, 0)).toEqual([]) // trailing-ad rule
+  })
+})
+
+describe('batchEntries — network + serialized product per ad slot (owner v2.4)', () => {
+  it('tags each ad with its ordinal-decided network', () => {
+    const entries = batchEntries(batch(10), 3, 0)
+    const ads = entries.filter((e) => e.kind === 'ad')
+    expect(ads.map((e) => (e.kind === 'ad' ? e.network : null))).toEqual([
+      'adsense', // ordinal 0
+      'adsense', // ordinal 1
+      'amazon', // ordinal 2
+    ])
+  })
+
+  it('attaches the serialized product to the amazon-ordinal slot only', () => {
+    const products = { 2: houseProduct('B0AMAZON02') }
+    const entries = batchEntries(batch(10), 3, 0, products)
+    const ads = entries.filter((e) => e.kind === 'ad')
+    // Ordinals 0,1 (adsense) carry no product; ordinal 2 (amazon) carries it.
+    expect(ads.map((e) => (e.kind === 'ad' ? e.product?.asin : null))).toEqual([
+      undefined,
+      undefined,
+      'B0AMAZON02',
+    ])
+  })
+
+  it('an amazon slot with no resolved product carries network amazon but no product (degrades to AdSense)', () => {
+    const entries = batchEntries(batch(10), 3, 0, {}) // empty product map
+    const amazonAd = entries.find((e) => e.kind === 'ad' && e.network === 'amazon')
+    expect(amazonAd && amazonAd.kind === 'ad' ? amazonAd.product : 'x').toBeUndefined()
+  })
+
+  it('a product keyed to a NON-amazon ordinal is never attached', () => {
+    // Even if the server mistakenly ships a product for an adsense ordinal,
+    // batchEntries only reads products for amazon ordinals.
+    const entries = batchEntries(batch(10), 3, 0, { 0: houseProduct('B0WRONG000') })
+    const first = entries.find((e) => e.kind === 'ad')
+    expect(first && first.kind === 'ad' ? first.product : 'x').toBeUndefined()
+  })
+})
+
 describe('auto-load cap (§8.7)', () => {
   it('auto-loads exactly 4 consecutive batches, then requires the manual button', () => {
     expect(AUTO_LOAD_MAX_BATCHES).toBe(4)
@@ -110,6 +185,19 @@ describe('URL builders', () => {
     expect(feedRequestPath({}, 2)).toBe('/api/feed?page=2')
     expect(feedRequestPath({ category: 'sport' }, 3)).toBe('/api/feed?page=3&category=sport')
     expect(feedRequestPath({ q: 'alegeri locale' }, 2)).toBe('/api/feed?page=2&q=alegeri+locale')
+  })
+
+  it('feedRequestPath appends ?ao= (the batch’s first ad ordinal) for feed/category, never for search', () => {
+    // Owner v2.4: the cumulative ad ordinal keeps the 2:1 Amazon interleave
+    // aligned across batches.
+    expect(feedRequestPath({}, 3, 3)).toBe('/api/feed?page=3&ao=3')
+    expect(feedRequestPath({ category: 'sport' }, 4, 6)).toBe(
+      '/api/feed?page=4&category=sport&ao=6',
+    )
+    // 0 ordinal (page 1 handoff at start) ⇒ omitted.
+    expect(feedRequestPath({}, 2, 0)).toBe('/api/feed?page=2')
+    // Search batches are ad-free ⇒ never carry ?ao=.
+    expect(feedRequestPath({ q: 'alegeri' }, 2, 6)).toBe('/api/feed?page=2&q=alegeri')
   })
 
   it('nextPageHref builds the real ?page=N fallback link per route (§8.11)', () => {

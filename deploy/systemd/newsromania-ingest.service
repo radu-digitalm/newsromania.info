@@ -13,8 +13,12 @@ Type=oneshot
 WorkingDirectory=/home/newsagent/workspace/newsromania
 # bash -lc ca să preia PATH-ul utilizatorului (node via ~/bin, regula CLAUDE.md).
 ExecStart=/bin/bash -lc 'export PATH="$HOME/bin:$PATH"; cd /home/newsagent/workspace/newsromania && npx payload run scripts/worker/ingest.mjs'
-# Workerul se limitează singur la 5 minute; systemd taie la 8 ca plasă de siguranță.
-TimeoutStartSec=480
+# Timerul pornește la fiecare 5 min și procesează un singur lot rotativ (~10
+# feeduri), deci o rulare se termină în zeci de secunde. Workerul se
+# auto-limitează la 5 min (RUN_CAP_MS); systemd taie la 290s ca plasă de
+# siguranță, SUB intervalul de 5 min, ca o rulare blocată să nu se suprapună
+# cu următoarea.
+TimeoutStartSec=290
 # VPS partajat: prioritate redusă CPU/IO.
 Nice=10
 IOSchedulingClass=idle

@@ -1,6 +1,7 @@
 import { AdSlot } from '@/components/ads/AdSlot'
+import { AmazonProductAd } from '@/components/ads/AmazonProductAd'
 import { ArticleCard } from '@/components/articles/ArticleCard'
-import { decisionFor, type AdPlan } from '@/lib/ads/engine-core'
+import { decisionFor, networkForOrdinal, type AdPlan } from '@/lib/ads/engine-core'
 import { getMoreNews } from '@/lib/content'
 import type { FeedItem } from '@/types/content'
 
@@ -19,13 +20,17 @@ import type { FeedItem } from '@/types/content'
  * cards) degrades gracefully: cards first, ads never outnumber/replace content
  * and the section is never ad-only.
  *
- * Ad mechanics: each ad renders the page's 'feed' placement decision
- * (decisionFor(adPlan, 'feed')) through the standard <AdSlot variant="feed">
- * shell — AdSense (R1: the related-news boxes are the article page's AdSense
- * surface): „Publicitate” label + reserved height (zero CLS), honest by
- * construction — while site-config has no feed unit the box stays
- * reserved-empty (or a filled labelled demo box under NEXT_PUBLIC_AD_PREVIEW,
- * R4), NEVER fake content. `index` rotates configured units deterministically.
+ * Ad mechanics (owner v2.4 — 2 AdSense : 1 Amazon EVERYWHERE): each of the two
+ * ad cells carries a 0-based ORDINAL continuing the article surface's sequence
+ * (`adOrdinalStart` + the cell's adIndex — the below-body box is ordinal 0, so
+ * these are 1 and 2). networkForOrdinal decides the network: ordinal 2 (the
+ * second, row-2-left box) ⇒ AMAZON — the single geo-matched product via
+ * AmazonProductAd (server-only; MoreNews is a server component); the other ⇒
+ * AdSense through the standard <AdSlot variant="feed"> shell. Both keep the
+ * „Publicitate” label + reserved height (zero CLS), honest by construction —
+ * an unfilled AdSense box stays reserved-empty, an unresolved Amazon box
+ * degrades to AdSense, NEVER fake content. `index` rotates configured AdSense
+ * units deterministically.
  *
  * Structure: h2 „Mai multe știri” (section heading grammar of v2 §3.2),
  * cards as h3 under it, internal links + images + relative dates all via
@@ -65,11 +70,18 @@ export function moreNewsCells(cardCount: number): MoreNewsCell[] {
 export async function MoreNews({
   article,
   adPlan,
+  adOrdinalStart = 0,
 }: {
   /** The article being read — excluded from the pool, drives the category. */
   article: FeedItem
   /** The page's per-request plan — the section reuses its 'feed' decision. */
   adPlan: AdPlan
+  /**
+   * 0-based ordinal of this section's FIRST ad cell across the article surface
+   * (owner v2.4). The article page passes 1 (the below-body box is 0), so the
+   * two cells are ordinals 1 and 2 → adsense, amazon.
+   */
+  adOrdinalStart?: number
 }) {
   const items = await getMoreNews({
     excludeSlug: article.slug,
@@ -78,6 +90,8 @@ export async function MoreNews({
   })
   if (items.length === 0) return null
 
+  // The 'feed' decision carries both the AdSense unit pool AND (v2.4) the
+  // AmazonDecision used for an amazon-ordinal cell.
   const feedDecision = decisionFor(adPlan, 'feed')
   const cells = moreNewsCells(items.length)
 
@@ -91,18 +105,31 @@ export async function MoreNews({
         Mai multe știri
       </h2>
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
-        {cells.map((cell) =>
-          cell.kind === 'ad' ? (
+        {cells.map((cell) => {
+          if (cell.kind !== 'ad') {
+            return (
+              <ArticleCard key={items[cell.cardIndex].id} item={items[cell.cardIndex]} as="h3" />
+            )
+          }
+          // Ordinal continues the article surface's sequence — decides network.
+          const ordinal = adOrdinalStart + cell.adIndex
+          if (networkForOrdinal(ordinal) === 'amazon' && feedDecision?.amazon) {
+            return (
+              <AmazonProductAd
+                key={`more-news-ad-${cell.adIndex}`}
+                decision={feedDecision.amazon}
+              />
+            )
+          }
+          return (
             <AdSlot
               key={`more-news-ad-${cell.adIndex}`}
               variant="feed"
               decision={feedDecision}
               index={cell.adIndex}
             />
-          ) : (
-            <ArticleCard key={items[cell.cardIndex].id} item={items[cell.cardIndex]} as="h3" />
-          ),
-        )}
+          )
+        })}
       </div>
     </section>
   )

@@ -8,7 +8,7 @@ import { FeedStream } from '@/components/articles/FeedStream'
 import { Pagination } from '@/components/articles/NextPageLink'
 import { PostCard } from '@/components/articles/PostCard'
 import { decisionFor, feedAdPositions } from '@/lib/ads/engine'
-import { getRequestAdPlan } from '@/lib/ads/plan-for-request'
+import { getRequestAdPlan, resolveFeedAmazonProducts } from '@/lib/ads/plan-for-request'
 import { getFeaturedArticle, getFeed } from '@/lib/content'
 import type { FeedItem } from '@/types/content'
 
@@ -147,6 +147,14 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   // renders feed-ad ordinals 0…k−1; client batches continue from k.
   const adOrdinalStart = feedAdPositions(adPlan.everyNth, streamItems.length).size
 
+  // Owner v2.4: resolve page-1 Amazon products for the amazon-ordinal feed
+  // slots (every 3rd) server-side — Amazon is server-only; the client batches
+  // resolve their own via /api/feed. Page 1 starts at ordinal 0.
+  const amazonProducts = await resolveFeedAmazonProducts(adPlan, {
+    itemCount: streamItems.length,
+    adOrdinalStart: 0,
+  })
+
   return (
     <div className="min-h-full bg-canvas-dim">
       {/* v2.2 pair container: identical to the lone max-w-2xl column below lg;
@@ -176,6 +184,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               <FeedList
                 items={streamItems}
                 adPlan={adPlan}
+                amazonProducts={amazonProducts}
                 headingAs="h3"
                 interludeAfter={isFirstPage ? 6 : undefined}
                 interlude={isFirstPage ? <MostReadStrip items={mostRead} /> : undefined}

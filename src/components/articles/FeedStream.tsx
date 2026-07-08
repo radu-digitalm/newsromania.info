@@ -92,7 +92,7 @@ export function FeedStream({
   const abortRef = useRef<AbortController | null>(null)
 
   const loadPage = useCallback(
-    async (page: number, manual: boolean) => {
+    async (page: number, manual: boolean, adOrdinalStart: number) => {
       if (inFlightRef.current) return
       inFlightRef.current = true
       const controller = new AbortController()
@@ -104,10 +104,16 @@ export function FeedStream({
       // only the FIRST append (§8.7 requires one announcement per batch).
       setAnnouncement('')
       try {
-        const res = await fetch(feedRequestPath({ category, q }, page), {
-          signal: controller.signal,
-          headers: { accept: 'application/json' },
-        })
+        // Owner v2.4: pass the batch's first ad ordinal (?ao=) so the route
+        // resolves Amazon products for the right (every-3rd) slots and the 2:1
+        // pattern holds unbroken across batches. withAds=false ⇒ ordinal 0.
+        const res = await fetch(
+          feedRequestPath({ category, q }, page, withAds ? adOrdinalStart : 0),
+          {
+            signal: controller.signal,
+            headers: { accept: 'application/json' },
+          },
+        )
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = (await res.json()) as FeedBatchResponse
         if (!data || !Array.isArray(data.items)) throw new Error('invalid response')
@@ -146,6 +152,11 @@ export function FeedStream({
 
   const autoMode = shouldAutoLoad(autoLoads)
 
+  // The 0-based ad ordinal the NEXT batch starts at (owner v2.4) — computed
+  // from the currently-loaded batches (see below), passed to loadPage so the
+  // request's ?ao= aligns the 2:1 Amazon interleave across the batch boundary.
+  const nextRequestAdOrdinalRef = useRef(adOrdinalStart)
+
   // IntersectionObserver on the sentinel anchor — the ONLY scroll mechanism.
   // Paused while loading, in error state (until retry succeeds), past the
   // auto-load cap, and at the end of the feed.
@@ -155,7 +166,8 @@ export function FeedStream({
     if (!anchor || typeof IntersectionObserver === 'undefined') return
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) void loadPage(nextPage, false)
+        if (entries.some((entry) => entry.isIntersecting))
+          void loadPage(nextPage, false, nextRequestAdOrdinalRef.current)
       },
       { rootMargin: '600px 0px 600px 0px', threshold: 0 },
     )
@@ -171,6 +183,19 @@ export function FeedStream({
     if (batchCount === 0) return
     pushNewAdSlots(containerRef.current)
   }, [batchCount])
+
+  // Keep the observer's ad-ordinal ref current after each batch commit (owner
+  // v2.4): the observer reads it on scroll WITHOUT re-subscribing, so the ?ao=
+  // it sends aligns the 2:1 Amazon interleave across the batch boundary. Synced
+  // in an effect (never written during render) — recomputes the cumulative
+  // ordinal the NEXT batch starts at from the loaded batches.
+  useEffect(() => {
+    let ordinal = adOrdinalStart
+    for (const batch of batches) {
+      ordinal += batch.ads ? batchAdCount(batch.ads.everyNth, batch.items.length) : 0
+    }
+    nextRequestAdOrdinalRef.current = ordinal
+  }, [batches, adOrdinalStart])
 
   // „Înapoi sus” — scroll to top (instant under prefers-reduced-motion) and
   // move focus to the main landmark (the existing skip-link target #continut).
@@ -205,6 +230,18 @@ export function FeedStream({
     )
   }
 
+  // The 0-based ad ordinal the NEXT batch will start at (owner v2.4): the last
+  // loaded batch's start + its own ad count (or the page-1 handoff when no
+  // client batch has loaded yet). Sent as ?ao= so the route aligns the 2:1
+  // Amazon interleave across the batch boundary.
+  const lastStart = batchOrdinalStarts[batches.length - 1]
+  const lastBatch = batches[batches.length - 1]
+  const nextRequestAdOrdinal =
+    lastBatch && lastStart !== undefined
+      ? lastStart +
+        (lastBatch.ads ? batchAdCount(lastBatch.ads.everyNth, lastBatch.items.length) : 0)
+      : adOrdinalStart
+
   return (
     <div ref={containerRef}>
       {batches.map((batch, batchIndex) => (
@@ -214,6 +251,7 @@ export function FeedStream({
             everyNth={batch.ads?.everyNth ?? 0}
             feedDecision={batch.ads?.decisions[0]}
             adOrdinalStart={batchOrdinalStarts[batchIndex] ?? adOrdinalStart}
+            amazonProducts={batch.ads?.products}
             headingAs={headingAs}
           />
         </div>
@@ -245,7 +283,7 @@ export function FeedStream({
             onClick={(event) => {
               event.preventDefault()
               parkFocus()
-              void loadPage(nextPage, false)
+              void loadPage(nextPage, false, nextRequestAdOrdinal)
             }}
             className={pillClass}
           >
@@ -262,7 +300,7 @@ export function FeedStream({
             type="button"
             disabled={phase === 'loading'}
             aria-disabled={phase === 'loading'}
-            onClick={() => void loadPage(nextPage, true)}
+            onClick={() => void loadPage(nextPage, true, nextRequestAdOrdinal)}
             className={`${pillClass} min-w-[220px] disabled:opacity-60`}
           >
             {phase === 'loading' ? 'Se încarcă…' : 'Încarcă mai multe știri'}
@@ -281,7 +319,7 @@ export function FeedStream({
             type="button"
             onClick={() => {
               parkFocus()
-              void loadPage(nextPage, true)
+              void loadPage(nextPage, true, nextRequestAdOrdinal)
             }}
             className={pillClass}
           >

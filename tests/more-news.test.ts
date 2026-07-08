@@ -28,6 +28,7 @@ vi.mock('@/lib/redis', async () =>
 import type { ReactElement, ReactNode } from 'react'
 
 import { AdSlot } from '../src/components/ads/AdSlot'
+import { AmazonProductAd } from '../src/components/ads/AmazonProductAd'
 import { ArticleCard } from '../src/components/articles/ArticleCard'
 import { MORE_NEWS_COUNT, MoreNews, moreNewsCells } from '../src/components/articles/MoreNews'
 import type { AdPlan } from '../src/lib/ads/engine-core'
@@ -297,10 +298,23 @@ function walk(node: ReactNode, visit: (el: ReactElement) => void): void {
 function tiles(section: ReactElement) {
   const found: ReactElement[] = []
   walk(section, (el) => {
-    if (el.type === AdSlot || el.type === ArticleCard) found.push(el)
+    if (el.type === AdSlot || el.type === ArticleCard || el.type === AmazonProductAd) found.push(el)
   })
   return found
 }
+
+/** A feed decision that also carries an AmazonDecision (v2.4 amazon-ordinal). */
+const feedDecisionWithAmazon = {
+  placement: 'feed' as const,
+  network: 'adsense' as const,
+  adsense: { format: 'fluid', npa: false },
+  amazon: {
+    keywords: ['recomandări Amazon'],
+    marketplace: 'www.amazon.de',
+    partnerTag: 'newsromaniade-21',
+  },
+}
+const planWithFeedAmazon: AdPlan = { everyNth: 3, slots: [feedDecisionWithAmazon] }
 
 function seedSixSportItems() {
   serveCatalog({
@@ -368,6 +382,39 @@ describe('MoreNews (server component output)', () => {
     })) as ReactElement
     const ads = tiles(section).filter((el) => el.type === AdSlot)
     expect(ads.map((a) => (a.props as { index?: number }).index)).toEqual([0, 1])
+  })
+
+  it('owner v2.4: with adOrdinalStart 1 the second box (ordinal 2) is the Amazon product, the first stays AdSense', async () => {
+    seedSixSportItems()
+    // The article page passes adOrdinalStart=1 (its below-body box is 0), so
+    // the two related-news cells are ordinals 1 (adsense) and 2 (amazon) — 2:1.
+    const section = (await MoreNews({
+      article: currentArticle,
+      adPlan: planWithFeedAmazon,
+      adOrdinalStart: 1,
+    })) as ReactElement
+    const all = tiles(section)
+    // Grid order: card, card, AdSlot(ord1), AmazonProductAd(ord2), card, card.
+    expect(all[2]?.type).toBe(AdSlot)
+    expect(all[3]?.type).toBe(AmazonProductAd)
+    expect((all[3]?.props as { decision?: unknown }).decision).toBe(feedDecisionWithAmazon.amazon)
+    // Exactly 2 AdSense-surface tiles (the leaderboard aside) : 1 Amazon here.
+    expect(all.filter((el) => el.type === AmazonProductAd)).toHaveLength(1)
+  })
+
+  it('owner v2.4: an amazon-ordinal cell with NO amazon decision degrades to the AdSense box', async () => {
+    seedSixSportItems()
+    // planWithFeed's feed decision has no amazon sub-decision ⇒ never an empty
+    // Amazon box; the amazon-ordinal cell falls back to AdSlot.
+    const section = (await MoreNews({
+      article: currentArticle,
+      adPlan: planWithFeed,
+      adOrdinalStart: 1,
+    })) as ReactElement
+    const all = tiles(section)
+    expect(all[2]?.type).toBe(AdSlot)
+    expect(all[3]?.type).toBe(AdSlot)
+    expect(all.filter((el) => el.type === AmazonProductAd)).toHaveLength(0)
   })
 
   it('excludes the article being read from its own section', async () => {

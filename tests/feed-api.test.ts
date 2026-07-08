@@ -72,12 +72,27 @@ const ukInput: AdPlanInput = {
 // ---------------------------------------------------------------------------
 
 describe('parseFeedParams', () => {
-  it('accepts a plain home batch: page only', () => {
-    expect(parseFeedParams(params('page=1'))).toEqual({ ok: true, page: 1 })
+  it('accepts a plain home batch: page only (adOrdinalStart defaults to 0)', () => {
+    expect(parseFeedParams(params('page=1'))).toEqual({ ok: true, page: 1, adOrdinalStart: 0 })
     expect(parseFeedParams(params(`page=${FEED_MAX_PAGE}`))).toEqual({
       ok: true,
       page: FEED_MAX_PAGE,
+      adOrdinalStart: 0,
     })
+  })
+
+  it('reads the optional ?ao= cumulative ad ordinal (owner v2.4, 2:1 Amazon)', () => {
+    // Valid ordinal passes through; the amazon-ordinal alignment (§networkForOrdinal)
+    // depends on it holding across batch boundaries.
+    expect(parseFeedParams(params('page=3&ao=6'))).toEqual({
+      ok: true,
+      page: 3,
+      adOrdinalStart: 6,
+    })
+    // Invalid / out-of-range / negative ?ao= degrades to 0 (never rejects the batch).
+    expect(parseFeedParams(params('page=3&ao=abc'))).toMatchObject({ adOrdinalStart: 0 })
+    expect(parseFeedParams(params('page=3&ao=-2'))).toMatchObject({ adOrdinalStart: 0 })
+    expect(parseFeedParams(params('page=3&ao=999999'))).toMatchObject({ adOrdinalStart: 0 })
   })
 
   it('rejects missing / NaN / 0 / negative / >MAX_PAGE pages', () => {
@@ -93,6 +108,7 @@ describe('parseFeedParams', () => {
     expect(parseFeedParams(params('page=2&category=sport'))).toEqual({
       ok: true,
       page: 2,
+      adOrdinalStart: 0,
       category: 'sport',
     })
     expect(parseFeedParams(params('page=2&category=gaming'))).toEqual({ ok: false })
@@ -103,11 +119,13 @@ describe('parseFeedParams', () => {
     expect(parseFeedParams(params('page=3&q=alegeri'))).toEqual({
       ok: true,
       page: 3,
+      adOrdinalStart: 0,
       q: 'alegeri',
     })
     expect(parseFeedParams(params('page=3&q=%20%20sănătate%20'))).toEqual({
       ok: true,
       page: 3,
+      adOrdinalStart: 0,
       q: 'sănătate',
     })
   })
@@ -183,6 +201,36 @@ describe('buildFeedBatchResponse', () => {
     })
     expect(response.ads?.decisions[0]?.network).toBe('adsense')
     expect(response.ads?.decisions[0]?.network).not.toBe('amazon')
+  })
+
+  it('ships serialized Amazon products for the amazon-ordinal feed slots (owner v2.4)', () => {
+    const plan = buildAdPlan(ukInput, ukConfig)
+    const products = {
+      2: {
+        asin: 'B0AMAZON02',
+        title: 'Produs Amazon',
+        url: 'https://www.amazon.co.uk/dp/B0AMAZON02?tag=newsro-21',
+      },
+    }
+    const response = buildFeedBatchResponse({
+      page: 2,
+      feedPage: { items: [feedItem(1)], hasNextPage: true },
+      adPlan: plan,
+      products,
+    })
+    expect(response.ads?.products).toEqual(products)
+  })
+
+  it('omits ads.products entirely when the batch has no amazon-ordinal products', () => {
+    const plan = buildAdPlan(ukInput, ukConfig)
+    const response = buildFeedBatchResponse({
+      page: 2,
+      feedPage: { items: [feedItem(1)], hasNextPage: true },
+      adPlan: plan,
+      products: {},
+    })
+    expect(response.ads).not.toBeNull()
+    expect(response.ads?.products).toBeUndefined()
   })
 
   it('ads is null for search batches (adPlan null — §8.3 ad-free parity)', () => {

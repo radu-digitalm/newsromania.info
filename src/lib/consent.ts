@@ -11,10 +11,11 @@
  * A version bump of site-config gdpr.consentVersion invalidates every stored
  * choice (v < current ⇒ 'unknown') and re-prompts the banner.
  *
- * Module hygiene: the parsing/serialization helpers are pure and client-safe.
- * Payload/Redis are only reached through dynamic imports inside the server
- * helpers, so importing this module never drags server-only deps into a
- * client bundle (or into unit tests that mock them).
+ * Module hygiene: this module is PURE and client-safe — no Payload/Redis, not
+ * even via dynamic import (Turbopack's production build statically traces those
+ * into any importing bundle, so a `'use client'` importer would drag
+ * fs/dns/child_process into the browser bundle). The server-only helpers that
+ * read site-config (getGdprSettings, readConsent) live in `consent-server.ts`.
  */
 
 export const CONSENT_COOKIE_NAME = 'nr_consent'
@@ -150,47 +151,69 @@ export function clearVisitorCookieHeader(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Server helpers (dynamic imports keep this module client-safe)
+// Client-side, first-party CDP re-activation (CMP-consent gated)
 // ---------------------------------------------------------------------------
+//
+// CMP reconciliation (2026-07): our custom banner + POST /api/consent are
+// retired, so the HttpOnly `nr_consent`/`nr_vid` cookies are never written
+// server-side any more. To RE-ACTIVATE the (dormant) first-party CDP we read
+// Google's certified CMP signal CLIENT-SIDE (TCF v2 __tcfapi / Consent Mode —
+// see components/cdp/consent-signal.ts) and, ONLY once it reports consent, the
+// browser itself writes these two first-party cookies (SameSite=Lax, Secure in
+// prod, NOT HttpOnly so the same client can re-read/clear them on withdrawal):
+//   - `nr_consent` = the SAME versioned JSON `readConsent()` already parses, so
+//     the server-side guard on /api/cdp/events + the profile lookup in the ad
+//     engine light up UNCHANGED (they still require readConsent()==='accepted'
+//     AND a valid nr_vid — the "lightweight consent proof" the brief asks for);
+//   - `nr_vid`     = a first-party random visitor id.
+// Before the CMP grant is read NOTHING is written — server cookies stay ZERO.
+// These helpers are pure string builders (no document access) so consent.ts
+// stays client-bundle-safe; the gate component applies them via document.cookie.
 
-/**
- * Current GDPR knobs from the site-config global, Redis-cached 60s.
- * Degrades to defaults on any Payload/Redis failure — consent handling must
- * never take the site down.
- */
-export async function getGdprSettings(): Promise<GdprSettings> {
-  try {
-    const [{ cacheJson, rkey }, { getPayloadClient }] = await Promise.all([
-      import('@/lib/redis'),
-      import('@/lib/payload'),
-    ])
-    return await cacheJson(rkey('config', 'gdpr'), 60, async () => {
-      const payload = await getPayloadClient()
-      const config = await payload.findGlobal({ slug: 'site-config' })
-      return {
-        consentVersion: config?.gdpr?.consentVersion ?? DEFAULT_CONSENT_VERSION,
-        cookieRetentionDays: config?.gdpr?.cookieRetentionDays ?? DEFAULT_COOKIE_RETENTION_DAYS,
-      }
-    })
-  } catch {
-    return {
-      consentVersion: DEFAULT_CONSENT_VERSION,
-      cookieRetentionDays: DEFAULT_COOKIE_RETENTION_DAYS,
-    }
+/** A `document.cookie` assignment string for a first-party (JS-readable) cookie. */
+export function clientCookieAssignment(
+  name: string,
+  value: string,
+  maxAgeSeconds: number,
+  isSecure: boolean,
+): string {
+  const parts = [`${name}=${value}`, 'Path=/', `Max-Age=${maxAgeSeconds}`, 'SameSite=Lax']
+  if (isSecure) {
+    parts.push('Secure')
   }
+  return parts.join('; ')
 }
 
-/**
- * Read the visitor's consent state from a server cookie store
- * (`await cookies()` in a layout/page, or `request.cookies` in a route).
- * 'unknown' when the cookie is absent, malformed, or from an older
- * consentVersion (site-config bump ⇒ re-prompt).
- */
-export async function readConsent(cookieStore: ConsentCookieReader): Promise<ConsentState> {
-  const raw = cookieStore.get(CONSENT_COOKIE_NAME)?.value
-  if (!raw) {
-    return 'unknown'
-  }
-  const { consentVersion } = await getGdprSettings()
-  return parseConsentCookie(raw, consentVersion)
+/** First-party `nr_consent` assignment carrying an explicit CMP-derived choice. */
+export function clientConsentCookieAssignment(
+  choice: ConsentChoice,
+  version: number,
+  isSecure: boolean,
+  retentionDays: number = DEFAULT_COOKIE_RETENTION_DAYS,
+): string {
+  return clientCookieAssignment(
+    CONSENT_COOKIE_NAME,
+    serializeConsentCookieValue(choice, version),
+    retentionDays * 86_400,
+    isSecure,
+  )
 }
+
+/** First-party `nr_vid` assignment (only ever written once CMP consent is read). */
+export function clientVisitorCookieAssignment(visitorId: string, isSecure: boolean): string {
+  return clientCookieAssignment(
+    VISITOR_COOKIE_NAME,
+    visitorId,
+    VISITOR_COOKIE_MAX_AGE_DAYS * 86_400,
+    isSecure,
+  )
+}
+
+/** Delete a first-party cookie (Max-Age=0) — used on CMP consent withdrawal. */
+export function clientClearCookieAssignment(name: string, isSecure: boolean): string {
+  return clientCookieAssignment(name, '', 0, isSecure)
+}
+
+// The server-only helpers getGdprSettings() and readConsent() (they read
+// site-config via Payload + Redis) now live in `consent-server.ts` — see this
+// module's header for why they must not be reachable from a client bundle.

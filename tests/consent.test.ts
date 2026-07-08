@@ -40,13 +40,16 @@ import {
   CONSENT_COOKIE_NAME,
   VISITOR_COOKIE_NAME,
   clearVisitorCookieHeader,
+  clientClearCookieAssignment,
+  clientConsentCookieAssignment,
+  clientVisitorCookieAssignment,
   consentCookieHeader,
   parseConsentCookie,
-  readConsent,
   serializeConsentCookieValue,
   serializeCookie,
   visitorCookieHeader,
 } from '../src/lib/consent'
+import { readConsent } from '../src/lib/consent-server'
 import { POST } from '../src/app/api/consent/route'
 
 beforeEach(() => {
@@ -139,6 +142,50 @@ describe('cookie serialization', () => {
     expect(visitorCookieHeader('uuid-1')).toContain(`${VISITOR_COOKIE_NAME}=uuid-1`)
     expect(clearVisitorCookieHeader()).toContain(`${VISITOR_COOKIE_NAME}=;`)
     expect(clearVisitorCookieHeader()).toContain('Max-Age=0')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Client-side first-party cookie assignments (CMP-gated CDP re-activation)
+// ---------------------------------------------------------------------------
+
+describe('client cookie assignments (CDP re-activation)', () => {
+  it('nr_consent assignment round-trips through readConsent parsing', () => {
+    const assignment = clientConsentCookieAssignment('accepted', 3, true)
+    // document.cookie form: "name=value; Path=/; Max-Age=...; SameSite=Lax; Secure"
+    const [pair] = assignment.split(';')
+    expect(pair!.startsWith(`${CONSENT_COOKIE_NAME}=`)).toBe(true)
+    const rawValue = pair!.slice(CONSENT_COOKIE_NAME.length + 1)
+    expect(parseConsentCookie(rawValue, 3)).toBe('accepted')
+    // Version bump still re-prompts (older stored choice no longer counts).
+    expect(parseConsentCookie(rawValue, 4)).toBe('unknown')
+  })
+
+  it('carries the retention window, SameSite=Lax and Path=/, never HttpOnly', () => {
+    const assignment = clientConsentCookieAssignment('accepted', 1, true, 180)
+    expect(assignment).toContain('Path=/')
+    expect(assignment).toContain(`Max-Age=${180 * 86_400}`)
+    expect(assignment).toContain('SameSite=Lax')
+    // First-party, JS-readable so the gate can clear it on withdrawal.
+    expect(assignment).not.toContain('HttpOnly')
+  })
+
+  it('Secure flag is toggled by the isSecure argument (https only)', () => {
+    expect(clientConsentCookieAssignment('accepted', 1, true)).toContain('Secure')
+    expect(clientConsentCookieAssignment('accepted', 1, false)).not.toContain('Secure')
+  })
+
+  it('nr_vid assignment lives 365d and carries the visitor id', () => {
+    const assignment = clientVisitorCookieAssignment('uuid-42', true)
+    expect(assignment).toContain(`${VISITOR_COOKIE_NAME}=uuid-42`)
+    expect(assignment).toContain(`Max-Age=${365 * 86_400}`)
+    expect(assignment).not.toContain('HttpOnly')
+  })
+
+  it('clearing sets Max-Age=0 for the named cookie', () => {
+    const cleared = clientClearCookieAssignment(VISITOR_COOKIE_NAME, false)
+    expect(cleared).toContain(`${VISITOR_COOKIE_NAME}=;`)
+    expect(cleared).toContain('Max-Age=0')
   })
 })
 

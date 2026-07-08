@@ -8,7 +8,7 @@
 # timerele fără efecte secundare. Fără sudo — doar systemctl --user.
 #
 # Globul newsromania-* preia AUTOMAT orice unitate nouă din acest director —
-# la data scrierii: ingest (RSS, la 20 min), profiles (CDP, la 10 min),
+# la data scrierii: ingest (RSS, loturi rotative la 5 min), profiles (CDP, la 10 min),
 # social (coada de postări, orar), backup (pg_dump zilnic 04:15), health
 # (/api/health la 5 min). Adaugă fișierele .service/.timer aici și
 # re-rulează scriptul.

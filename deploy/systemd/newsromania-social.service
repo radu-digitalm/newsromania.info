@@ -1,12 +1,21 @@
-# newsromania-social.service — o rulare a workerului cozii sociale.
+# newsromania-social.service — o rulare orară a workerului cozii sociale.
 # Unitate systemd de UTILIZATOR (systemctl --user). Fără secrete aici:
 # `npx payload run` încarcă .env din rădăcina proiectului.
 # Doar PREGĂTEȘTE coada (social-queue, status „queued”) — postarea efectivă
-# este manuală, cu Claude in Chrome (docs/social-posting-runbook.md).
+# este manuală, cu Claude in Chrome (docs/social-posting-runbook.md,
+# docs/facebook-hourly-runbook.md).
+#
+# Rulează DOUĂ pași într-un singur oneshot orar:
+#   1. --impact  → „impactul orei”: cea mai importantă știre din ultima oră,
+#      pusă în coadă pentru PAGINA Facebook + cele (max 5) GRUPURI membre
+#      (SOCIAL_FB_GROUPS din .env). PROJECT_BRIEF §9b.
+#   2. (implicit) → coada de descrieri 3×/zi (facebook/twitter/instagram) pe
+#      sloturile din site-config. Idempotentă; nu scrie nimic dacă nu e cazul.
+# Al doilea pas rulează chiar dacă primul eșuează (`; ` nu `&&`).
 # Instalare: deploy/systemd/install-user-units.sh
 
 [Unit]
-Description=NewsRomania — coadă postări sociale (pregătire, nu postare)
+Description=NewsRomania — coadă postări sociale (pregătire orară, nu postare)
 Wants=network-online.target
 After=network-online.target
 
@@ -14,7 +23,7 @@ After=network-online.target
 Type=oneshot
 WorkingDirectory=/home/newsagent/workspace/newsromania
 # bash -lc ca să preia PATH-ul utilizatorului (node via ~/bin, regula CLAUDE.md).
-ExecStart=/bin/bash -lc 'export PATH="$HOME/bin:$PATH"; cd /home/newsagent/workspace/newsromania && npx payload run scripts/worker/social.mjs'
+ExecStart=/bin/bash -lc 'export PATH="$HOME/bin:$PATH"; cd /home/newsagent/workspace/newsromania && npx payload run scripts/worker/social.mjs -- --impact; npx payload run scripts/worker/social.mjs'
 # Workerul se limitează singur la 8 minute; systemd taie la 10 ca plasă de siguranță.
 TimeoutStartSec=600
 # VPS partajat: prioritate redusă CPU/IO.

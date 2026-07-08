@@ -5,15 +5,32 @@ import { describe, expect, it } from 'vitest'
 import {
   CAPTION_BUDGET_PER_RUN,
   DEFAULT_SCHEDULE,
+  FB_PAGE_TARGET,
+  MAX_FB_GROUPS,
   PLATFORMS,
   createSlotAllocator,
+  fbTargets,
+  hourStamp,
   idempotencyKey,
+  impactRefId,
   missingPlatforms,
   nextSlotAfter,
+  parseFbGroups,
   parseSchedule,
   selectStories,
   storyUrl,
 } from '../scripts/worker/lib/social-plan.mjs'
+import {
+  DEFAULT_TIER,
+  ORIGINAL_TIER,
+  countClusters,
+  impactScore,
+  normalizeSource,
+  recencyScore,
+  selectImpactStory,
+  sourceTier,
+  withinLastHour,
+} from '../scripts/worker/lib/impact.mjs'
 
 /**
  * Mocked clock: every helper takes `now`/`after` as an argument, so tests
@@ -213,5 +230,266 @@ describe('URL helpers', () => {
 
   it('both content types link to OUR site (/stiri/<slug>)', () => {
     expect(storyUrl(SITE, 'buget-aprobat')).toBe('https://newsromania.info/stiri/buget-aprobat')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Impact-of-the-hour (PROJECT_BRIEF §9a) — scripts/worker/lib/impact.mjs
+// ---------------------------------------------------------------------------
+
+const NOW_MS = new Date(2026, 6, 6, 12, 0, 0, 0).getTime()
+const minsAgo = (m: number) => new Date(NOW_MS - m * 60 * 1000).toISOString()
+
+describe('normalizeSource / sourceTier', () => {
+  it('strips diacritics and lowercases for matching', () => {
+    expect(normalizeSource('Adevărul')).toBe('adevarul')
+    expect(normalizeSource('Ziarul Financiar (ZF.ro)')).toBe('ziarul financiar (zf.ro)')
+    expect(normalizeSource(null)).toBe('')
+  })
+
+  it('maps known national outlets to tier 1 and unknowns to DEFAULT_TIER', () => {
+    expect(sourceTier('Digi24')).toBe(1)
+    expect(sourceTier('G4Media.ro')).toBe(1)
+    expect(sourceTier('Adevărul')).toBe(1)
+    expect(sourceTier('Libertatea')).toBe(2)
+    expect(sourceTier('Ziarul Financiar (ZF.ro)')).toBe(2)
+    expect(sourceTier('Replica Online (Constanța)')).toBe(DEFAULT_TIER)
+    expect(sourceTier(undefined)).toBe(DEFAULT_TIER)
+    expect(DEFAULT_TIER).toBe(3)
+  })
+})
+
+describe('withinLastHour', () => {
+  it('accepts items published inside the window, rejects older ones', () => {
+    expect(withinLastHour(minsAgo(0), NOW_MS)).toBe(true)
+    expect(withinLastHour(minsAgo(59), NOW_MS)).toBe(true)
+    expect(withinLastHour(minsAgo(60), NOW_MS)).toBe(true)
+    expect(withinLastHour(minsAgo(61), NOW_MS)).toBe(false)
+  })
+
+  it('treats future clock-skew timestamps as current', () => {
+    expect(withinLastHour(new Date(NOW_MS + 5 * 60 * 1000).toISOString(), NOW_MS)).toBe(true)
+  })
+
+  it('rejects unparseable timestamps', () => {
+    expect(withinLastHour('not-a-date', NOW_MS)).toBe(false)
+  })
+})
+
+describe('recencyScore', () => {
+  it('is max at now, zero a full window ago, and bounded below a cluster step', () => {
+    expect(recencyScore(minsAgo(0), NOW_MS)).toBeCloseTo(2)
+    expect(recencyScore(minsAgo(60), NOW_MS)).toBeCloseTo(0)
+    expect(recencyScore(minsAgo(30), NOW_MS)).toBeCloseTo(1)
+    // Never enough to overturn even one extra outlet (CLUSTER_WEIGHT = 10).
+    expect(recencyScore(minsAgo(0), NOW_MS)).toBeLessThan(10)
+  })
+})
+
+describe('countClusters', () => {
+  it('counts items per clusterKey and ignores empty keys', () => {
+    const counts = countClusters([
+      { clusterKey: 'buget aprobat' },
+      { clusterKey: 'buget aprobat' },
+      { clusterKey: 'buget aprobat' },
+      { clusterKey: 'meci castigat' },
+      { clusterKey: '' },
+      { clusterKey: null },
+      {},
+    ])
+    expect(counts.get('buget aprobat')).toBe(3)
+    expect(counts.get('meci castigat')).toBe(1)
+    expect(counts.size).toBe(2)
+  })
+})
+
+describe('impactScore', () => {
+  it('cross-source coverage dominates tier and image', () => {
+    const bigCluster = impactScore(
+      { clusterSize: 5, tier: 3, hasImage: false, publishedAt: minsAgo(50) },
+      NOW_MS,
+    )
+    const tier1WithImage = impactScore(
+      { clusterSize: 1, tier: 1, hasImage: true, publishedAt: minsAgo(0) },
+      NOW_MS,
+    )
+    // 4 extra outlets (40 pts) beat the best possible tier+image+recency combo.
+    expect(bigCluster).toBeGreaterThan(tier1WithImage)
+  })
+
+  it('tier and image break ties at equal coverage', () => {
+    const a = impactScore(
+      { clusterSize: 2, tier: 1, hasImage: true, publishedAt: minsAgo(30) },
+      NOW_MS,
+    )
+    const b = impactScore(
+      { clusterSize: 2, tier: 3, hasImage: false, publishedAt: minsAgo(30) },
+      NOW_MS,
+    )
+    expect(a).toBeGreaterThan(b)
+  })
+})
+
+describe('selectImpactStory', () => {
+  const item = (over: Record<string, unknown>) => ({
+    refId: '1',
+    contentType: 'aggregated',
+    title: 't',
+    hasImage: true,
+    clusterSize: 1,
+    tier: DEFAULT_TIER,
+    publishedAt: minsAgo(10),
+    ...over,
+  })
+
+  // impact.mjs is untyped JS → `story` widens to `object`; read refId safely.
+  const refIdOf = (pick: { story: object } | null) =>
+    (pick?.story as { refId?: string } | undefined)?.refId
+
+  it('returns null on no candidates', () => {
+    expect(selectImpactStory([], { nowMs: NOW_MS })).toBeNull()
+  })
+
+  it('picks the biggest cross-source cluster from the last hour', () => {
+    const pick = selectImpactStory(
+      [
+        item({ refId: 'a', clusterSize: 1, tier: 1, hasImage: true, publishedAt: minsAgo(1) }),
+        item({ refId: 'b', clusterSize: 4, tier: 3, hasImage: false, publishedAt: minsAgo(40) }),
+        item({ refId: 'c', clusterSize: 2, tier: 2, hasImage: true, publishedAt: minsAgo(5) }),
+      ],
+      { nowMs: NOW_MS },
+    )
+    expect(refIdOf(pick)).toBe('b')
+    expect(pick?.reason).toBe('impact-of-the-hour')
+  })
+
+  it('ignores items older than an hour when the hour has content', () => {
+    const pick = selectImpactStory(
+      [
+        item({ refId: 'old', clusterSize: 9, publishedAt: minsAgo(90) }),
+        item({ refId: 'fresh', clusterSize: 1, publishedAt: minsAgo(10) }),
+      ],
+      { nowMs: NOW_MS },
+    )
+    expect(refIdOf(pick)).toBe('fresh')
+  })
+
+  it('thin hour → newest item WITH an image', () => {
+    const pick = selectImpactStory(
+      [
+        item({ refId: 'noimg-new', hasImage: false, publishedAt: minsAgo(70) }),
+        item({ refId: 'img-old', hasImage: true, publishedAt: minsAgo(200) }),
+        item({ refId: 'img-new', hasImage: true, publishedAt: minsAgo(100) }),
+      ],
+      { nowMs: NOW_MS },
+    )
+    expect(refIdOf(pick)).toBe('img-new')
+    expect(pick?.reason).toBe('fallback-newest-with-image')
+  })
+
+  it('thin hour, no images anywhere → newest overall', () => {
+    const pick = selectImpactStory(
+      [
+        item({ refId: 'old', hasImage: false, publishedAt: minsAgo(300) }),
+        item({ refId: 'newer', hasImage: false, publishedAt: minsAgo(120) }),
+      ],
+      { nowMs: NOW_MS },
+    )
+    expect(refIdOf(pick)).toBe('newer')
+    expect(pick?.reason).toBe('fallback-newest')
+  })
+
+  it('breaks exact score ties by newer publishedAt then smaller refId', () => {
+    const pick = selectImpactStory(
+      [
+        item({ refId: 'z', clusterSize: 2, tier: 1, hasImage: true, publishedAt: minsAgo(20) }),
+        item({ refId: 'a', clusterSize: 2, tier: 1, hasImage: true, publishedAt: minsAgo(20) }),
+      ],
+      { nowMs: NOW_MS },
+    )
+    // Same publishedAt ⇒ smaller refId wins ('a' < 'z').
+    expect(refIdOf(pick)).toBe('a')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Facebook hourly fan-out helpers (PROJECT_BRIEF §9b) — social-plan.mjs
+// ---------------------------------------------------------------------------
+
+describe('parseFbGroups', () => {
+  it('keeps only facebook.com/groups URLs, de-dupes, caps at MAX_FB_GROUPS', () => {
+    const raw = [
+      'https://facebook.com/groups/aaa',
+      'https://www.facebook.com/groups/bbb/',
+      'https://facebook.com/groups/aaa', // dup (trailing-slash-normalized)
+      'https://example.com/not-a-group',
+      'https://facebook.com/NewsRomania', // a page, not a group
+      'https://facebook.com/groups/ccc',
+      'https://facebook.com/groups/ddd',
+      'https://facebook.com/groups/eee',
+      'https://facebook.com/groups/fff', // 6th valid → dropped by the cap
+    ].join('\n')
+    const groups = parseFbGroups(raw)
+    expect(groups).toEqual([
+      'https://facebook.com/groups/aaa',
+      'https://www.facebook.com/groups/bbb',
+      'https://facebook.com/groups/ccc',
+      'https://facebook.com/groups/ddd',
+      'https://facebook.com/groups/eee',
+    ])
+    expect(groups.length).toBe(MAX_FB_GROUPS)
+  })
+
+  it('accepts comma/space separators and returns [] for empty/non-string', () => {
+    expect(parseFbGroups('https://facebook.com/groups/x, https://facebook.com/groups/y')).toEqual([
+      'https://facebook.com/groups/x',
+      'https://facebook.com/groups/y',
+    ])
+    expect(parseFbGroups('')).toEqual([])
+    expect(parseFbGroups(undefined)).toEqual([])
+  })
+})
+
+describe('fbTargets', () => {
+  it('page is always target #0, groups follow in order', () => {
+    const targets = fbTargets('https://facebook.com/NewsRomania', [
+      'https://facebook.com/groups/aaa',
+      'https://facebook.com/groups/bbb',
+    ])
+    expect(targets).toEqual([
+      { slug: FB_PAGE_TARGET, url: 'https://facebook.com/NewsRomania', kind: 'page' },
+      { slug: 'group1', url: 'https://facebook.com/groups/aaa', kind: 'group' },
+      { slug: 'group2', url: 'https://facebook.com/groups/bbb', kind: 'group' },
+    ])
+  })
+
+  it('queues the page even when its URL is missing (owner fills later)', () => {
+    const targets = fbTargets(null, [])
+    expect(targets).toEqual([{ slug: 'page', url: null, kind: 'page' }])
+  })
+})
+
+describe('hourStamp / impactRefId', () => {
+  it('stamps the local wall-clock hour', () => {
+    expect(hourStamp(new Date(2026, 6, 7, 14, 37, 0, 0))).toBe('2026-07-07T14')
+    expect(hourStamp(new Date(2026, 0, 3, 9, 5, 0, 0))).toBe('2026-01-03T09')
+  })
+
+  it('builds a per-story-per-target-per-hour idempotent refId that never hits the daily queue', () => {
+    const story = { contentType: 'aggregated', refId: '42' }
+    const stamp = hourStamp(new Date(2026, 6, 7, 14, 0, 0, 0))
+    expect(impactRefId(story, stamp, 'page')).toBe('impact:aggregated:42:2026-07-07T14:page')
+    expect(impactRefId(story, stamp, 'group3')).toBe('impact:aggregated:42:2026-07-07T14:group3')
+    // Distinct from the daily-queue key space (bare id refId) → no collision.
+    expect(impactRefId(story, stamp, 'page')).not.toBe(story.refId)
+    // Distinct per hour → idempotent within an hour, fresh the next hour.
+    const nextHour = hourStamp(new Date(2026, 6, 7, 15, 0, 0, 0))
+    expect(impactRefId(story, nextHour, 'page')).not.toBe(impactRefId(story, stamp, 'page'))
+  })
+})
+
+describe('ORIGINAL_TIER', () => {
+  it("treats the redaction's own articles as top tier", () => {
+    expect(ORIGINAL_TIER).toBe(1)
   })
 })

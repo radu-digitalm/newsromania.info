@@ -204,3 +204,77 @@ out of build contexts.
 Escalation floor: never touch other tenants' processes, host :5432/:3306, or
 system units. Anything needing root goes into a `deploy/` hand-over block for
 the owner.
+
+## 11. Umami self-hosted analytics (PROJECT_BRIEF §7)
+
+Umami is our **cookieless, GDPR-friendly** analytics — self-hosted as the
+`umami` compose service (`ghcr.io/umami-software/umami:postgresql-latest`), on
+the internal network, published only to `127.0.0.1:3141`. It is served
+**same-origin** at `/stats/*` via a `next.config` rewrite
+(`/stats/:path* → http://umami:3000/:path*`), so the tracker script
+(`/stats/script.js`) and its collector (`/stats/api/send`) are first-party — no
+nginx change, no third-party host. Umami sets **no cookies** and stores no
+personal data, so it runs **consent-free** (no CMP gate), unlike the
+consent-gated first-party CDP.
+
+> This is OUR OWN Umami on OUR OWN postgres container — unrelated to the other
+> tenant's Umami on the host `:5432`, which stays off-limits (CLAUDE.md §6).
+
+### 11.1 One-time DB setup (Integrate agent — run BEFORE first `up`)
+
+Umami needs a **separate `umami` database + role** on the EXISTING
+`newsromania-postgres` container — never the app DB/schema. Fill
+`UMAMI_DB_PASSWORD` (+ `UMAMI_APP_SECRET`) in `.env` first, then run this
+one-time block (uses the app's `POSTGRES_USER` as the bootstrap superuser; no
+secret is printed):
+
+```bash
+export PATH="$HOME/bin:$PATH"
+export DOCKER_HOST=unix:///run/user/1004/docker.sock
+cd /home/newsagent/workspace/newsromania
+set -a; . ./.env; set +a
+docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" -i newsromania-postgres \
+  psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -v umami_pw="$UMAMI_DB_PASSWORD" <<'SQL'
+SELECT 'CREATE ROLE umami LOGIN PASSWORD ' || quote_literal(:'umami_pw')
+  WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'umami')\gexec
+SELECT 'CREATE DATABASE umami OWNER umami'
+  WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'umami')\gexec
+SQL
+```
+
+(Idempotent: re-running is a no-op once the role/DB exist. `CREATE DATABASE`
+cannot run inside a transaction, hence the `\gexec` pattern rather than a
+`DO` block.) Umami applies its own schema migrations automatically on first
+container start, into that `umami` DB.
+
+### 11.2 First run (owner — create admin, add the site, copy the id)
+
+1. Start the stack (the `umami` service is in the `app` profile, so it comes
+   up with `systemctl --user start newsromania-app`). Verify:
+   ```bash
+   curl -s http://127.0.0.1:3141/api/heartbeat        # {"ok":true} when ready
+   docker logs --tail 50 newsromania-umami
+   ```
+2. Log into the Umami admin **through the site** at
+   `https://newsromania.info/stats/` (same-origin; works over TLS with no extra
+   nginx config). Default credentials on a fresh install are `admin` /
+   `umami` — **change the password immediately** on first login.
+3. Umami admin → **Settings → Websites → Add website**: Name `NewsRomania`,
+   Domain `newsromania.info`. Save, then open it and copy the **Website ID**
+   (a UUID).
+4. Put that id into `.env` as `NEXT_PUBLIC_UMAMI_WEBSITE_ID=<uuid>` and
+   **rebuild the app image** (it is a `NEXT_PUBLIC_*` value, inlined at build —
+   the tracker `<script>` renders nothing until it is set). Reload the site and
+   confirm hits appear in the Umami dashboard.
+
+### 11.3 Ops notes
+
+- Backups: the `umami` DB lives on the same postgres container. `pg_dump -Fc`
+  it alongside the app DB if analytics history matters
+  (`docker exec newsromania-postgres pg_dump -Fc -U umami umami`); it is not
+  covered by the app's `scripts/db-backup.sh` (which dumps `$POSTGRES_DB`).
+- Direct `:3141` access is for first-run/admin only; public traffic always uses
+  the same-origin `/stats/*` path.
+- Umami is memory-limited to 384m; if it OOM-restarts under load, raise
+  `mem_limit` in `compose.yaml`.

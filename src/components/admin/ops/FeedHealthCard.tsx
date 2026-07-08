@@ -81,6 +81,7 @@ export function FeedHealthCard({ feeds }: { feeds: OpsFeedStatus[] }): React.Rea
                   )}
                 </strong>
                 <span
+                  title={`Ultima interogare: ${formatFetchedAt(feed.lastFetchedAt)} · Ultimul articol: ${formatFetchedAt(feed.lastItemAt)}`}
                   style={{
                     color: 'var(--theme-elevation-600)',
                     fontVariantNumeric: 'tabular-nums',

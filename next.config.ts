@@ -26,6 +26,21 @@ const nextConfig: NextConfig = {
     // app/global-not-found.tsx provides the branded Romanian one.
     globalNotFound: true,
   },
+  // Self-hosted Umami served SAME-ORIGIN (PROJECT_BRIEF §7). The tracker
+  // script (/stats/script.js) and its collector (/stats/api/send) are proxied
+  // to the internal `umami` compose service over the internal network — so
+  // analytics is first-party (no third-party host, cookieless, no CMP needed)
+  // and needs no nginx change or sudo. `umami:3000` resolves via compose DNS;
+  // in local dev without the umami container the /stats/* paths simply 502
+  // (the tracker script fails to load and analytics is a no-op — harmless).
+  async rewrites() {
+    return [
+      {
+        source: '/stats/:path*',
+        destination: `${process.env.UMAMI_INTERNAL_URL ?? 'http://umami:3000'}/:path*`,
+      },
+    ]
+  },
 }
 
 export default withPayload(nextConfig, { devBundleServerPackages: false })

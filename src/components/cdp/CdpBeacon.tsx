@@ -7,25 +7,21 @@ import { useEffect, useRef } from 'react'
  * CdpBeacon — first-party behavioural beacon (PROJECT_BRIEF §7, strictly
  * consent-gated per §8).
  *
- * MOUNTING CONTRACT (integration layout):
- *   The SERVER layout mounts <CdpBeacon /> ONLY when
- *   `await readConsent(await cookies()) === 'accepted'` — i.e. only for
- *   visitors with an explicit, current-version Accept. Refused/unknown
- *   visitors never receive this component (zero tracking code runs for
- *   them). The server also gates on the `nr_vid` cookie being present; the
- *   /api/cdp/events route re-validates BOTH server-side on every batch, so
- *   even a mis-mounted beacon can never store anything without consent.
+ * MOUNTING CONTRACT (CMP-gated re-activation, 2026-07):
+ *   <CdpConsentGate> (client) mounts this beacon ONLY after reading a 'granted'
+ *   consent signal from Google's certified CMP (TCF v2 / Consent Mode — see
+ *   components/cdp/consent-signal.ts). At that point the gate has written the
+ *   first-party `nr_consent` (versioned proof) + `nr_vid` cookies, so this
+ *   beacon's same-origin POSTs pass the UNCHANGED server guard on
+ *   /api/cdp/events (readConsent()==='accepted' AND a valid nr_vid). Before the
+ *   CMP grant nothing mounts and no cookies exist. The route re-validates BOTH
+ *   server-side on every batch, so even a mis-mounted beacon can never store
+ *   anything without the consent proof cookie.
  *
- * DORMANT since the CMP reconciliation (2026-07):
- *   Our custom consent banner + POST /api/consent were retired in favour of
- *   Google's certified CMP, so the `nr_consent` cookie is NEVER written and
- *   readConsent() is always 'unknown'. This beacon therefore never mounts and
- *   /api/cdp/events drops everything — a privacy-safe, error-free dormant
- *   state (no cookies, no runtime code). To RE-ACTIVATE first-party analytics
- *   later, gate mounting on Google's TCF / Consent-Mode signal (e.g. the IAB
- *   TCF `euconsent-v2` / __tcfapi consent for the relevant purposes, or a
- *   Consent-Mode `analytics_storage: granted` read), NOT on the removed
- *   nr_consent cookie. See docs/architecture.md (Consent / CDP section).
+ *   Background: our custom banner + POST /api/consent were retired in favour of
+ *   Google's CMP (which now owns advertising/analytics consent), so the server
+ *   no longer writes nr_consent itself — the CMP-read gate does, client-side.
+ *   See docs/architecture.md (Consent / CDP section) + CdpConsentGate.tsx.
  *
  * What it emits (batched, max 20 per queue, flushed every 5 s or on
  * pagehide / route change / article click via navigator.sendBeacon):

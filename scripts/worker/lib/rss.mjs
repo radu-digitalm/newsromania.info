@@ -15,6 +15,10 @@ import Parser from 'rss-parser'
 
 export const USER_AGENT = 'newsromania-bot/1.0 (+https://newsromania.info)'
 export const FETCH_TIMEOUT_MS = 15_000
+/** Publisher article fetch (og:image discovery) — shorter, polite timeout. */
+export const ARTICLE_FETCH_TIMEOUT_MS = 12_000
+/** Politeness floor between publisher-article fetches (≤ 1 request / second). */
+export const ARTICLE_FETCH_MIN_INTERVAL_MS = 1_000
 
 /**
  * @param {string} url
@@ -55,13 +59,66 @@ export async function fetchFeedXml(url, validators = {}) {
   }
 }
 
+// Module-level clock so the 1-req/sec floor holds ACROSS calls within a run.
+let lastArticleFetchAt = 0
+
+/**
+ * Politely fetch ONE publisher article's HTML for og:image discovery
+ * (docs/architecture.md §"Image policy"). Rate-limited to ≤ 1 req/sec,
+ * {@link ARTICLE_FETCH_TIMEOUT_MS} timeout, project UA, capped read size.
+ * Returns the HTML text, or null on any non-OK/non-HTML/error response — a
+ * missing image is never fatal (the card just renders imageless).
+ *
+ * NOT a crawler: exactly one GET of the item's own link, nothing followed
+ * beyond it. Only used when RSS gave no enclosure/media:content image.
+ *
+ * @param {string} url the article link
+ * @param {{ now?: () => number, sleep?: (ms: number) => Promise<void> }} [deps]
+ *   injectable clock/sleep for tests
+ * @returns {Promise<string | null>}
+ */
+export async function fetchArticleHtml(url, deps = {}) {
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return null
+  const now = deps.now ?? (() => Date.now())
+  const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)))
+
+  // Politeness floor: at most one publisher-article fetch per second.
+  const wait = ARTICLE_FETCH_MIN_INTERVAL_MS - (now() - lastArticleFetchAt)
+  if (wait > 0) await sleep(wait)
+  lastArticleFetchAt = now()
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ARTICLE_FETCH_TIMEOUT_MS)
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'user-agent': USER_AGENT,
+        accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5',
+      },
+      redirect: 'follow',
+      signal: controller.signal,
+    })
+    if (!res.ok) return null
+    const contentType = res.headers.get('content-type') ?? ''
+    if (contentType && !/text\/html|application\/xhtml/i.test(contentType)) return null
+    return await res.text()
+  } catch {
+    // Any failure (timeout, DNS, TLS…) ⇒ no image, never take the run down.
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** rss-parser with media:content surfaced (kept as array). */
 export function createFeedParser() {
   return new Parser({
     customFields: {
       item: [
         ['media:content', 'mediaContent', { keepArray: true }],
+        ['media:thumbnail', 'mediaThumbnail', { keepArray: true }],
         ['content:encoded', 'contentEncoded'],
+        ['description', 'descriptionRaw'],
       ],
     },
   })
@@ -93,9 +150,11 @@ function looksLikeImage(url, type, medium) {
 }
 
 /**
- * Image URL allowed for display — ONLY from <enclosure> or <media:content>
- * (legal gate PROJECT_BRIEF 0.2). Anything else (og:image, scraped HTML…)
- * is forbidden and never even looked at.
+ * RSS-supplied image URL for an aggregated item — from <enclosure>,
+ * <media:content> or <media:thumbnail>. This is the FIRST image source
+ * (docs/architecture.md §"Image policy"); when it returns null the worker
+ * falls back to the publisher article's og:image (see lib/og-image.mjs). All
+ * of these are hotlinked, never downloaded.
  *
  * @returns {string | null}
  */
@@ -104,6 +163,8 @@ export function extractImage(item) {
   if (enclosure && looksLikeImage(enclosure.url, enclosure.type)) {
     return enclosure.url
   }
+  // media:content carries @type/@medium — judged on its own attributes so a
+  // <media:content medium="video"> is never mistaken for an image.
   const mediaContents = Array.isArray(item.mediaContent) ? item.mediaContent : []
   for (const media of mediaContents) {
     const attrs = media && typeof media === 'object' ? (media.$ ?? media) : {}
@@ -111,22 +172,50 @@ export function extractImage(item) {
       return attrs.url
     }
   }
+  // media:thumbnail is an image by definition (spec) and rarely carries @type —
+  // default its medium to 'image' so a bare url still qualifies.
+  const mediaThumbs = Array.isArray(item.mediaThumbnail) ? item.mediaThumbnail : []
+  for (const media of mediaThumbs) {
+    const attrs = media && typeof media === 'object' ? (media.$ ?? media) : {}
+    if (looksLikeImage(attrs.url, attrs.type, attrs.medium ?? 'image')) {
+      return attrs.url
+    }
+  }
   return null
 }
 
-/** Strip HTML tags + collapse whitespace (for LLM input, never stored). */
+/** Strip HTML tags + collapse whitespace + decode HTML entities. */
 export function stripHtml(html) {
   if (typeof html !== 'string') return ''
-  return html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#0?39;|&apos;/gi, "'")
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/\s+/g, ' ')
-    .trim()
+  return (
+    html
+      .replace(/<[^>]*>/g, ' ')
+      // Named entities we handle explicitly (decode before the numeric pass so
+      // e.g. a literal &amp;#8230; still resolves as a stray, not a real ref).
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#0?39;|&apos;/gi, "'")
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      // Numeric character references — Romanian publishers routinely emit curly
+      // quotes (&#8222;/&#8221;), en-dash (&#8211;), ellipsis (&#8230;) and
+      // nbsp (&#160;). Decode both decimal and hex forms.
+      .replace(/&#(\d+);/g, (m, dec) => codePointOr(m, Number.parseInt(dec, 10)))
+      .replace(/&#x([0-9a-f]+);/gi, (m, hex) => codePointOr(m, Number.parseInt(hex, 16)))
+      .replace(/\s+/g, ' ')
+      .trim()
+  )
+}
+
+/** Safe String.fromCodePoint — falls back to the raw match on invalid code points. */
+function codePointOr(raw, cp) {
+  if (!Number.isInteger(cp) || cp < 0 || cp > 0x10ffff) return raw
+  try {
+    return String.fromCodePoint(cp)
+  } catch {
+    return raw
+  }
 }
 
 /**
@@ -134,6 +223,24 @@ export function stripHtml(html) {
  * stored (aggregated-items keep only the transformative ≤55-word excerpt).
  * Capped at 4000 chars to keep token usage predictable.
  */
+/**
+ * Best RAW text field to build the stored ≤55-word RSS excerpt from
+ * (lib/excerpt.mjs strips HTML + clamps it). Prefers the publisher's own
+ * short summary (description / summary / contentSnippet) and only then the
+ * fuller content:encoded — the excerpt is length-capped either way, so a long
+ * body is fine as a last resort. Returns '' when the item carries no text.
+ */
+export function itemDescription(item) {
+  return (
+    (typeof item.descriptionRaw === 'string' && item.descriptionRaw) ||
+    (typeof item.summary === 'string' && item.summary) ||
+    (typeof item.contentSnippet === 'string' && item.contentSnippet) ||
+    (typeof item.content === 'string' && item.content) ||
+    (typeof item.contentEncoded === 'string' && item.contentEncoded) ||
+    ''
+  )
+}
+
 export function itemSourceText(item, maxChars = 4000) {
   const raw =
     (typeof item.contentEncoded === 'string' && item.contentEncoded) ||

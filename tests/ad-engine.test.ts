@@ -7,6 +7,7 @@ import {
   decisionFor,
   feedAdPositions,
   marketplaceForCountry,
+  networkForOrdinal,
   type AdEngineConfig,
   type AdPlanInput,
 } from '../src/lib/ads/engine'
@@ -90,6 +91,35 @@ describe('buildAdPlan — everyNth by region', () => {
     expect(
       buildAdPlan(input(), seededConfig({ adFrequency: [{ region: 'RO', everyNth: 0 }] })).everyNth,
     ).toBe(DEFAULT_EVERY_NTH)
+  })
+})
+
+describe('networkForOrdinal — 2 AdSense : 1 Amazon by 0-based ordinal (owner v2.4)', () => {
+  it('every 3rd slot (ordinal % 3 === 2) is amazon; the rest adsense', () => {
+    expect([0, 1, 2, 3, 4, 5, 6, 7, 8].map(networkForOrdinal)).toEqual([
+      'adsense',
+      'adsense',
+      'amazon',
+      'adsense',
+      'adsense',
+      'amazon',
+      'adsense',
+      'adsense',
+      'amazon',
+    ])
+  })
+
+  it('holds the ratio unbroken across page/batch boundaries (cumulative ordinal)', () => {
+    // A stream of 12 ad slots yields exactly 4 amazon (12/3) and 8 adsense —
+    // the pattern never resets between SSR page 1 and the client batches.
+    const nets = Array.from({ length: 12 }, (_, i) => networkForOrdinal(i))
+    expect(nets.filter((n) => n === 'amazon')).toHaveLength(4)
+    expect(nets.filter((n) => n === 'adsense')).toHaveLength(8)
+  })
+
+  it('clamps a negative / non-finite ordinal to 0 (adsense)', () => {
+    expect(networkForOrdinal(-1)).toBe('adsense')
+    expect(networkForOrdinal(Number.NaN)).toBe('adsense')
   })
 })
 
@@ -291,17 +321,26 @@ describe('marketplaceForCountry', () => {
 })
 
 describe('buildAdPlan — Amazon decisions', () => {
-  it('emits amazon for the article slots and the rail (never in-feed/banner)', () => {
+  it('marks article/article-end/rail as amazon; feed carries amazon but stays network adsense', () => {
     // v2 moved the old sidebar's Amazon inventory to the end-of-article slot
     // ('article-end'); v2.3 R1 adds the desktop rail as an Amazon surface.
-    // In-feed and the top banner stay AdSense-only.
+    // v2.4 (2 AdSense : 1 Amazon everywhere): the FEED placement now also
+    // carries an AmazonDecision — the per-slot network in the multi-slot feed
+    // is decided by networkForOrdinal(ordinal) at render, so the placement-level
+    // `network` stays 'adsense' (its ordinals 0,1 are adsense) even though the
+    // amazon sub-decision is present for the every-3rd amazon slots. The top
+    // leaderboard banner stays AdSense-only (no amazon decision at all).
     const plan = buildAdPlan(input(), seededConfig())
     expect(decisionFor(plan, 'article')?.network).toBe('amazon')
     expect(decisionFor(plan, 'article-end')?.network).toBe('amazon')
     expect(decisionFor(plan, 'rail')?.network).toBe('amazon')
     expect(decisionFor(plan, 'feed')?.network).toBe('adsense')
     expect(decisionFor(plan, 'leaderboard')?.network).toBe('adsense')
-    expect(decisionFor(plan, 'feed')?.amazon).toBeUndefined()
+    // Feed carries the AmazonDecision (for the amazon-ordinal feed slots)...
+    expect(decisionFor(plan, 'feed')?.amazon).toBeDefined()
+    expect(decisionFor(plan, 'feed')?.amazon?.marketplace).toBe(DEFAULT_MARKETPLACE)
+    expect(decisionFor(plan, 'feed')?.amazon?.partnerTag).toBe('newsr01-21')
+    // ...the top banner never does.
     expect(decisionFor(plan, 'leaderboard')?.amazon).toBeUndefined()
   })
 

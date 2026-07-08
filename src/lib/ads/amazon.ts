@@ -2,6 +2,10 @@ import { createHash } from 'node:crypto'
 
 import { getRedis, rkey } from '@/lib/redis'
 
+import type { AmazonDecision } from './engine-core'
+import { houseProductsForMarketplace } from './house-amazon-products'
+import { AMAZON_HOUSE_ADS } from './preview'
+
 /**
  * Amazon Creators API product search (architecture.md §4, PROJECT_BRIEF §6.4).
  *
@@ -31,21 +35,11 @@ import { getRedis, rkey } from '@/lib/redis'
 // Public contract
 // ---------------------------------------------------------------------------
 
-export interface AmazonProductImage {
-  url: string
-  width: number
-  height: number
-}
-
-export interface AmazonProduct {
-  asin: string
-  title: string
-  /** Detail-page URL carrying the Associates partnerTag (`tag=` param). */
-  url: string
-  image?: AmazonProductImage
-  /** Localized display price, e.g. "449,00 €" (offersV2 buy-box listing). */
-  price?: string
-}
+// AmazonProduct/AmazonProductImage live in the client-bundle-safe
+// amazon-product.ts (the wire shape the /api/feed batch serializes and the
+// client card renders); re-exported here so amazon.ts's API is unchanged.
+export type { AmazonProduct, AmazonProductImage } from './amazon-product'
+import type { AmazonProduct } from './amazon-product'
 
 export interface SearchProductsInput {
   /** Engine keywords, strongest first — the FIRST phrase is the search query. */
@@ -290,4 +284,53 @@ export async function searchProductsWithTimeout(
   } finally {
     clearTimeout(timer)
   }
+}
+
+// ---------------------------------------------------------------------------
+// Single-product resolver — the always-on house fallback (owner v2.4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve ONE product for an AmazonDecision — the single source of truth used
+ * by every Amazon surface (the SSR AmazonProductAd component AND the /api/feed
+ * batch serializer for the infinite scroll), so a feed ad-post and an
+ * article-below box always pick the product the same way:
+ *
+ *   1. the live Creators API product (searchProductsWithTimeout — Redis-cached,
+ *      800ms budget). Once the Associates account is eligible this wins.
+ *   2. while the live API returns nothing (AssociateNotEligible), the
+ *      geo-matched SiteStripe HOUSE bestseller for decision.marketplace — a
+ *      REAL affiliate product with the marketplace-correct partner tag. This is
+ *      the PRODUCTION always-on path, gated ONLY by AMAZON_HOUSE_ADS (default
+ *      on), independent of AD_PREVIEW.
+ *   3. undefined ⇒ the caller renders its reserved-empty „Publicitate" box.
+ *
+ * Never throws (searchProductsWithTimeout already swallows). Server-only
+ * (Redis/SDK); the client receives the resolved product as serialized JSON.
+ */
+export async function resolveAmazonProduct(
+  decision: AmazonDecision,
+  /**
+   * House-set rotation index (owner v2.4): the feed shows several Amazon slots,
+   * so it passes each slot's ordinal to spread the house bestsellers across the
+   * marketplace set (product[variant % set.length]) instead of repeating one.
+   * Single-slot surfaces (article-end / rail) omit it → the first house product.
+   * Ignored on the LIVE path (the API already returns a contextual product).
+   */
+  variant = 0,
+): Promise<AmazonProduct | undefined> {
+  const live = await searchProductsWithTimeout({
+    keywords: decision.keywords,
+    marketplace: decision.marketplace,
+    partnerTag: decision.partnerTag,
+    count: 1,
+  })
+  if (live[0]) return live[0]
+  if (AMAZON_HOUSE_ADS) {
+    const set = houseProductsForMarketplace(decision.marketplace)
+    if (set.length === 0) return undefined
+    const index = Number.isFinite(variant) && variant >= 0 ? Math.floor(variant) : 0
+    return set[index % set.length]
+  }
+  return undefined
 }

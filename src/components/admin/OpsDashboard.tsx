@@ -19,11 +19,26 @@ import { formatInt, OpsCard, Stat } from './ops/OpsCard'
 
 const REFRESH_MS = 60_000
 
+// Ingestia rulează la fiecare câteva minute; peste 2 h fără articol nou =
+// worker blocat sau surse căzute → evidențiem vârsta cu roșu.
+const STALE_INGEST_MINUTES = 120
+
 const timeFormat = new Intl.DateTimeFormat('ro-RO', {
   hour: '2-digit',
   minute: '2-digit',
   second: '2-digit',
 })
+
+/** Vârsta celui mai recent articol, în text uman (ro-RO). */
+function formatFreshness(minutes: number | null): string {
+  if (minutes === null) return 'niciun articol'
+  if (minutes < 1) return 'chiar acum'
+  if (minutes < 60) return `acum ${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `acum ${hours} h`
+  const daysAgo = Math.floor(hours / 24)
+  return `acum ${daysAgo} ${daysAgo === 1 ? 'zi' : 'zile'}`
+}
 
 export function OpsDashboard(): React.ReactElement {
   const [stats, setStats] = useState<OpsStats | null>(null)
@@ -109,6 +124,18 @@ export function OpsDashboard(): React.ReactElement {
             <Stat label="Articole originale publicate" value={formatInt(stats.content.originals)} />
             <Stat label="Știri agregate active" value={formatInt(stats.content.aggregated)} />
             <Stat label="Publicate azi" value={formatInt(stats.content.publishedToday)} emphasis />
+            <Stat
+              label="Ingestate în ultima oră"
+              value={formatInt(stats.content.ingestedLastHour)}
+            />
+            <Stat
+              label="Cel mai recent articol"
+              value={formatFreshness(stats.content.newestItemAgeMinutes)}
+              alert={
+                stats.content.newestItemAgeMinutes !== null &&
+                stats.content.newestItemAgeMinutes > STALE_INGEST_MINUTES
+              }
+            />
           </OpsCard>
 
           <LlmUsageCard llm={stats.llm} />

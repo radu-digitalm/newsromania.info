@@ -161,6 +161,102 @@ export function selectStories(
   return selected
 }
 
+// ---------------------------------------------------------------------------
+// Facebook hourly "impact of the hour" fan-out (PROJECT_BRIEF §9b)
+// ---------------------------------------------------------------------------
+//
+// The hourly job posts the single most impactful story to the NewsRomania
+// Facebook PAGE plus the (up to 5) member GROUPS the account belongs to. Each
+// destination is its own social-queue row (platform 'facebook'), so the
+// runbook can post + mark them one at a time and idempotency is per-target.
+//
+// Group URLs are NOT in the repo (owner-specific). They come from the
+// SOCIAL_FB_GROUPS env var — newline/comma/space-separated Facebook group
+// URLs. Until the owner fills it, only the PAGE row is queued and the groups
+// are noted as pending (the worker logs this).
+
+/** Idempotency namespace prefix so hourly rows never collide with the 3×/day
+ * caption queue (which uses the bare story id as refId). */
+export const IMPACT_REFID_PREFIX = 'impact'
+
+/** The page is always target #0; groups follow in SOCIAL_FB_GROUPS order. */
+export const FB_PAGE_TARGET = 'page'
+
+/** Max member groups we ever fan out to (brief §9: 5 groups). Extra env
+ * entries beyond this are ignored (logged by the worker). */
+export const MAX_FB_GROUPS = 5
+
+/**
+ * Parse SOCIAL_FB_GROUPS (or any raw string) into a de-duplicated list of
+ * Facebook group URLs, capped at MAX_FB_GROUPS. Accepts newline-, comma-, or
+ * whitespace-separated entries; only http(s) facebook.com/groups/… URLs are
+ * kept (anything else is dropped so a typo never becomes a post target).
+ *
+ * @param {unknown} raw — typically process.env.SOCIAL_FB_GROUPS
+ * @returns {string[]} 0..MAX_FB_GROUPS group URLs, order preserved
+ */
+export function parseFbGroups(raw) {
+  if (typeof raw !== 'string') return []
+  const seen = new Set()
+  const out = []
+  for (const token of raw.split(/[\s,]+/)) {
+    const url = token.trim()
+    if (!url) continue
+    if (!/^https?:\/\/(www\.|m\.|web\.)?facebook\.com\/groups\/[^\s]+/i.test(url)) continue
+    const norm = url.replace(/\/+$/, '')
+    if (seen.has(norm)) continue
+    seen.add(norm)
+    out.push(norm)
+    if (out.length >= MAX_FB_GROUPS) break
+  }
+  return out
+}
+
+/**
+ * Hour stamp used to make the hourly post idempotent PER HOUR (one post per
+ * story per target per hour). Local-time `YYYY-MM-DDTHH` — the same wall-clock
+ * hour the timer fires in.
+ *
+ * @param {Date} date
+ * @returns {string} e.g. '2026-07-07T14'
+ */
+export function hourStamp(date) {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}`
+}
+
+/**
+ * The full set of Facebook fan-out targets for one hourly post: the page first,
+ * then each group. Each target carries a stable `slug` (used in the refId and
+ * shown in the runbook) and its destination `url`.
+ *
+ * @param {string | null | undefined} pageUrl — NewsRomania FB page (site-config)
+ * @param {string[]} groupUrls — from parseFbGroups()
+ * @returns {{ slug: string, url: string | null, kind: 'page' | 'group' }[]}
+ */
+export function fbTargets(pageUrl, groupUrls) {
+  const page = typeof pageUrl === 'string' && pageUrl.trim() ? pageUrl.trim() : null
+  const targets = [{ slug: FB_PAGE_TARGET, url: page, kind: 'page' }]
+  groupUrls.slice(0, MAX_FB_GROUPS).forEach((url, i) => {
+    targets.push({ slug: `group${i + 1}`, url, kind: 'group' })
+  })
+  return targets
+}
+
+/**
+ * refId for one hourly Facebook row: `impact:<contentType>:<storyId>:<hour>:<target>`.
+ * Idempotent per (story, hour, target); never collides with the 3×/day queue
+ * (which uses the bare story id) because of the IMPACT_REFID_PREFIX.
+ *
+ * @param {{ contentType: string, refId: string }} story
+ * @param {string} stamp — from hourStamp()
+ * @param {string} targetSlug — from fbTargets()[i].slug
+ * @returns {string}
+ */
+export function impactRefId(story, stamp, targetSlug) {
+  return `${IMPACT_REFID_PREFIX}:${story.contentType}:${story.refId}:${stamp}:${targetSlug}`
+}
+
 /**
  * Absolute site URL of a story — BOTH content types land on OUR site
  * (aggregated items get the excerpt + attribution landing page at the same

@@ -8,7 +8,7 @@ import { FeedStream } from '@/components/articles/FeedStream'
 import { Pagination } from '@/components/articles/NextPageLink'
 import { siteConfig } from '@/config/site'
 import { decisionFor, feedAdPositions } from '@/lib/ads/engine'
-import { getRequestAdPlan } from '@/lib/ads/plan-for-request'
+import { getRequestAdPlan, resolveFeedAmazonProducts } from '@/lib/ads/plan-for-request'
 import { getFeed } from '@/lib/content'
 import { absoluteUrl } from '@/lib/seo'
 
@@ -67,6 +67,11 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
 
   // Unit-rotation ordinal handoff to the client batches (§8.6).
   const adOrdinalStart = feedAdPositions(adPlan.everyNth, items.length).size
+  // Owner v2.4: page-1 Amazon products for the amazon-ordinal feed slots.
+  const amazonProducts = await resolveFeedAmazonProducts(adPlan, {
+    itemCount: items.length,
+    adOrdinalStart: 0,
+  })
   const hrefFor = (n: number) => `/categorie/${category.slug}?page=${n}`
 
   return (
@@ -93,7 +98,12 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
               <div className="mt-6">
                 {/* Single-column post stream with ad-posts at region-frequency
                   positions from the server ad plan (§8.6). */}
-                <FeedList items={items} adPlan={adPlan} headingAs="h2" />
+                <FeedList
+                  items={items}
+                  adPlan={adPlan}
+                  amazonProducts={amazonProducts}
+                  headingAs="h2"
+                />
               </div>
               {isFirstPage ? (
                 <>

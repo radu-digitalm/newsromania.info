@@ -7,11 +7,13 @@ import {
   AMAZON_STALE_TTL_SEC,
   mapItems,
   resetAmazonClient,
+  resolveAmazonProduct,
   searchProducts,
   searchProductsWithTimeout,
   withPartnerTag,
   type AmazonProduct,
 } from '../src/lib/ads/amazon'
+import { houseProductsForMarketplace } from '../src/lib/ads/house-amazon-products'
 
 /**
  * src/lib/ads/amazon.ts — SDK and Redis fully mocked (the real Creators API
@@ -251,6 +253,57 @@ describe('affiliate URL mapping', () => {
 
   it('mapItems caps the result at count', () => {
     expect(mapItems(sdkResponse(), 'newsr01-21', 1)).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// resolveAmazonProduct — live → always-on house fallback (owner v2.4)
+// ---------------------------------------------------------------------------
+
+const DECISION = {
+  keywords: ['laptop', 'gadgeturi'],
+  marketplace: 'www.amazon.de',
+  partnerTag: 'newsromaniade-21',
+}
+
+describe('resolveAmazonProduct', () => {
+  it('prefers the LIVE Creators API product when one resolves', async () => {
+    // resolveAmazonProduct asks for exactly ONE product (count:1), so the fresh
+    // cache key uses count 1 — seed that key so the live path hits.
+    const liveKey = `newsromania:amazon:www.amazon.de:${hashFor(INPUT.keywords, 1, INPUT.partnerTag)}`
+    store.set(liveKey, JSON.stringify(CACHED))
+    const product = await resolveAmazonProduct({
+      keywords: INPUT.keywords,
+      marketplace: INPUT.marketplace,
+      partnerTag: INPUT.partnerTag,
+    })
+    expect(product).toEqual(CACHED[0])
+    expect(searchItemsMock).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the marketplace-correct HOUSE bestseller (default-on, NOT preview) when the live API is empty', async () => {
+    // No cache, API returns an empty result set (AssociateNotEligible shape).
+    searchItemsMock.mockResolvedValue({ searchResult: { items: [] } })
+    const product = await resolveAmazonProduct(DECISION)
+    const house = houseProductsForMarketplace('www.amazon.de')
+    expect(product).toEqual(house[0])
+    // Real affiliate: the house URL carries the marketplace-correct tag.
+    expect(product?.url).toContain('tag=newsromaniade-21')
+  })
+
+  it('rotates the house set by the variant index (feed spreads several slots)', async () => {
+    searchItemsMock.mockResolvedValue({ searchResult: { items: [] } })
+    const house = houseProductsForMarketplace('www.amazon.de')
+    expect(await resolveAmazonProduct(DECISION, 0)).toEqual(house[0])
+    expect(await resolveAmazonProduct(DECISION, 1)).toEqual(house[1 % house.length])
+    // Wraps around the set (modulo), never out of range.
+    expect(await resolveAmazonProduct(DECISION, house.length)).toEqual(house[0])
+  })
+
+  it('falls back to the amazon.de house set for an unmapped marketplace (R6 default)', async () => {
+    searchItemsMock.mockResolvedValue({ searchResult: { items: [] } })
+    const product = await resolveAmazonProduct({ ...DECISION, marketplace: 'www.amazon.it' })
+    expect(product).toEqual(houseProductsForMarketplace('www.amazon.de')[0])
   })
 })
 

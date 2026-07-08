@@ -231,14 +231,21 @@ export default async function ArticlePage({ params, searchParams }: ArticlePageP
   // drives contextual keywords; consent/profile handled inside the helper.
   // ?geo=<CC> is the owner's preview override (honored only under AD_PREVIEW).
   const adPlan = await getRequestAdPlan(article.category.slug, { countryOverride: geo })
-  // R3: the ONLY article ad box is the below-body slot — the dedicated
-  // 'article-end' placement (its own unit pool + Amazon eligibility). The
-  // engine marks it network 'amazon' → ArticleAdSlot renders a single product.
+  // The below-body ad box — the dedicated 'article-end' placement (its own
+  // unit pool). Owner v2.4: the article surface's ad boxes carry a 0-based
+  // ORDINAL that decides adsense vs amazon (2:1 via networkForOrdinal), NOT the
+  // placement — the below-body box is ordinal 0 (adsense), then „Mai multe
+  // știri” continues from ordinal 1 (see MoreNews), so the pattern reads
+  // adsense, adsense, amazon and the single Amazon box lands in the related grid.
   const articleEndAd = decisionFor(adPlan, 'article-end')
+  const ARTICLE_END_ORDINAL = 0
 
   if (article.type === 'aggregated') {
     return (
-      <ArticleShell adPlan={adPlan} after={<MoreNews article={article} adPlan={adPlan} />}>
+      <ArticleShell
+        adPlan={adPlan}
+        after={<MoreNews article={article} adPlan={adPlan} adOrdinalStart={1} />}
+      >
         <ArticleHeader article={article} />
         {/* Fair-use excerpt — NEVER full text (PROJECT_BRIEF 0.1/0.2). */}
         <Standfirst text={article.excerpt} />
@@ -246,8 +253,8 @@ export default async function ArticlePage({ params, searchParams }: ArticlePageP
             block — never between excerpt and CTA (misclick protection). */}
         <ReadFullArticleCta article={article} />
         {/* R3: exactly one ad box, below the CTA — never between excerpt and
-            CTA (misclick protection). */}
-        <ArticleAdSlot decision={articleEndAd} />
+            CTA (misclick protection). v2.4: ordinal 0 ⇒ AdSense. */}
+        <ArticleAdSlot decision={articleEndAd} ordinal={ARTICLE_END_ORDINAL} />
       </ArticleShell>
     )
   }
@@ -255,7 +262,10 @@ export default async function ArticlePage({ params, searchParams }: ArticlePageP
   const jsonLd = articleJsonLd(article)
 
   return (
-    <ArticleShell adPlan={adPlan} after={<MoreNews article={article} adPlan={adPlan} />}>
+    <ArticleShell
+      adPlan={adPlan}
+      after={<MoreNews article={article} adPlan={adPlan} adOrdinalStart={1} />}
+    >
       {jsonLd && (
         <script
           type="application/ld+json"
@@ -276,10 +286,10 @@ export default async function ArticlePage({ params, searchParams }: ArticlePageP
         ))}
       </div>
 
-      {/* R3: the SINGLE below-article box (§3.5 ⑦) — the dedicated
-          'article-end' placement, network 'amazon' (a single product). Same
-          placement on both content types. */}
-      <ArticleAdSlot decision={articleEndAd} />
+      {/* The SINGLE below-article box (§3.5 ⑦) — the dedicated 'article-end'
+          placement. v2.4: ordinal 0 ⇒ AdSense; the Amazon box lands in „Mai
+          multe știri” (ordinal 2). Same placement on both content types. */}
+      <ArticleAdSlot decision={articleEndAd} ordinal={ARTICLE_END_ORDINAL} />
     </ArticleShell>
   )
 }

@@ -11,8 +11,21 @@
  *   npx payload run scripts/worker/social.mjs -- --dry-run
  *   npx payload run scripts/worker/social.mjs -- --limit 1
  *   SOCIAL_DRY_RUN=1 npx payload run scripts/worker/social.mjs
+ *   npx payload run scripts/worker/social.mjs -- --impact      (hourly FB post)
  *
- * Pipeline per run:
+ * TWO MODES (dispatched in main()):
+ *   • queue (default) — the 3×/day caption queue below (facebook/twitter/
+ *     instagram on the site-config posting schedule).
+ *   • impact (--impact or SOCIAL_MODE=impact, PROJECT_BRIEF §9b) — pick the
+ *     single most impactful story of the LAST HOUR (scripts/worker/lib/
+ *     impact.mjs) and enqueue ONE Facebook post for the NewsRomania PAGE plus
+ *     the (up to 5) member GROUPS from SOCIAL_FB_GROUPS. One row per target,
+ *     idempotent per story-per-target-per-hour, scheduledFor = now (due),
+ *     status 'queued'. The live posting is Claude in Chrome (see
+ *     docs/facebook-hourly-runbook.md) — nothing is posted headlessly.
+ *   The hourly timer (newsromania-social.timer) runs BOTH: impact, then queue.
+ *
+ * Pipeline per run (queue mode):
  *   1. Candidates = PUBLISHED original articles + non-archived aggregated
  *      items from the last 24 h. Priority: originals first (newest first),
  *      then aggregated with an AI excerpt, then link-only aggregated.
@@ -47,17 +60,28 @@ import {
   CAPTION_BUDGET_PER_RUN,
   PLATFORMS,
   createSlotAllocator,
+  fbTargets,
+  hourStamp,
   idempotencyKey,
+  impactRefId,
+  parseFbGroups,
   parseSchedule,
   selectStories,
   storyUrl,
 } from './lib/social-plan.mjs'
+import { countClusters, selectImpactStory, sourceTier, ORIGINAL_TIER } from './lib/impact.mjs'
 
 const RUN_CAP_MS = 8 * 60 * 1000 // timer fires hourly; systemd cuts at 10 min
 const CANDIDATE_WINDOW_HOURS = 24
 const CANDIDATE_FETCH_LIMIT = 200
 const REFID_LOOKUP_BATCH = 80
 const OCCUPIED_LOOKUP_LIMIT = 1000
+
+// Impact-of-the-hour (PROJECT_BRIEF §9b): the clustering window the ingest
+// worker uses (48h) bounds how many outlets can share a cluster; we count
+// cross-source coverage across that same window.
+const IMPACT_CLUSTER_WINDOW_HOURS = 48
+const IMPACT_CLUSTER_FETCH_LIMIT = 500
 
 const SITE_URL = siteConfig.url.replace(/\/+$/, '')
 
@@ -68,6 +92,12 @@ const errMsg = (err) => (err instanceof Error ? err.message : String(err))
 
 function parseArgs(argv) {
   const dryRun = argv.includes('--dry-run') || /^(1|true)$/i.test(process.env.SOCIAL_DRY_RUN ?? '')
+  // Two modes share this worker: the default 3×/day caption queue, and the
+  // hourly Facebook "impact of the hour" fan-out (--impact / SOCIAL_MODE=impact).
+  const mode =
+    argv.includes('--impact') || /^impact$/i.test(process.env.SOCIAL_MODE ?? '')
+      ? 'impact'
+      : 'queue'
   let limit = CAPTION_BUDGET_PER_RUN
   const idx = argv.indexOf('--limit')
   const raw = idx !== -1 ? argv[idx + 1] : process.env.SOCIAL_LIMIT
@@ -78,7 +108,7 @@ function parseArgs(argv) {
     }
     limit = Math.min(parsed, CAPTION_BUDGET_PER_RUN)
   }
-  return { dryRun, limit }
+  return { dryRun, limit, mode }
 }
 
 /** Absolute URL for a possibly-relative Payload media path. */
@@ -243,13 +273,224 @@ async function loadOccupiedSlots(payload, nowIso) {
   return occupied
 }
 
-async function main() {
-  const { dryRun, limit } = parseArgs(process.argv.slice(2))
-  const payload = await getPayload({ config: configPromise })
-  const now = new Date()
-  const sinceIso = new Date(now.getTime() - CANDIDATE_WINDOW_HOURS * 60 * 60 * 1000).toISOString()
+// ---------------------------------------------------------------------------
+// Impact-of-the-hour mode (PROJECT_BRIEF §9b)
+// ---------------------------------------------------------------------------
 
-  const globalConfig = await payload.findGlobal({ slug: 'site-config', depth: 0 })
+/**
+ * Load candidates for the impact selector: originals + aggregated items across
+ * the 48h clustering window (so we can COUNT cross-source cluster sizes), each
+ * normalized to the shape impact.mjs expects. The selector itself filters down
+ * to the last hour; the wider window only feeds the cluster-size counts.
+ */
+async function loadImpactCandidates(payload, now) {
+  const clusterSinceIso = new Date(
+    now.getTime() - IMPACT_CLUSTER_WINDOW_HOURS * 60 * 60 * 1000,
+  ).toISOString()
+
+  const [articles, aggregated] = await Promise.all([
+    payload.find({
+      collection: 'articles',
+      where: {
+        and: [
+          { _status: { equals: 'published' } },
+          { publishedAt: { greater_than_equal: clusterSinceIso } },
+        ],
+      },
+      sort: '-publishedAt',
+      limit: IMPACT_CLUSTER_FETCH_LIMIT,
+      depth: 1,
+      draft: false,
+      overrideAccess: true,
+    }),
+    payload.find({
+      collection: 'aggregated-items',
+      where: {
+        and: [
+          { archived: { not_equals: true } },
+          { publishedAt: { greater_than_equal: clusterSinceIso } },
+        ],
+      },
+      sort: '-publishedAt',
+      limit: IMPACT_CLUSTER_FETCH_LIMIT,
+      depth: 1,
+      overrideAccess: true,
+    }),
+  ])
+
+  // Cross-source cluster size is counted over aggregated items only (originals
+  // are singletons — one redaction, no "many outlets" signal).
+  const clusterCounts = countClusters(
+    aggregated.docs.map((doc) => ({ clusterKey: doc.clusterKey })),
+  )
+
+  const candidates = []
+
+  for (const doc of articles.docs) {
+    const image = originalImageUrl(doc)
+    candidates.push({
+      contentType: 'original',
+      refId: String(doc.id),
+      title: doc.title,
+      excerpt:
+        typeof doc.excerpt === 'string' && doc.excerpt.trim() ? doc.excerpt.trim() : doc.title,
+      link: storyUrl(SITE_URL, doc.slug),
+      imageUrl: image ?? OG_DEFAULT_IMAGE,
+      hasImage: image !== null,
+      publishedAt: doc.publishedAt,
+      clusterKey: null,
+      clusterSize: 1,
+      tier: ORIGINAL_TIER,
+    })
+  }
+
+  for (const doc of aggregated.docs) {
+    const image = aggregatedImageUrl(doc)
+    const key =
+      typeof doc.clusterKey === 'string' && doc.clusterKey.trim() ? doc.clusterKey.trim() : ''
+    const hasExcerpt = typeof doc.excerpt === 'string' && doc.excerpt.trim().length > 0
+    candidates.push({
+      contentType: 'aggregated',
+      refId: String(doc.id),
+      title: doc.title,
+      excerpt: hasExcerpt ? doc.excerpt.trim() : doc.title,
+      link: storyUrl(SITE_URL, doc.slug),
+      imageUrl: image ?? OG_DEFAULT_IMAGE,
+      hasImage: image !== null,
+      publishedAt: doc.publishedAt,
+      clusterKey: key || null,
+      clusterSize: key ? (clusterCounts.get(key) ?? 1) : 1,
+      tier: sourceTier(doc.sourceName),
+    })
+  }
+
+  return candidates
+}
+
+/** Which impact refIds already exist (this-hour idempotency), batched. */
+async function loadExistingImpactRefIds(payload, refIds) {
+  const present = new Set()
+  const unique = [...new Set(refIds)]
+  for (let i = 0; i < unique.length; i += REFID_LOOKUP_BATCH) {
+    const chunk = unique.slice(i, i + REFID_LOOKUP_BATCH)
+    const res = await payload.find({
+      collection: 'social-queue',
+      where: { refId: { in: chunk } },
+      limit: chunk.length * 2,
+      depth: 0,
+      overrideAccess: true,
+    })
+    for (const doc of res.docs) present.add(doc.refId)
+  }
+  return present
+}
+
+async function runImpactMode({ payload, now, dryRun, globalConfig }) {
+  const pageUrl = (globalConfig?.socialPlatforms?.pageUrls ?? []).find(
+    (p) => p?.platform === 'facebook',
+  )?.url
+  const groupUrls = parseFbGroups(process.env.SOCIAL_FB_GROUPS)
+  const targets = fbTargets(pageUrl, groupUrls)
+  const stamp = hourStamp(now)
+
+  if (groupUrls.length === 0) {
+    console.warn(
+      '[social:impact] SOCIAL_FB_GROUPS necompletat — se pune în coadă doar PAGINA; ' +
+        'grupurile rămân în așteptare (owner completează cele 5 URL-uri de grup).',
+    )
+  } else {
+    console.log(`[social:impact] ținte Facebook: pagină + ${groupUrls.length} grup(uri)`)
+  }
+  if (!pageUrl) {
+    console.warn(
+      '[social:impact] URL pagină Facebook lipsă din site-config (Rețele sociale → ' +
+        'Pagini oficiale) — rândul „page” este pus în coadă, dar postarea are nevoie de URL.',
+    )
+  }
+
+  const candidates = await loadImpactCandidates(payload, now)
+  const pick = selectImpactStory(candidates, { nowMs: now.getTime() })
+  if (!pick) {
+    console.log('[social:impact] niciun candidat (nicio știre recentă) — nimic de pus în coadă.')
+    return
+  }
+  const { story, score, reason } = pick
+  console.log(
+    `[social:impact] impactul orei (${reason}, scor ${score.toFixed(1)}, cluster ` +
+      `${story.clusterSize}, tier ${story.tier}, imagine ${story.hasImage ? 'da' : 'nu'}): ` +
+      `[${story.contentType}] „${story.title.slice(0, 70)}”`,
+  )
+
+  const refIds = targets.map((t) => impactRefId(story, stamp, t.slug))
+  const existing = dryRun ? new Set() : await loadExistingImpactRefIds(payload, refIds)
+
+  let caption = `[probă] ${story.title}\n\n${story.link}`
+  if (!dryRun) {
+    try {
+      const captions = await writeCaptions({
+        title: story.title,
+        excerpt: story.excerpt,
+        url: story.link,
+        type: story.contentType,
+      })
+      caption = captions.facebook || `${story.title}\n\n${story.link}`
+    } catch (err) {
+      console.warn(`[social:impact] descriere eșuată: ${errMsg(err)} — se reia la ora următoare`)
+      return // no rows written yet → next hour retries cleanly
+    }
+  }
+
+  let created = 0
+  let skipped = 0
+  for (const target of targets) {
+    const refId = impactRefId(story, stamp, target.slug)
+    if (existing.has(refId)) {
+      skipped += 1
+      continue
+    }
+    if (dryRun) {
+      console.log(
+        `[social:impact]   ~ facebook/${target.slug} (${target.url ?? 'URL în așteptare'}) @ ${now.toISOString()}`,
+      )
+      created += 1
+      continue
+    }
+    try {
+      await payload.create({
+        collection: 'social-queue',
+        data: {
+          contentType: story.contentType,
+          refId,
+          platform: 'facebook',
+          caption,
+          ...(story.imageUrl ? { imageUrl: story.imageUrl } : {}),
+          link: story.link,
+          // Posted this hour (supervised, human-paced per the runbook) — not a
+          // future slot; the queue row is "due now".
+          scheduledFor: now.toISOString(),
+          status: 'queued',
+        },
+        depth: 0,
+        overrideAccess: true,
+      })
+      created += 1
+      console.log(
+        `[social:impact]   + facebook/${target.slug} (${target.url ?? 'URL în așteptare'})`,
+      )
+    } catch (err) {
+      console.warn(`[social:impact]   rând eșuat (${target.slug}): ${errMsg(err)}`)
+    }
+  }
+
+  const seconds = ((Date.now() - startedAt) / 1000).toFixed(1)
+  console.log(
+    `[social:impact] gata în ${seconds}s — rânduri create: ${created}, deja existente: ${skipped}` +
+      (dryRun ? ' (probă — nimic scris)' : ''),
+  )
+}
+
+async function runQueueMode({ payload, now, dryRun, limit, globalConfig }) {
+  const sinceIso = new Date(now.getTime() - CANDIDATE_WINDOW_HOURS * 60 * 60 * 1000).toISOString()
   const times = parseSchedule(globalConfig?.socialPlatforms?.postingSchedule)
   console.log(
     `[social] program de postare: ${times.map((t) => `${String(t.h).padStart(2, '0')}:${String(t.m).padStart(2, '0')}`).join(', ')}` +
@@ -339,6 +580,23 @@ async function main() {
       `apeluri LLM: ${totals.captionCalls}, eșecuri: ${totals.failed}` +
       (dryRun ? ' (probă — nimic scris)' : ''),
   )
+}
+
+async function main() {
+  const { dryRun, limit, mode } = parseArgs(process.argv.slice(2))
+  const payload = await getPayload({ config: configPromise })
+  const now = new Date()
+  const globalConfig = await payload.findGlobal({ slug: 'site-config', depth: 0 })
+
+  if (mode === 'impact') {
+    console.log(
+      '[social] mod: IMPACTUL OREI (Facebook: pagină + grupuri)' +
+        (dryRun ? ' — RULARE DE PROBĂ (fără LLM, fără scrieri)' : ''),
+    )
+    await runImpactMode({ payload, now, dryRun, globalConfig })
+    return
+  }
+  await runQueueMode({ payload, now, dryRun, limit, globalConfig })
 }
 
 // Top-level await: `payload run` importă modulul și iese imediat ce importul

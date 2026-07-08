@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 
 import { trackEvents, validateEventBatch, isValidVisitorId, type CdpTrackedEvent } from '@/lib/cdp'
-import { readConsent, VISITOR_COOKIE_NAME, type ConsentCookieReader } from '@/lib/consent'
+import { VISITOR_COOKIE_NAME, type ConsentCookieReader } from '@/lib/consent'
+import { readConsent } from '@/lib/consent-server'
 import { getRedis, rkey } from '@/lib/redis'
 
 /**

@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
-import { cookies } from 'next/headers'
 import Script from 'next/script'
-import { CdpBeacon } from '@/components/cdp/CdpBeacon'
+import { UmamiScript } from '@/components/analytics/UmamiScript'
+import { CdpConsentGate } from '@/components/cdp/CdpConsentGate'
 import { Footer } from '@/components/layout/Footer'
 import { Header } from '@/components/layout/Header'
 import { SkipLink } from '@/components/layout/SkipLink'
 import { siteConfig } from '@/config/site'
-import { readConsent, VISITOR_COOKIE_NAME } from '@/lib/consent'
+import { getGdprSettings } from '@/lib/consent-server'
 import { fontSans, fontSerif } from '@/lib/fonts'
 import './globals.css'
 
@@ -38,25 +38,22 @@ export const metadata: Metadata = {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // GDPR (PROJECT_BRIEF §8): consent state is decided server-side from the
-  // HttpOnly nr_consent cookie — no client storage is ever read before an
-  // explicit choice.
+  // GDPR (PROJECT_BRIEF §7/§8) — TWO independent analytics layers:
   //
-  // CMP RECONCILIATION (2026-07): the advertising consent banner + Google
-  // Consent Mode v2 bootstrap are now delivered by Google's CERTIFIED CMP,
-  // published through the AdSense tag below (AdSense › Privacy & messaging).
-  // Our own <ConsentBanner /> and manual <ConsentModeScript /> were retired to
-  // avoid a double banner and conflicting Consent-Mode defaults — Google's CMP
-  // is the SINGLE consent experience and owns the ad_storage/analytics_storage
-  // defaults itself. readConsent() below therefore only gates the DORMANT
-  // first-party CDP beacon: with our banner gone the nr_consent cookie is never
-  // written, so `consent` is always 'unknown' and the beacon never mounts
-  // (privacy-safe). Re-activating first-party analytics later must gate on
-  // Google's TCF / Consent-Mode signal, NOT on this removed cookie
-  // (see CdpBeacon.tsx + docs/architecture.md).
-  const cookieStore = await cookies()
-  const consent = await readConsent(cookieStore)
-  const hasVid = Boolean(cookieStore.get(VISITOR_COOKIE_NAME)?.value)
+  //   * Umami (self-hosted, cookieless, no personal data) is CONSENT-FREE and
+  //     mounted unconditionally — it needs no banner.
+  //   * The first-party CDP (persistent nr_vid) IS consent-gated. Since the CMP
+  //     reconciliation (2026-07) advertising/analytics consent is owned by
+  //     Google's certified CMP (delivered by the AdSense tag below), NOT by our
+  //     retired banner — so the nr_consent cookie is never written server-side.
+  //     <CdpConsentGate> re-activates the CDP by reading the CMP's TCF /
+  //     Consent-Mode signal CLIENT-SIDE and only then writing the first-party
+  //     nr_consent + nr_vid cookies + mounting the beacon (see
+  //     components/cdp/CdpConsentGate.tsx + consent-signal.ts). Before that
+  //     grant NOTHING is written — server cookies stay ZERO. The gate is passed
+  //     the current consentVersion so the cookie it writes matches what the
+  //     server-side /api/cdp/events guard validates against.
+  const { consentVersion } = await getGdprSettings()
   return (
     <html lang="ro" className={`${fontSans.variable} ${fontSerif.variable}`}>
       <body className="flex min-h-dvh flex-col bg-page font-sans text-ink antialiased">
@@ -69,14 +66,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </main>
         <Footer />
         {/*
-          CDP beacon (PROJECT_BRIEF §7) — mounted ONLY for visitors with an
-          explicit, current-version Accept AND a minted nr_vid cookie
-          (CdpBeacon mounting contract). With the custom banner retired in
-          favour of Google's CMP, nr_consent is never written, so this stays
-          DORMANT (always 'unknown' ⇒ never mounts); /api/cdp/events also
-          re-validates server-side. See CdpBeacon.tsx for re-activation notes.
+          First-party CDP (PROJECT_BRIEF §7/§8) — the gate renders nothing and
+          writes no cookies until Google's CMP reports consent client-side; only
+          then does it mint nr_vid + write the nr_consent proof and mount the
+          beacon. /api/cdp/events re-validates BOTH server-side on every batch.
         */}
-        {consent === 'accepted' && hasVid ? <CdpBeacon /> : null}
+        <CdpConsentGate consentVersion={consentVersion} />
+        {/*
+          Self-hosted Umami (PROJECT_BRIEF §7) — cookieless, GDPR-friendly,
+          served same-origin via /stats/* (next.config rewrite → internal umami
+          service). Consent-free; renders nothing until the owner sets
+          NEXT_PUBLIC_UMAMI_WEBSITE_ID (docs/operations.md §11).
+        */}
+        <UmamiScript />
         {/*
           Google AdSense site-level tag (PROJECT_BRIEF 6.4). Beyond serving
           ads, this tag now DELIVERS Google's certified CMP (the 3-choice

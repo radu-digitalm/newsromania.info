@@ -55,6 +55,47 @@ services:
       driver: json-file
       options: { max-size: '10m', max-file: '3' }
 
+  # Self-hosted analytics (cookieless, GDPR-friendly — consent-free per §7).
+  # Served SAME-ORIGIN via a next.config rewrite (/stats/:path* → umami:3000),
+  # so the tracker script + /stats/api/send are first-party (no nginx change,
+  # no sudo). Published ONLY to loopback in the reserved 3100–3199 range; the
+  # app reaches it over the internal compose network (service DNS `umami`). Its
+  # data lives in a SEPARATE `umami` database + role on the EXISTING postgres
+  # container (NOT the app DB/schema) — one-time create step in
+  # docs/operations.md §11.
+  umami:
+    profiles: [app]
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    container_name: newsromania-umami
+    restart: unless-stopped
+    environment:
+      # Separate DB `umami` on the shared postgres container (service DNS).
+      DATABASE_URL: postgres://${UMAMI_DB_USER:-umami}:${UMAMI_DB_PASSWORD}@postgres:5432/${UMAMI_DB_NAME:-umami}
+      DATABASE_TYPE: postgresql
+      # Signs the Umami session/JWT — from .env UMAMI_APP_SECRET.
+      APP_SECRET: ${UMAMI_APP_SECRET}
+      # Umami listens on :3000 inside the container; only reached via the rewrite.
+      PORT: '3000'
+      # Serve the tracker at /stats/script.js (matches the layout <script src>).
+      TRACKER_SCRIPT_NAME: script
+    ports:
+      # Loopback-only, reserved range. Direct hits are for first-run admin only;
+      # public traffic always goes through the app's same-origin /stats rewrite.
+      - '127.0.0.1:3141:3000'
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [internal]
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/api/heartbeat || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    mem_limit: 384m
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
   # App service (production runtime) — enabled with: docker compose --profile app up
   app:
     profiles: [app]

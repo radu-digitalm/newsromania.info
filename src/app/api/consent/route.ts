@@ -3,11 +3,11 @@ import { createHash, randomUUID } from 'node:crypto'
 import {
   clearVisitorCookieHeader,
   consentCookieHeader,
-  getGdprSettings,
   visitorCookieHeader,
   type ConsentChoice,
   type ConsentRecordChoice,
 } from '@/lib/consent'
+import { getGdprSettings } from '@/lib/consent-server'
 import { getPayloadClient } from '@/lib/payload'
 import { getRedis, rkey } from '@/lib/redis'
 

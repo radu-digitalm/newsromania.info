@@ -41,6 +41,8 @@ export default buildConfig({
     components: {
       // Panoul operațional (PROJECT_BRIEF §17) — deasupra dashboardului admin.
       beforeDashboard: ['@/components/admin/OpsDashboard#OpsDashboard'],
+      // Legătură către site-ul public (#6a), în capul barei de navigare.
+      beforeNavLinks: ['@/components/admin/BackToSite#BackToSite'],
     },
     importMap: {
       baseDir: path.resolve(dirname),

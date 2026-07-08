@@ -8,17 +8,26 @@
  *   npx payload run scripts/worker/ingest.mjs -- --fixture scripts/worker/fixtures/sample-feed.xml
  *   INGEST_FIXTURE=scripts/worker/fixtures/sample-feed.xml npx payload run scripts/worker/ingest.mjs
  *
- * For every `feeds` doc with active:true:
+ * Runs every 5 minutes and processes ONE rotating BATCH of ~BATCH_SIZE active
+ * feeds (offset persisted in Redis rkey('ingest','cursor')), so consecutive
+ * runs cover DIFFERENT feeds and all feeds cycle over ~20 min without overlap.
+ *
+ * For every feed in the batch (active:true):
  *   - conditional GET (etag / If-Modified-Since persisted on the feed doc),
  *     15s timeout, UA newsromania-bot/1.0;
+ *   - only items NEWER than the feed's lastItemAt (guid dedup handles repeats);
  *   - dedup by guid (guid || link);
  *   - stored titles/excerpts normalized to comma-below diacritics (ş/ţ → ș/ț);
  *   - near-duplicate clustering: normalized-title Jaccard ≥ 0.6 against items
  *     from the last 48h ⇒ same story from another outlet ⇒ SKIP (keep earliest);
- *   - excerptPolicy 'ai-excerpt' ⇒ summarizeExcerpt + categorizeAndTag
- *     (≤ site-config aggregation.maxSummariesPerRun per run; null excerpt ⇒
- *     linkOnly). 'link-only' ⇒ no LLM, feed.defaultCategory;
- *   - images ONLY from enclosure / media:content (legal gate 0.2);
+ *   - EXCERPT: the RSS item's own description/summary/content, HTML-stripped and
+ *     trimmed to a legal ≤55-word extract (all feeds, incl. link-only — the cap
+ *     is the legal gate). No usable RSS text AND excerptPolicy 'ai-excerpt' ⇒
+ *     summarizeExcerpt + categorizeAndTag (≤ aggregation.maxSummariesPerRun).
+ *     Any excerpt ⇒ linkOnly=false;
+ *   - IMAGE: enclosure / media:content / media:thumbnail first; else fetch the
+ *     publisher article ONCE (polite, ≤1/s, 12s) for og:image / twitter:image /
+ *     first on-domain <img>; else empty (imageless card). Always hotlinked;
  *   - feed health fields updated on success/failure.
  * Then: archive pass (older than aggregation.itemTtlDays) + purgeFeedCache.
  *
@@ -37,25 +46,38 @@ import { getPayload } from 'payload'
 
 import configPromise from '../../src/payload.config.ts'
 import { summarizeExcerpt, categorizeAndTag } from '../../src/lib/llm.ts'
-import { purgeFeedCache } from '../../src/lib/redis.ts'
+import { getRedis, purgeFeedCache, rkey } from '../../src/lib/redis.ts'
 import { roSlugify } from '../../src/lib/slugify.ts'
+import { DEFAULT_BATCH_SIZE, selectBatch } from './lib/batch.mjs'
 import { CLUSTER_WINDOW_HOURS, findCluster, normalizeTitle } from './lib/cluster.mjs'
 import { fixRomanianDiacritics } from './lib/diacritics.mjs'
+import { rssExcerpt } from './lib/excerpt.mjs'
+import { parseOgImage } from './lib/og-image.mjs'
 import {
   createFeedParser,
   extractImage,
+  fetchArticleHtml,
   fetchFeedXml,
+  itemDescription,
   itemGuid,
   itemPublishedAt,
   itemSourceText,
 } from './lib/rss.mjs'
 
+// Hard ceiling per systemd run. With 5-min rotating batches (~10 feeds/run)
+// a run finishes in well under a minute; this stays as a safety net.
 const RUN_CAP_MS = 5 * 60 * 1000
 const GUID_LOOKUP_BATCH = 80
 const MAX_ITEMS_PER_FEED = 50
 const MAX_ERROR_LEN = 300
 const FIXTURE_FEED_NAME = '[TEST] Fixture'
 const FIXTURE_FEED_URL = 'https://fixture.newsromania.invalid/sample-feed.xml'
+// Rotating-batch cursor: offset into the stably-sorted active-feed list.
+const CURSOR_KEY = rkey('ingest', 'cursor')
+const BATCH_SIZE = Math.max(
+  1,
+  Number.parseInt(process.env.INGEST_BATCH_SIZE ?? '', 10) || DEFAULT_BATCH_SIZE,
+)
 
 const startedAt = Date.now()
 const timeUp = () => Date.now() - startedAt >= RUN_CAP_MS
@@ -180,6 +202,17 @@ async function processFeedItems(payload, feed, items, ctx) {
   const stats = { created: 0, skipped: 0, clustered: 0, newestItemAt: null }
   const now = ctx.now
 
+  // Only ingest items NEWER than the newest we already have from this feed
+  // (guid dedup handles exact repeats; this skips the long tail of old items
+  // a feed keeps republishing). A small grace margin absorbs publisher clock
+  // skew so a genuinely-new item is never dropped. Disabled for the fixture
+  // path (dateOverrides present) so the integration test sees every item.
+  const lastItemMs =
+    !ctx.dateOverrides && typeof feed.lastItemAt === 'string'
+      ? new Date(feed.lastItemAt).getTime()
+      : NaN
+  const cutoffMs = Number.isNaN(lastItemMs) ? -Infinity : lastItemMs - 60 * 60 * 1000
+
   // Earliest first ⇒ "keep earliest" falls out of the processing order.
   const prepared = items
     .map((item) => ({
@@ -189,6 +222,7 @@ async function processFeedItems(payload, feed, items, ctx) {
       title: typeof item.title === 'string' ? fixRomanianDiacritics(item.title.trim()) : '',
     }))
     .filter((p) => p.guid !== null && p.title.length > 0)
+    .filter((p) => p.publishedAt.getTime() >= cutoffMs)
     .sort((a, b) => a.publishedAt - b.publishedAt)
     .slice(0, MAX_ITEMS_PER_FEED)
 
@@ -226,43 +260,64 @@ async function processFeedItems(payload, feed, items, ctx) {
 
     const clusterKey = normalizeTitle(title)
     const sourceText = itemSourceText(item)
-    const imageUrl = extractImage(item)
 
-    // --- excerpt policy -----------------------------------------------------
+    // --- excerpt (RSS-first, AI only for ai-excerpt feeds) ------------------
+    // Every item gets the publisher's OWN summary trimmed to a legal ≤55-word
+    // extract (within the aggregation gate for ALL feeds, incl. link-only).
+    // AI summarization is reserved for `ai-excerpt` feeds and only when the
+    // RSS gave no usable text — see docs/legal-basis-aggregation.md.
     let excerpt = null
-    let linkOnly = true
+    let excerptIsAi = false
     let categoryId =
       typeof feed.defaultCategory === 'object' && feed.defaultCategory !== null
         ? feed.defaultCategory.id
         : (feed.defaultCategory ?? null)
     let tagIds = []
 
-    if (feed.excerptPolicy === 'ai-excerpt' && sourceText.length > 0) {
+    const rssText = rssExcerpt(itemDescription(item))
+    if (rssText !== null) {
+      excerpt = fixRomanianDiacritics(rssText)
+    } else if (feed.excerptPolicy === 'ai-excerpt' && sourceText.length > 0) {
       if (ctx.summariesUsed >= ctx.maxSummariesPerRun) {
         console.log('[ingest]   buget de rezumate epuizat — element doar-link')
       } else {
         ctx.summariesUsed += 1
         try {
-          excerpt = await summarizeExcerpt({
-            title,
-            sourceText,
-            sourceName: feed.name,
-          })
+          const ai = await summarizeExcerpt({ title, sourceText, sourceName: feed.name })
+          if (ai !== null) {
+            excerpt = fixRomanianDiacritics(ai)
+            excerptIsAi = true
+          }
         } catch (err) {
           console.warn(`[ingest]   rezumat eșuat („${title.slice(0, 50)}”): ${errMsg(err)}`)
-          excerpt = null
         }
-        if (excerpt !== null) {
-          excerpt = fixRomanianDiacritics(excerpt)
-          linkOnly = false
-          try {
-            const cat = await categorizeAndTag({ title, excerpt })
-            categoryId = ctx.categoriesBySlug.get(cat.categorySlug) ?? categoryId
-            tagIds = await resolveTagIds(payload, cat.tags)
-          } catch (err) {
-            console.warn(`[ingest]   categorizare eșuată: ${errMsg(err)}`)
-          }
-        }
+      }
+    }
+
+    const linkOnly = excerpt === null
+
+    // Categorize+tag only when we invested an AI summary (keeps LLM cost tied
+    // to the ai-excerpt gate; RSS-excerpt items keep the feed's default cat).
+    if (excerptIsAi) {
+      try {
+        const cat = await categorizeAndTag({ title, excerpt })
+        categoryId = ctx.categoriesBySlug.get(cat.categorySlug) ?? categoryId
+        tagIds = await resolveTagIds(payload, cat.tags)
+      } catch (err) {
+        console.warn(`[ingest]   categorizare eșuată: ${errMsg(err)}`)
+      }
+    }
+
+    // --- image (RSS enclosure/media first, publisher og:image fallback) -----
+    let imageUrl = extractImage(item)
+    if (imageUrl === null && !ctx.dateOverrides) {
+      // No RSS image: politely fetch the article once and read its og:image.
+      // Skipped on the fixture path (no network in integration/tests).
+      try {
+        const html = await fetchArticleHtml(link)
+        if (html !== null) imageUrl = parseOgImage(html, link)
+      } catch (err) {
+        console.warn(`[ingest]   og:image eșuat: ${errMsg(err)}`)
       }
     }
 
@@ -297,6 +352,25 @@ async function processFeedItems(payload, feed, items, ctx) {
   }
 
   return stats
+}
+
+/** Read the rotating-batch cursor from Redis; null (⇒ offset 0) on any error. */
+async function readCursor() {
+  try {
+    return await getRedis().get(CURSOR_KEY)
+  } catch (err) {
+    console.warn(`[ingest] nu am putut citi cursorul de lot: ${errMsg(err)}`)
+    return null
+  }
+}
+
+/** Persist the next batch cursor; never throws (rotation self-heals to 0). */
+async function writeCursor(value) {
+  try {
+    await getRedis().set(CURSOR_KEY, String(value))
+  } catch (err) {
+    console.warn(`[ingest] nu am putut scrie cursorul de lot: ${errMsg(err)}`)
+  }
 }
 
 async function updateFeedHealth(payload, feedId, data) {
@@ -467,26 +541,46 @@ async function main() {
     totals.skipped += stats.skipped
     totals.clustered += stats.clustered
   } else {
+    // Sort by id ⇒ a STABLE rotation order across runs (independent of name
+    // edits / new feeds landing at arbitrary alphabetical positions).
     const feeds = await payload.find({
       collection: 'feeds',
       where: { active: { equals: true } },
       limit: 200,
       depth: 0,
-      sort: 'name',
+      sort: 'id',
       overrideAccess: true,
     })
-    console.log(`[ingest] ${feeds.docs.length} feeduri active`)
+
+    // Rotating batch: read the persisted cursor, take BATCH_SIZE feeds from it
+    // (wrapping around), then persist the next cursor so the FOLLOWING 5-min
+    // run covers different feeds. ~40 feeds / 10-per-run ⇒ full cycle ≈ 20 min.
+    const rawCursor = await readCursor()
+    const { batch, start } = selectBatch(feeds.docs, rawCursor, BATCH_SIZE)
+    console.log(
+      `[ingest] ${feeds.docs.length} feeduri active — lot de ${batch.length} ` +
+        `(offset ${start}, mărime ${BATCH_SIZE})`,
+    )
+
     const parser = createFeedParser()
-    for (const feed of feeds.docs) {
+    let processed = 0
+    for (const feed of batch) {
       if (timeUp()) {
-        console.warn('[ingest] limită de timp (5 min) atinsă — feeduri rămase la rularea următoare')
+        console.warn('[ingest] limită de timp (5 min) atinsă — restul lotului la rularea următoare')
         break
       }
       const stats = await ingestFeed(payload, feed, parser, ctx)
       totals.created += stats.created
       totals.skipped += stats.skipped
       totals.clustered += stats.clustered
+      processed += 1
     }
+
+    // Advance the cursor only by feeds we actually processed — if the run was
+    // cut short by the time cap, the unprocessed tail is retried next run.
+    const advancedCursor = feeds.docs.length === 0 ? 0 : (start + processed) % feeds.docs.length
+    await writeCursor(advancedCursor)
+    console.log(`[ingest] cursor de lot: ${start} → ${advancedCursor}`)
   }
 
   // Archive pass (architecture.md §7) — skipped only if the cap is hit.

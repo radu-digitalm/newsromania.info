@@ -15,6 +15,7 @@ export interface OpsFeedStatus {
   name: string
   active: boolean
   lastFetchedAt: string | null
+  lastItemAt: string | null
   consecutiveFailures: number
   lastError: string | null
 }
@@ -34,6 +35,9 @@ export interface OpsStats {
     originals: number
     aggregated: number
     publishedToday: number
+    ingestedLastHour: number
+    /** Vârsta celui mai recent articol agregat, în minute (null = niciun articol). */
+    newestItemAgeMinutes: number | null
   }
   llm: OpsLlmDay[]
   cdp: {
@@ -77,6 +81,18 @@ function todayStartIso(now: Date = new Date()): string {
   return `${now.toISOString().slice(0, 10)}T00:00:00.000Z`
 }
 
+/**
+ * Vârsta unui timestamp ISO în minute întregi față de `now` (nenegativă).
+ * Returnează null pentru valori lipsă/nevalide. Folosită pentru prospețimea
+ * ingestiei (cel mai recent articol agregat).
+ */
+export function ageMinutes(iso: string | null | undefined, now: Date = new Date()): number | null {
+  if (!iso) return null
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return null
+  return Math.max(0, Math.floor((now.getTime() - then) / 60_000))
+}
+
 /** Rulaj pe zile: sumează calls/tokens/cost și completează zilele lipsă cu 0. */
 export function rollupLlmUsage(rows: LlmUsage[], days: string[]): OpsLlmDay[] {
   const byDay = new Map<string, OpsLlmDay>(
@@ -114,6 +130,7 @@ export async function buildOpsStats(payload: Payload, now: Date = new Date()): P
   const days = lastNDays(LLM_WINDOW_DAYS, now)
   const dayStart = todayStartIso(now)
   const since24h = new Date(now.getTime() - 24 * 3_600_000).toISOString()
+  const since1h = new Date(now.getTime() - 3_600_000).toISOString()
 
   const [
     feedsResult,
@@ -121,6 +138,8 @@ export async function buildOpsStats(payload: Payload, now: Date = new Date()): P
     aggregated,
     originalsToday,
     aggregatedToday,
+    ingestedLastHour,
+    newestItemResult,
     llmResult,
     events24h,
     profiles,
@@ -148,6 +167,16 @@ export async function buildOpsStats(payload: Payload, now: Date = new Date()): P
     countDocs(payload, 'aggregated-items', {
       and: [{ archived: { not_equals: true } }, { publishedAt: { greater_than_equal: dayStart } }],
     }),
+    // Ritmul ingestiei: câte articole agregate au intrat în ultima oră.
+    countDocs(payload, 'aggregated-items', { createdAt: { greater_than_equal: since1h } }),
+    // Prospețimea ingestiei: cel mai recent articol (după publishedAt) — o
+    // singură linie, sortare descrescătoare (interogare mărginită).
+    payload.find({
+      collection: 'aggregated-items',
+      depth: 0,
+      limit: 1,
+      sort: '-publishedAt',
+    }),
     payload.find({
       collection: 'llm-usage',
       depth: 0,
@@ -168,12 +197,17 @@ export async function buildOpsStats(payload: Payload, now: Date = new Date()): P
     payload.findGlobal({ slug: 'site-config', depth: 0 }) as Promise<SiteConfig>,
   ])
 
+  const newestItem = newestItemResult.docs[0]
+  const newestIso = newestItem?.publishedAt ?? newestItem?.createdAt ?? null
+  const newestItemAgeMinutes = ageMinutes(newestIso, now)
+
   return {
     generatedAt: now.toISOString(),
     feeds: feedsResult.docs.map((feed) => ({
       name: feed.name,
       active: feed.active === true,
       lastFetchedAt: feed.lastFetchedAt ?? null,
+      lastItemAt: feed.lastItemAt ?? null,
       consecutiveFailures: feed.consecutiveFailures ?? 0,
       lastError: feed.lastError ?? null,
     })),
@@ -181,6 +215,8 @@ export async function buildOpsStats(payload: Payload, now: Date = new Date()): P
       originals,
       aggregated,
       publishedToday: originalsToday + aggregatedToday,
+      ingestedLastHour,
+      newestItemAgeMinutes,
     },
     llm: rollupLlmUsage(llmResult.docs, days),
     cdp: {
