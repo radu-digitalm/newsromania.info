@@ -25,7 +25,7 @@
  *   - near-duplicate clustering: normalized-title Jaccard ≥ 0.6 against items
  *     from the last 48h ⇒ same story from another outlet ⇒ SKIP (keep earliest);
  *   - EXCERPT: the RSS item's own description/summary/content, HTML-stripped and
- *     trimmed to a legal ≤55-word extract (all feeds, incl. link-only — the cap
+ *     trimmed to a legal ≤70-word extract (all feeds, incl. link-only — the cap
  *     is the legal gate). No usable RSS text AND excerptPolicy 'ai-excerpt' ⇒
  *     summarizeExcerpt + categorizeAndTag (≤ aggregation.maxSummariesPerRun).
  *     Any excerpt ⇒ linkOnly=false;
@@ -36,7 +36,7 @@
  * Then: archive pass (older than aggregation.itemTtlDays) + purgeFeedCache.
  *
  * LEGAL (PROJECT_BRIEF 0.1/0.2): aggregated items NEVER store third-party
- * full text — only the transformative ≤55-word excerpt (or nothing at all).
+ * full text — only the transformative ≤70-word excerpt (or nothing at all).
  *
  * Concurrency: feeds sequential, items sequential (shared VPS); the whole run
  * is hard-capped at 5 minutes and bails gracefully.

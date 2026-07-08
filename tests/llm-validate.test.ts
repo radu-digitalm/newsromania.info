@@ -154,7 +154,8 @@ describe('validateExcerpt', () => {
   })
 
   it('collects multiple reasons at once', () => {
-    const longAndCopied = source + ' ' + Array.from({ length: 30 }, (_, i) => `w${i}`).join(' ')
+    const longAndCopied =
+      source + ' ' + Array.from({ length: MAX_EXCERPT_WORDS + 5 }, (_, i) => `w${i}`).join(' ')
     const verdict = validateExcerpt(longAndCopied, source)
     expect(verdict.ok).toBe(false)
     expect(verdict.reasons.length).toBe(2)

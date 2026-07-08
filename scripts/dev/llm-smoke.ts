@@ -4,7 +4,7 @@
  *
  * Makes a handful of REAL OpenAI calls (frugal: 3–5 total, including the
  * excerpt retry if triggered) and verifies:
- *  1. summarizeExcerpt → ≤55 RO words, no >8-word verbatim run, attribution;
+ *  1. summarizeExcerpt → ≤70 RO words, no >8-word verbatim run, attribution;
  *  2. categorizeAndTag → valid canonical slug + ≤4 tags (JSON mode);
  *  3. writeCaptions → all three platforms, twitter ≤240 chars;
  *  4. llm-usage rows upserted for today.

@@ -9,7 +9,7 @@
  *   consecutive words with the third-party source text.
  */
 
-export const MAX_EXCERPT_WORDS = 55
+export const MAX_EXCERPT_WORDS = 70
 export const MAX_VERBATIM_RUN = 8
 
 /**

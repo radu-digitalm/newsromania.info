@@ -122,9 +122,9 @@ https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32019L0790
   înlocuiască publicația și să nu determine publicul să nu o mai acceseze (art. 94¹ alin. (2)
   lit. c) in fine). La nivel UE, „extras foarte scurt" rămâne o noțiune autonomă, nedefinită
   numeric, iar la data verificării nu există jurisprudență română publicată pe art. 94¹.
-- **Validatorul nostru de ≤55 de cuvinte este o practică conservatoare, nu un prag legal.**
+- **Validatorul nostru de ≤70 de cuvinte este o practică conservatoare, nu un prag legal.**
   Legea română vorbește de 120 de CARACTERE (nu cuvinte) pentru excluderea din dreptul
-  editorilor; 55 de cuvinte depășesc în mod normal 120 de caractere, deci extrasele mai lungi de
+  editorilor; 70 de cuvinte depășesc în mod normal 120 de caractere, deci extrasele mai lungi de
   120 de caractere se sprijină pe excepția de citare (art. 35 alin. (1) lit. b)), care este
   calitativă (scop de analiză/comentariu/exemplificare, întindere justificată, bune uzanțe), nu
   cantitativă. Reperele practice comparate: ~7 cuvinte + titlu (practica arbitrală germană DPMA,

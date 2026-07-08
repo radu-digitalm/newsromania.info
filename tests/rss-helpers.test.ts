@@ -158,7 +158,7 @@ describe('itemDescription (best raw text for the stored RSS excerpt)', () => {
   })
 })
 
-describe('rssExcerpt — LEGAL GATE: ≤55-word very-short extract', () => {
+describe('rssExcerpt — LEGAL GATE: ≤70-word very-short extract', () => {
   it('strips HTML and keeps short text verbatim (no ellipsis)', () => {
     expect(rssExcerpt('<p>Guvernul a aprobat bugetul pe 2026.</p>')).toBe(
       'Guvernul a aprobat bugetul pe 2026.',
@@ -184,7 +184,7 @@ describe('rssExcerpt — LEGAL GATE: ≤55-word very-short extract', () => {
   })
 
   it('does not leave dangling punctuation before the ellipsis', () => {
-    const words = Array.from({ length: 60 }, (_, i) =>
+    const words = Array.from({ length: MAX_EXCERPT_WORDS + 10 }, (_, i) =>
       i === MAX_EXCERPT_WORDS - 1 ? 'gata,' : `w${i}`,
     )
     const out = rssExcerpt(words.join(' '))

@@ -9,7 +9,7 @@
  *     (non-newsromania.info) anchor in the body tail („Citeste articolul
  *     integral pe …”), a „Sursa” / „sursa foto” mention, or a publisher-name
  *     title prefix. → `aggregated-items`: attribution + FRESH transformative
- *     AI excerpt (src/lib/llm.ts summarizeExcerpt, ≤55 Romanian words). The
+ *     AI excerpt (src/lib/llm.ts summarizeExcerpt, ≤70 Romanian words). The
  *     third-party text is used ONLY in-memory as summarization input and is
  *     NEVER stored (legal gates PROJECT_BRIEF 0.1/0.2). imageUrl stays empty —
  *     third-party image rights are unclear.

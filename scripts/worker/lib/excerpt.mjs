@@ -18,9 +18,9 @@
 
 import { stripHtml } from './rss.mjs'
 
-// Mirrors src/lib/llm-validate.ts MAX_EXCERPT_WORDS (the ≤55-word / very-short
+// Mirrors src/lib/llm-validate.ts MAX_EXCERPT_WORDS (the ≤70-word / very-short
 // cap) so RSS excerpts and AI excerpts obey the same legal ceiling.
-export const MAX_EXCERPT_WORDS = 55
+export const MAX_EXCERPT_WORDS = 70
 
 /**
  * Split into words the way the excerpt validator counts them: whitespace

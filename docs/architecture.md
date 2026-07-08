@@ -132,7 +132,7 @@ frontPageMaxAgeHours: 72, maxSummariesPerRun: 40 }.
   (SDK throttle exception → backoff + serve stale). NEVER called per-view
   uncached. Marketplace map: GB→co.uk, FR→fr, US→com, else→de.
 - `src/lib/llm.ts` → OpenAI (env OPENAI_API_KEY, OPENAI_MODEL_CHAT).
-  `summarizeExcerpt(item)` (≤ 55 Romanian words, transformative, no verbatim
+  `summarizeExcerpt(item)` (≤70 Romanian words, transformative, no verbatim
   >8-word runs), `categorizeAndTag(item)` (one of the 8 slugs + ≤4 tags),
   `writeCaptions(story)` (per-platform), all logging to `llm-usage`.
   Provider switch via AI_DEFAULT_PROVIDER_* env (only 'openai' implemented;

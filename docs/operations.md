@@ -119,7 +119,7 @@ nothing is fetched until the owner acts. Per publisher, in this order:
    feed → set **Activ** = on. It is picked up on the next 20-min ingest run.
 3. `excerptPolicy` stays `link-only` (title + attribution + link out, no AI
    text) unless the T&Cs also permit short excerpts — only then flip it to
-   `ai-excerpt` (transformative ≤ 55-word Romanian summary, attributed).
+   `ai-excerpt` (transformative ≤70-word Romanian summary, attributed).
    These are two separate decisions; document each review.
 
 Aggregated items NEVER store third-party full text, and images are used only

@@ -356,7 +356,7 @@ function escapeRegExp(text: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// 1) summarizeExcerpt — ≤ 55 Romanian words, transformative, attributed
+// 1) summarizeExcerpt — ≤70 Romanian words, transformative, attributed
 // ---------------------------------------------------------------------------
 
 export interface SummarizeInput {
@@ -374,7 +374,7 @@ export interface SummarizeOptions {
 const SUMMARIZE_SYSTEM = `Ești redactor de agregare la o publicație de știri din România. Primești titlul și textul unei știri publicate de o ALTĂ redacție. Scrie un rezumat TRANSFORMATIV în limba română, cu diacritice corecte (ă, â, î, ș, ț).
 
 Reguli obligatorii:
-- Maximum 50 de cuvinte, un singur paragraf, fără titlu, fără ghilimele decorative.
+- Maximum 65 de cuvinte, unul-două paragrafe scurte, fără titlu, fără ghilimele decorative.
 - Reformulează COMPLET, cu propriile cuvinte: nu prelua niciodată mai mult de câteva cuvinte consecutive din textul-sursă și nu cita pasaje.
 - Strict faptic: fără opinii, fără superlative, fără informații care nu apar în sursă.
 - Nu folosi „?" sau alte semne de substituție în locul cifrelor ori faptelor pe care nu le găsești în sursă (de ex. scorul „0-?") — omite pur și simplu informația respectivă.
@@ -384,10 +384,10 @@ Răspunde DOAR cu textul rezumatului.`
 
 const SUMMARIZE_RETRY_SUFFIX = `
 
-ATENȚIE: încercarea anterioară a încălcat regulile ({MOTIVE}). Rescrie de la zero, mai scurt (maximum 45 de cuvinte) și parafrazează integral — nicio secvență de peste 6 cuvinte identică cu textul-sursă.`
+ATENȚIE: încercarea anterioară a încălcat regulile ({MOTIVE}). Rescrie de la zero, mai scurt (maximum 60 de cuvinte) și parafrazează integral — nicio secvență de peste 6 cuvinte identică cu textul-sursă.`
 
 /**
- * ≤ 55-word transformative Romanian excerpt with natural attribution.
+ * ≤70-word transformative Romanian excerpt with natural attribution.
  * Post-validated against the source; one strict retry; on repeated violation
  * returns null (caller stores the item link-only). Low temperature.
  */

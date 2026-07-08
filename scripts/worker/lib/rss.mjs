@@ -220,11 +220,11 @@ function codePointOr(raw, cp) {
 
 /**
  * Source text passed TRANSIENTLY to the LLM for summarization. It is NEVER
- * stored (aggregated-items keep only the transformative ≤55-word excerpt).
+ * stored (aggregated-items keep only the transformative ≤70-word excerpt).
  * Capped at 4000 chars to keep token usage predictable.
  */
 /**
- * Best RAW text field to build the stored ≤55-word RSS excerpt from
+ * Best RAW text field to build the stored ≤70-word RSS excerpt from
  * (lib/excerpt.mjs strips HTML + clamps it). Prefers the publisher's own
  * short summary (description / summary / contentSnippet) and only then the
  * fuller content:encoded — the excerpt is length-capped either way, so a long
