@@ -34,8 +34,21 @@ export const dynamic = 'force-dynamic'
 const UMAMI_ORIGIN = process.env.UMAMI_INTERNAL_URL ?? 'http://umami:3000'
 const DASHBOARD_URL = process.env.UMAMI_DASHBOARD_URL ?? 'https://stats.newsromania.info'
 
-// Recomputed / hop-by-hop response headers we must not copy verbatim upstream.
-const STRIP_RESPONSE_HEADERS = new Set(['transfer-encoding', 'connection', 'keep-alive'])
+// Response headers we must NOT copy verbatim from upstream:
+//  - hop-by-hop (transfer-encoding/connection/keep-alive);
+//  - content-encoding + content-length: Node's fetch (undici) transparently
+//    DECOMPRESSES the upstream gzip/br body, so `upstream.body` is already
+//    plain. Copying Umami's `content-encoding: gzip` onto that plain body makes
+//    every real browser try to gunzip plain text -> net::ERR_CONTENT_DECODING_FAILED
+//    (curl without --compressed silently ignores the mismatch, which masked it).
+//    We re-let the platform/nginx set the correct length + (optionally) re-encode.
+const STRIP_RESPONSE_HEADERS = new Set([
+  'transfer-encoding',
+  'connection',
+  'keep-alive',
+  'content-encoding',
+  'content-length',
+])
 // Request headers we must not forward: `host` would leak our public host into
 // Umami's router; `connection` is hop-by-hop.
 const STRIP_REQUEST_HEADERS = new Set(['host', 'connection'])
@@ -56,6 +69,10 @@ async function proxyTracking(request: Request, path: string[]): Promise<Response
   request.headers.forEach((value, key) => {
     if (!STRIP_REQUEST_HEADERS.has(key.toLowerCase())) headers.set(key, value)
   })
+  // Ask Umami for an UNCOMPRESSED body. undici would auto-decompress anyway, but
+  // this keeps upstream + our re-sent headers honest (no content-encoding to
+  // strip in the common case) and avoids any double-encode surprise.
+  headers.set('accept-encoding', 'identity')
 
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
 
