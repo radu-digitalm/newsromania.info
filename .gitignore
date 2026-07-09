@@ -27,3 +27,6 @@ tmp/
 *.swo
 *~
 backups/
+
+# Operational FB posting prompt — kept local, not tracked
+docs/facebook-posting-agent-prompt.md
