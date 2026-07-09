@@ -71,17 +71,25 @@ d. Open the chosen story's article page on newsromania.info. Record three things
      (`https://newsromania.info/stiri/<slug>`). This is what goes in the comment.
    - **The lead photo** — see Step 2.
 
-## Step 2 — get the photo
+## Step 2 — get the photo (download the FILE — you run locally, so do it cleanly)
 
-The article page shows a lead image. Get it as a file to attach:
-- Preferred: find the lead `<img>` (or the `og:image`) with `find`/`read_page`,
-  open that image URL in a tab, and save it; then attach with `file_upload`.
-- Fallback (if there's no clean image URL, or the image won't save): take a
-  `computer` **screenshot with `save_to_disk: true`** of the article's hero
-  image region and use that file. `upload_image` can also attach a captured
-  image directly.
-- If the story genuinely has **no usable photo**, you may still post text-only —
-  but prefer a photo; posts with images get far more reach.
+You run on the SAME machine as Chrome, so **download the real image file** and
+upload it — never a screenshot (screenshots capture window chrome and look
+broken as a post image).
+1. Get the article's image URL from its page's `og:image`. Fastest, in a
+   terminal:
+   `curl -s "<ARTICLE_URL>" | grep -oiE 'og:image"[^>]*content="[^"]+"' | head -1`
+   (or read it with `read_page`/`find`). It's usually the publisher's CDN JPEG.
+2. Download it somewhere the browser can read, e.g.
+   `curl -L -o ~/Downloads/nr-photo.jpg "<IMAGE_URL>"`.
+3. In Facebook's composer, add a photo by locating the **file input** with
+   `find`/`read_page` (do NOT click the "Photo/video" button — that opens a
+   native OS picker you can't see) and `file_upload` the downloaded file to that
+   input's `ref`.
+- Fallback ONLY if the download fails: `computer` screenshot the image, then
+  `upload_image`.
+- If the story has no usable photo, text-only is allowed, but a photo is strongly
+  preferred (far more reach).
 
 ## Step 3 — open the composer AS the NewsRomania page
 
