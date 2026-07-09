@@ -1,0 +1,17 @@
+# newsromania-facebook.timer — postează impact-of-the-hour pe PAGINA Facebook o
+# dată pe oră. Unitate systemd de UTILIZATOR (systemctl --user).
+
+[Unit]
+Description=NewsRomania — timer postare PAGINĂ Facebook (orar)
+
+[Timer]
+# La 5 minute după fix: ingestia (*:0/5) a apucat să aducă titlurile orei, iar
+# offset-ul evită coliziunea cu newsromania-social.timer (care rulează la :00).
+OnCalendar=*:05
+# Recuperează o rulare pierdută (ex. după repornirea serverului).
+Persistent=true
+RandomizedDelaySec=120
+Unit=newsromania-facebook.service
+
+[Install]
+WantedBy=timers.target

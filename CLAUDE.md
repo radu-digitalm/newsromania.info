@@ -35,7 +35,7 @@ Run `whoami && hostname` first.
 ## Fixed integration decisions (do not re-litigate)
 - Amazon Creators API via the vendored official SDK at `/vendor/creatorsapi-nodejs-sdk` (`file:` dependency; `npm install && npm run build` inside it). Marketplace is set per request and the `partnerTag` must match that marketplace. Cache product results in Redis — never call the API per page view.
 - AdSense site review is PENDING: ad slots render blank until approval. This is expected — never insert fake or placeholder ads.
-- Social posting is executed by Claude in Chrome from a prepared posting queue — do NOT build Meta/X API posting.
+- Social posting — REVISED by owner 2026-07: the Facebook **PAGE** hourly impact post IS automated via the official Graph API (`scripts/worker/facebook-page.mjs` + `newsromania-facebook.timer`; photo post + link in first comment; `docs/facebook-graph-setup.md`). This is the sanctioned, ban-safe path for a page you own. **GROUPS are still Claude-in-Chrome** (Meta removed Graph API group publishing in Apr 2024) — run `docs/facebook-posting-agent-prompt.md` locally. Do NOT build X/Twitter or Instagram API posting (those remain Claude-in-Chrome from the prepared queue).
 - GDPR: Refuse must be as easy as Accept; zero tracking or cookie reads before consent.
 - Editorial backend: Payload (Next.js-native). Original articles and aggregated items are distinct content types — aggregated items are excerpt + attribution + link out, never full text.
 - Runtime: the app + its OWN PostgreSQL + Redis run via **rootless** Docker/Podman compose (resource limits, internal network); only the app's port from 3100–3199 is published for nginx. The host's Postgres (:5432 = Umami) and host MySQL are never used.

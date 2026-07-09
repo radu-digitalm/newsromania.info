@@ -1,0 +1,22 @@
+# newsromania-facebook.service — o rulare a postării automate pe PAGINA Facebook
+# via Graph API (decizia proprietarului 2026-07). Unitate systemd de UTILIZATOR
+# (systemctl --user). Fără secrete aici: `npx payload run` încarcă .env.
+# DORMANT până sunt setate FB_PAGE_ID + FB_PAGE_ACCESS_TOKEN (iese fără efect).
+# GRUPURILE nu se postează aici (Graph API nu mai permite din apr. 2024) — rămân
+# manual/browser (docs/facebook-posting-agent-prompt.md).
+
+[Unit]
+Description=NewsRomania — postare automată PAGINĂ Facebook (impact orar)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/newsagent/workspace/newsromania
+# bash -lc pentru PATH-ul utilizatorului (node via ~/bin, regula CLAUDE.md).
+ExecStart=/bin/bash -lc 'export PATH="$HOME/bin:$PATH"; cd /home/newsagent/workspace/newsromania && npx payload run scripts/worker/facebook-page.mjs'
+# O postare + un comentariu = câteva secunde; plasă de siguranță generoasă.
+TimeoutStartSec=120
+# VPS partajat: prioritate redusă CPU/IO.
+Nice=10
+IOSchedulingClass=idle
