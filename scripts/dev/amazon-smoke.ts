@@ -35,7 +35,10 @@ console.log(`--- 2) apel live: ${products.length} produse in ${Date.now() - t0}m
 for (const p of products) {
   const img = p.image ? `${p.image.width}x${p.image.height}` : '-'
   const tagOk = p.url.includes(`tag=${input.partnerTag}`)
-  console.log(`    asin=${p.asin} pret=${p.price ?? '-'} img=${img} tagOk=${tagOk}`)
+  const promo = p.pricing?.dealBadge ?? (p.pricing?.savings ? `-${p.pricing.savings.display}` : '-')
+  console.log(
+    `    asin=${p.asin} pret=${p.pricing?.price ?? '-'} promo=${promo} img=${img} tagOk=${tagOk}`,
+  )
   console.log(`    titlu=${p.title.slice(0, 70)}`)
 }
 

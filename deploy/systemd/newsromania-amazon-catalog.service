@@ -1,0 +1,22 @@
+# newsromania-amazon-catalog.service — o rulare a refresh-ului zilnic al
+# catalogului Amazon (toate marketplace-urile): snapshot PA-API când contul e
+# eligibil, altfel link check + curățarea ASIN-urilor moarte.
+# Unitate systemd de UTILIZATOR (systemctl --user). Fără secrete aici:
+# `npx payload run` încarcă .env din rădăcina proiectului.
+# Instalare: deploy/systemd/install-user-units.sh
+
+[Unit]
+Description=NewsRomania — refresh zilnic catalog Amazon (toate piețele)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/newsagent/workspace/newsromania
+# bash -lc ca să preia PATH-ul utilizatorului (node via ~/bin, regula CLAUDE.md).
+ExecStart=/bin/bash -lc 'export PATH="$HOME/bin:$PATH"; cd /home/newsagent/workspace/newsromania && npx payload run scripts/worker/amazon-catalog.mjs'
+# Workerul se limitează singur la 9 minute; systemd taie la 11 ca plasă de siguranță.
+TimeoutStartSec=660
+# VPS partajat: prioritate redusă CPU/IO.
+Nice=10
+IOSchedulingClass=idle

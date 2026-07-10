@@ -111,11 +111,14 @@ describe('house catalog — variety & data correctness', () => {
     expect(airtag!.title).not.toContain('2ª generație')
   })
 
-  it('co.uk products price in GBP (£), never EUR', () => {
-    for (const p of HOUSE_AMAZON_PRODUCTS_BY_MARKETPLACE['www.amazon.co.uk']) {
-      if (p.price) {
-        expect(p.price).toContain('£')
-        expect(p.price).not.toContain('€')
+  // Replaces the old "co.uk prices in GBP" check: there are no prices here any
+  // more. Amazon only permits displaying pricing pulled from the PA-API within
+  // the last 24h, and nothing refreshes this static file — so it carries none,
+  // and the currency can no longer be wrong. See amazon-product.ts/AmazonPricing.
+  it('carries NO pricing on any product (a static catalog cannot satisfy the 24h rule)', () => {
+    for (const mp of MARKETS) {
+      for (const p of HOUSE_AMAZON_PRODUCTS_BY_MARKETPLACE[mp]) {
+        expect(p.pricing).toBeUndefined()
       }
     }
   })

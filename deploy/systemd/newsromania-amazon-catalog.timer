@@ -1,0 +1,18 @@
+# newsromania-amazon-catalog.timer — o dată pe zi, noaptea (trafic minim, iar
+# prețurile/promoțiile din snapshot rămân sub limita Amazon de 24h).
+# Unitate systemd de UTILIZATOR (systemctl --user).
+
+[Unit]
+Description=NewsRomania — timer refresh catalog Amazon (zilnic)
+
+[Timer]
+OnCalendar=*-*-* 04:17:00
+# Recuperează o rulare pierdută (ex. după repornirea serverului) — altfel o zi
+# ratată ar lăsa snapshot-ul să treacă de 24h și prețurile s-ar ascunde singure.
+Persistent=true
+# Desincronizează pornirea față de alte joburi de pe VPS-ul partajat.
+RandomizedDelaySec=900
+Unit=newsromania-amazon-catalog.service
+
+[Install]
+WantedBy=timers.target

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { getRedis, rkey } from '@/lib/redis'
 
 import type { AmazonDecision } from './engine-core'
+import { readDeadAsins, readSnapshot } from './amazon-catalog'
 import { houseProductsForMarketplace } from './house-amazon-products'
 import { productMatchesCategory } from './house-category'
 import { AMAZON_HOUSE_ADS } from './preview'
@@ -39,8 +40,9 @@ import { AMAZON_HOUSE_ADS } from './preview'
 // AmazonProduct/AmazonProductImage live in the client-bundle-safe
 // amazon-product.ts (the wire shape the /api/feed batch serializes and the
 // client card renders); re-exported here so amazon.ts's API is unchanged.
-export type { AmazonProduct, AmazonProductImage } from './amazon-product'
-import type { AmazonProduct } from './amazon-product'
+export type { AmazonPricing, AmazonProduct, AmazonProductImage } from './amazon-product'
+import type { AmazonPricing, AmazonProduct } from './amazon-product'
+import { stripPricing } from './amazon-product'
 
 export interface SearchProductsInput {
   /** Engine keywords, strongest first — the FIRST phrase is the search query. */
@@ -53,15 +55,29 @@ export interface SearchProductsInput {
   count?: number
 }
 
+/**
+ * Fresh window. NOT an arbitrary number: Amazon requires that any displayed
+ * price/savings/deal be no more than 24h stale, so a product served off this
+ * cache may keep its `pricing`. Do not raise it above 24h.
+ */
 export const AMAZON_CACHE_TTL_SEC = 24 * 60 * 60 // fresh: 24h
+/**
+ * Stale-while-error window. Products served from here are up to 7 days old, so
+ * searchProducts() runs them through stripPricing() — title/image/link only.
+ */
 export const AMAZON_STALE_TTL_SEC = 7 * 24 * 60 * 60 // stale-while-error: 7d
 export const DEFAULT_PRODUCT_COUNT = 3
 
-/** Resources requested from searchItems — exactly what the ad renders. */
+/**
+ * Resources requested from searchItems — exactly what the ad renders.
+ * `offersV2.listings.price` carries money + savings + savingBasis in one go;
+ * `dealDetails` adds the promotion badge ("Ofertă zilnică", …).
+ */
 export const SEARCH_RESOURCES = [
   'images.primary.medium',
   'itemInfo.title',
   'offersV2.listings.price',
+  'offersV2.listings.dealDetails',
 ] as const
 
 // ---------------------------------------------------------------------------
@@ -97,12 +113,63 @@ interface SdkImageSize {
   height?: number
 }
 
+interface SdkMoney {
+  displayAmount?: string
+}
+
+interface SdkListing {
+  price?: {
+    money?: SdkMoney
+    /** Discount off `savingBasis` — present only when the item is on promotion. */
+    savings?: { money?: SdkMoney; percentage?: number }
+    /** The reference ("was") price the savings are computed against. */
+    savingBasis?: { money?: SdkMoney; savingBasisTypeLabel?: string }
+  }
+  /** Deal/promotion metadata; `badge` is the localized label Amazon shows. */
+  dealDetails?: { badge?: string }
+}
+
 interface SdkItem {
   asin?: string
   detailPageURL?: string
   images?: { primary?: { medium?: SdkImageSize } }
   itemInfo?: { title?: { displayValue?: string } }
-  offersV2?: { listings?: Array<{ price?: { money?: { displayAmount?: string } } }> }
+  offersV2?: { listings?: SdkListing[] }
+}
+
+/**
+ * Buy-box pricing → AmazonPricing. Returns undefined when the listing has no
+ * displayable price (out of stock, digital-only, …) so the card stays priceless
+ * rather than rendering a half-empty promo row.
+ *
+ * Only ever called on a LIVE API response — that is what makes the resulting
+ * `pricing` object legal to display (see AmazonPricing).
+ */
+export function mapPricing(listing: SdkListing | undefined): AmazonPricing | undefined {
+  const price = listing?.price?.money?.displayAmount
+  if (!price) return undefined
+
+  const pricing: AmazonPricing = { price }
+
+  const savingsDisplay = listing?.price?.savings?.money?.displayAmount
+  if (savingsDisplay) {
+    const percentage = listing?.price?.savings?.percentage
+    pricing.savings = {
+      display: savingsDisplay,
+      ...(typeof percentage === 'number' && percentage > 0 ? { percentage } : {}),
+    }
+  }
+
+  const wasDisplay = listing?.price?.savingBasis?.money?.displayAmount
+  if (wasDisplay) {
+    const label = listing?.price?.savingBasis?.savingBasisTypeLabel
+    pricing.was = { display: wasDisplay, ...(label ? { label } : {}) }
+  }
+
+  const badge = listing?.dealDetails?.badge
+  if (badge) pricing.dealBadge = badge
+
+  return pricing
 }
 
 interface SdkSearchResponse {
@@ -126,8 +193,8 @@ export function mapItems(
       medium?.url && medium.width && medium.height
         ? { url: medium.url, width: medium.width, height: medium.height }
         : undefined
-    const price = item.offersV2?.listings?.[0]?.price?.money?.displayAmount
-    products.push({ asin: item.asin, title, url, image, price })
+    const pricing = mapPricing(item.offersV2?.listings?.[0])
+    products.push({ asin: item.asin, title, url, image, ...(pricing ? { pricing } : {}) })
   }
   return products
 }
@@ -192,11 +259,39 @@ function parseProducts(raw: string | null): AmazonProduct[] | null {
 }
 
 /**
+ * ONE uncached searchItems call → mapped products (with fresh `pricing`).
+ *
+ * THROWS on any API failure — callers decide what that means: searchProducts()
+ * falls back to the stale copy, the daily catalog worker falls back to
+ * link-checking. Exported for that worker, which must bypass the 24h cache
+ * precisely because its job is to refresh it.
+ */
+export async function fetchProductsLive({
+  keywords,
+  marketplace,
+  partnerTag,
+  count = DEFAULT_PRODUCT_COUNT,
+}: SearchProductsInput): Promise<AmazonProduct[]> {
+  const query = keywords.map((keyword) => keyword.trim()).filter(Boolean)[0]
+  if (!query || !marketplace || !partnerTag) return []
+  const api = await getCreatorsApi()
+  const response = await api.searchItems(marketplace, {
+    searchItemsRequestContent: {
+      partnerTag,
+      keywords: query,
+      itemCount: count,
+      resources: [...SEARCH_RESOURCES],
+    },
+  })
+  return mapItems(response, partnerTag, count)
+}
+
+/**
  * Product lookup for an AmazonDecision. Order of resort:
  *  1. fresh Redis cache (24h) — the normal per-view path, zero API calls;
  *  2. live searchItems call → cache fresh + stale copies;
  *  3. on ANY error (throttle 429, tag/marketplace rejection, auth, network):
- *     last stale copy (≤7d) else [].
+ *     last stale copy (≤7d), pricing stripped, else [].
  * Never throws. [] ⇒ the slot renders its reserved-empty state.
  */
 export async function searchProducts({
@@ -223,16 +318,7 @@ export async function searchProducts({
 
   // 2. Live call (rate-limited API — only ever on cache expiry).
   try {
-    const api = await getCreatorsApi()
-    const response = await api.searchItems(marketplace, {
-      searchItemsRequestContent: {
-        partnerTag,
-        keywords: query,
-        itemCount: count,
-        resources: [...SEARCH_RESOURCES],
-      },
-    })
-    const products = mapItems(response, partnerTag, count)
+    const products = await fetchProductsLive({ keywords, marketplace, partnerTag, count })
     try {
       const json = JSON.stringify(products)
       await redis.set(freshKey, json, 'EX', AMAZON_CACHE_TTL_SEC)
@@ -249,7 +335,9 @@ export async function searchProducts({
     )
     try {
       const stale = parseProducts(await redis.get(staleKey))
-      if (stale !== null) return stale
+      // Up to 7 days old ⇒ its prices are past Amazon's 24h refresh rule.
+      // Keep showing the product; never show its stale price/promotion.
+      if (stale !== null) return stripPricing(stale)
     } catch {
       // fall through to []
     }
@@ -335,13 +423,15 @@ export function orderedHouseSet(
  *
  *   1. the live Creators API product (searchProductsWithTimeout — Redis-cached,
  *      800ms budget). Once the Associates account is eligible this wins.
- *   2. while the live API returns nothing (AssociateNotEligible), a geo-matched
- *      SiteStripe HOUSE bestseller for decision.marketplace — a REAL affiliate
- *      product with the marketplace-correct partner tag. VARIETY + PERSONALIZED:
- *      the marketplace set is ordered by decision.preferredCategories (CDP
- *      top-interest / page category) then rotated by `variant`, so consecutive
- *      slots differ and the visitor's interest leads. Always-on, gated ONLY by
- *      AMAZON_HOUSE_ADS (default on), independent of AD_PREVIEW.
+ *   2. otherwise a FALLBACK POOL for decision.marketplace — real affiliate
+ *      products with the marketplace-correct partner tag. The pool is the daily
+ *      PA-API snapshot when the worker has published one (amazon-catalog.ts),
+ *      else the static SiteStripe HOUSE bestsellers; either way, ASINs the daily
+ *      link-check found dead are filtered out. VARIETY + PERSONALIZED: the pool
+ *      is ordered by decision.preferredCategories (CDP top-interest / page
+ *      category) then rotated by `variant`, so consecutive slots differ and the
+ *      visitor's interest leads. Gated ONLY by AMAZON_HOUSE_ADS (default on),
+ *      independent of AD_PREVIEW.
  *   3. undefined ⇒ the caller renders its reserved-empty „Publicitate" box.
  *
  * Never throws (searchProductsWithTimeout already swallows). Server-only
@@ -368,7 +458,16 @@ export async function resolveAmazonProduct(
   })
   if (live[0]) return live[0]
   if (AMAZON_HOUSE_ADS) {
-    const set = houseProductsForMarketplace(decision.marketplace)
+    // Daily PA-API snapshot when the worker has one, else the static catalog.
+    const [snapshot, dead] = await Promise.all([
+      readSnapshot(decision.marketplace),
+      readDeadAsins(decision.marketplace),
+    ])
+    const pool = snapshot ?? houseProductsForMarketplace(decision.marketplace)
+    // Never link to an ASIN the daily link-check confirmed 404s. If pruning
+    // would empty the pool, keep it — a stale link beats an empty ad box.
+    const alive = pool.filter((product) => !dead.has(product.asin))
+    const set = alive.length > 0 ? alive : pool
     if (set.length === 0) return undefined
     const ordered = orderedHouseSet(set, decision.preferredCategories)
     const index = Number.isFinite(variant) && variant >= 0 ? Math.floor(variant) : 0

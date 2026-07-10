@@ -1,4 +1,4 @@
-import type { AmazonProduct } from '@/lib/ads/amazon-product'
+import type { AmazonPricing, AmazonProduct } from '@/lib/ads/amazon-product'
 
 /**
  * AmazonProductCard — the CLIENT-BUNDLE-SAFE presentational Amazon product box
@@ -18,6 +18,12 @@ import type { AmazonProduct } from '@/lib/ads/amazon-product'
  * visible „Publicitate" label; rel="sponsored noopener nofollow", target
  * _blank; the URL already carries the marketplace-matching partnerTag (resolved
  * server-side); the disclosure line once per box; plain lazy <img>.
+ *
+ * PRICING: rendered if — and only if — `product.pricing` is present. That object
+ * exists solely on PA-API data fetched within the last 24h (see AmazonPricing);
+ * the static house catalog and the stale-while-error cache carry none, so a
+ * price or promotion that Amazon would consider out of date has nothing to
+ * render from. Never reintroduce a bare `price` field on AmazonProduct.
  */
 
 export type AmazonAdLayout = 'card' | 'banner'
@@ -39,6 +45,46 @@ function AssociateDisclosure() {
     <p className="border-t border-border px-3 py-2 text-center font-sans text-[11px] leading-4 text-ink-muted">
       Amazon affiliate
     </p>
+  )
+}
+
+/**
+ * Price + promotion. Only ever mounted for a `pricing` object, i.e. live PA-API
+ * data ≤24h old, so everything here is safe to display under the Associates
+ * agreement. Shape: [deal badge] price [struck was-price] [−%].
+ */
+function PricingRow({ pricing, align }: { pricing: AmazonPricing; align: 'center' | 'left' }) {
+  const discounted = Boolean(pricing.savings || pricing.was)
+  return (
+    <span
+      className={`mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 ${
+        align === 'center' ? 'justify-center' : 'justify-start'
+      }`}
+    >
+      {pricing.dealBadge && (
+        <span className="rounded-[3px] bg-brand-red px-1.5 py-0.5 font-sans text-[10px] font-bold uppercase leading-4 tracking-[0.04em] text-ink-inverse">
+          {pricing.dealBadge}
+        </span>
+      )}
+      <span
+        className={`font-sans text-[16px] font-semibold leading-5 ${
+          discounted ? 'text-red-text' : 'text-ink'
+        }`}
+      >
+        {pricing.price}
+      </span>
+      {pricing.was && (
+        <span className="font-sans text-[13px] leading-5 text-ink-muted">
+          <span className="sr-only">{pricing.was.label ?? 'Preț anterior'}: </span>
+          <s>{pricing.was.display}</s>
+        </span>
+      )}
+      {pricing.savings?.percentage !== undefined && (
+        <span className="font-sans text-[13px] font-semibold leading-5 text-red-text">
+          <span className="sr-only">Reducere </span>−{pricing.savings.percentage}%
+        </span>
+      )}
+    </span>
   )
 }
 
@@ -93,11 +139,7 @@ function ProductCardBody({ product }: { product: AmazonProduct }) {
           {product.title}
           <span className="sr-only"> (link extern către Amazon)</span>
         </span>
-        {product.price && (
-          <span className="mt-1 block font-sans text-[15px] font-semibold leading-5 text-ink">
-            {product.price}
-          </span>
-        )}
+        {product.pricing && <PricingRow pricing={product.pricing} align="center" />}
       </span>
     </a>
   )
@@ -134,11 +176,7 @@ function ProductBannerBody({ product }: { product: AmazonProduct }) {
           {product.title}
           <span className="sr-only"> (link extern către Amazon)</span>
         </span>
-        {product.price && (
-          <span className="mt-1 font-sans text-[16px] font-semibold leading-5 text-ink">
-            {product.price}
-          </span>
-        )}
+        {product.pricing && <PricingRow pricing={product.pricing} align="left" />}
       </span>
     </a>
   )
