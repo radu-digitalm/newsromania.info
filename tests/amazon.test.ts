@@ -436,6 +436,19 @@ describe('resolveAmazonProduct — daily catalog overlay', () => {
     expect(product?.pricing).toBeUndefined() // but never a stale price
   })
 
+  // The dead set is only refreshed by the link check, which does not run in API
+  // mode — so it must never be applied to a snapshot, or a once-404'd ASIN could
+  // never come back. Amazon's API returning the ASIN already proves it is alive.
+  it('does NOT apply the dead set to a PA-API snapshot', async () => {
+    publishSnapshot([snapshotProduct('B0FRESH001')], Date.now())
+    sets.set(deadKey('www.amazon.de'), new Set(['B0FRESH001']))
+
+    const product = await resolveAmazonProduct(DECISION)
+
+    expect(product?.asin).toBe('B0FRESH001')
+    expect(redisMock.smembers).not.toHaveBeenCalled() // not even consulted
+  })
+
   it('filters out ASINs the daily link check confirmed dead', async () => {
     const house = houseProductsForMarketplace('www.amazon.de')
     sets.set(deadKey('www.amazon.de'), new Set([house[0].asin]))

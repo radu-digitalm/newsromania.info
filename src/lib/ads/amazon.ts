@@ -416,6 +416,19 @@ export function orderedHouseSet(
 }
 
 /**
+ * The static house catalog minus the ASINs the daily link check confirmed dead.
+ * If pruning would empty the marketplace, keep the unpruned set — a possibly
+ * dead link still beats an empty „Publicitate" box.
+ */
+async function aliveHouseProducts(marketplace: string): Promise<AmazonProduct[]> {
+  const set = houseProductsForMarketplace(marketplace)
+  const dead = await readDeadAsins(marketplace)
+  if (dead.size === 0) return set
+  const alive = set.filter((product) => !dead.has(product.asin))
+  return alive.length > 0 ? alive : set
+}
+
+/**
  * Resolve ONE product for an AmazonDecision — the single source of truth used
  * by every Amazon surface (the SSR AmazonProductAd component AND the /api/feed
  * batch serializer for the infinite scroll), so a feed ad-post and an
@@ -459,15 +472,12 @@ export async function resolveAmazonProduct(
   if (live[0]) return live[0]
   if (AMAZON_HOUSE_ADS) {
     // Daily PA-API snapshot when the worker has one, else the static catalog.
-    const [snapshot, dead] = await Promise.all([
-      readSnapshot(decision.marketplace),
-      readDeadAsins(decision.marketplace),
-    ])
-    const pool = snapshot ?? houseProductsForMarketplace(decision.marketplace)
-    // Never link to an ASIN the daily link-check confirmed 404s. If pruning
-    // would empty the pool, keep it — a stale link beats an empty ad box.
-    const alive = pool.filter((product) => !dead.has(product.asin))
-    const set = alive.length > 0 ? alive : pool
+    // The snapshot needs NO dead-filter: Amazon's own API just returned those
+    // ASINs, so they exist. Filtering it would also be unsafe — the dead set is
+    // only ever refreshed by the link check, which does not run in API mode, so
+    // a once-404'd ASIN could never be un-pruned.
+    const snapshot = await readSnapshot(decision.marketplace)
+    const set = snapshot ?? (await aliveHouseProducts(decision.marketplace))
     if (set.length === 0) return undefined
     const ordered = orderedHouseSet(set, decision.preferredCategories)
     const index = Number.isFinite(variant) && variant >= 0 ? Math.floor(variant) : 0
